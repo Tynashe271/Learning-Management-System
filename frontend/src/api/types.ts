@@ -50,6 +50,7 @@ export interface User {
   is_active?: boolean
   last_login_at?: string | null
   digest_frequency?: DigestFrequency
+  low_data_mode?: boolean
   roles?: { id: number; name: string }[]
   permissions?: Permission[]
   created_at?: string
@@ -106,6 +107,7 @@ export type DigestFrequency = 'off' | 'daily' | 'weekly'
 export interface Preferences {
   digest_frequency: DigestFrequency
   digest_sent_at: string | null
+  low_data_mode: boolean
 }
 
 export interface DigestSummary {

@@ -18,7 +18,10 @@ class DigestController extends Controller
 
     public function update(Request $request): JsonResponse
     {
-        $data = $request->validate(['digest_frequency' => ['required', Rule::in(User::DIGEST_FREQUENCIES)]]);
+        $data = $request->validate([
+            'digest_frequency' => ['required', Rule::in(User::DIGEST_FREQUENCIES)],
+            'low_data_mode' => ['sometimes', 'boolean'],
+        ]);
         $request->user()->forceFill($data)->save();
 
         return response()->json($this->preferences($request->user()));
@@ -35,6 +38,6 @@ class DigestController extends Controller
     /** @return array<string, mixed> */
     private function preferences(User $user): array
     {
-        return ['digest_frequency' => $user->digest_frequency, 'digest_sent_at' => $user->digest_sent_at];
+        return ['digest_frequency' => $user->digest_frequency, 'digest_sent_at' => $user->digest_sent_at, 'low_data_mode' => $user->low_data_mode];
     }
 }

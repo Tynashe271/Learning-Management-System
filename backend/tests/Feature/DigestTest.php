@@ -79,6 +79,28 @@ class DigestTest extends TestCase
         $this->assertSame('off', $this->ada->fresh()->digest_frequency);
     }
 
+    public function test_low_data_mode_is_off_by_default_and_can_be_turned_on(): void
+    {
+        $this->actingAs($this->ada)->getJson('/api/me/preferences')->assertOk()->assertJsonPath('low_data_mode', false);
+        $this->actingAs($this->ada)->getJson('/api/me')->assertJsonPath('low_data_mode', false);
+
+        $this->actingAs($this->ada)->patchJson('/api/me/preferences', ['digest_frequency' => 'off', 'low_data_mode' => true])
+            ->assertOk()->assertJsonPath('low_data_mode', true);
+
+        $this->assertTrue((bool) $this->ada->fresh()->low_data_mode);
+        $this->actingAs($this->ada)->getJson('/api/me')->assertJsonPath('low_data_mode', true);
+    }
+
+    public function test_low_data_mode_is_optional_and_leaves_the_setting_alone_when_omitted(): void
+    {
+        $this->ada->forceFill(['low_data_mode' => true])->save();
+
+        $this->actingAs($this->ada)->patchJson('/api/me/preferences', ['digest_frequency' => 'weekly'])->assertOk()->assertJsonPath('low_data_mode', true);
+
+        $this->assertTrue((bool) $this->ada->fresh()->low_data_mode);
+        $this->assertSame('weekly', $this->ada->fresh()->digest_frequency);
+    }
+
     public function test_people_change_only_their_own_setting(): void
     {
         $this->actingAs($this->ada)->patchJson('/api/me/preferences', ['digest_frequency' => 'daily', 'user_id' => $this->ben->id, 'digest_sent_at' => now()->toIso8601String()])->assertOk();

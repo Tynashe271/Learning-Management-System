@@ -23,7 +23,7 @@ class User extends Authenticatable
 
     public const DIGEST_FREQUENCIES = ['off', 'daily', 'weekly'];
 
-    protected $attributes = ['is_active' => true];
+    protected $attributes = ['is_active' => true, 'low_data_mode' => false];
 
     protected static function booted(): void
     {
@@ -48,6 +48,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_active' => 'boolean',
             'digest_sent_at' => 'immutable_datetime',
+            'low_data_mode' => 'boolean',
         ];
     }
 }

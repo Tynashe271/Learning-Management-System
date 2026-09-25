@@ -5,7 +5,7 @@ import { api } from '../api/client'
 import type { DigestFrequency, DigestSummary, Me, Notification, Page, Preferences } from '../api/types'
 import { ROLE_LABELS } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
-import { Alert, Badge, Button, Card, EmptyState, FormError, Pager, PageHeader, QueryView, SelectField, TextField, pagerFromPage, useToast } from '../components/ui'
+import { Alert, Badge, Button, Card, CheckField, EmptyState, FormError, Pager, PageHeader, QueryView, SelectField, TextField, pagerFromPage, useToast } from '../components/ui'
 import { formatDateTime, relativeTime } from '../lib/format'
 import { fieldError, useApiMutation, useTitle } from '../lib/hooks'
 import { describePolicy, policyProblems, useAuthConfig } from '../lib/institution'
@@ -50,7 +50,10 @@ export function ProfilePage() {
         </Card>
         <PasswordCard />
       </div>
-      <DigestCard />
+      <div className="grid-2">
+        <DigestCard />
+        <LowDataModeCard />
+      </div>
     </>
   )
 }
@@ -164,6 +167,44 @@ function DigestCard() {
           )}
         </div>
       )}
+    </Card>
+  )
+}
+
+function LowDataModeCard() {
+  const preferences = useQuery({ queryKey: ['preferences'], queryFn: () => api.get<Preferences>('/me/preferences') })
+  const { refresh } = useAuth()
+  const [enabled, setEnabled] = useState(false)
+  useEffect(() => {
+    if (preferences.data) setEnabled(preferences.data.low_data_mode)
+  }, [preferences.data])
+
+  const save = useApiMutation(
+    () => api.patch<Preferences>('/me/preferences', { digest_frequency: preferences.data!.digest_frequency, low_data_mode: enabled }),
+    { invalidate: [['preferences']], success: 'Low-data mode preference saved.', onSuccess: () => void refresh() },
+  )
+
+  return (
+    <Card title="Low-data mode">
+      <QueryView query={preferences}>
+        {(prefs) => (
+          <>
+            <p className="muted">Reduces background refreshing and skips loading your feedback and topic recommendations automatically — useful on a slow or limited connection.</p>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                save.mutate()
+              }}
+            >
+              <CheckField label="Turn on low-data mode" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+              {save.error && <FormError error={save.error} />}
+              <Button type="submit" variant="primary" loading={save.isPending} disabled={enabled === prefs.low_data_mode}>
+                Save preference
+              </Button>
+            </form>
+          </>
+        )}
+      </QueryView>
     </Card>
   )
 }

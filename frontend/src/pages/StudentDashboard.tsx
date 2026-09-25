@@ -13,9 +13,12 @@ export function StudentDashboard() {
   useTitle('My learning')
   const { user } = useAuth()
 
+  const lowData = !!user?.low_data_mode
+  const [wantInsights, setWantInsights] = useState(!lowData)
+
   const offerings = useQuery({ queryKey: ['offerings', 1], queryFn: () => api.get<Page<Offering>>('/offerings', { page: 1 }) })
   const agenda = useQuery({ queryKey: ['me', 'agenda'], queryFn: () => api.get<Agenda>('/me/agenda', { days: 7 }) })
-  const insights = useQuery({ queryKey: ['me', 'insights'], queryFn: () => api.get<Insights>('/me/insights') })
+  const insights = useQuery({ queryKey: ['me', 'insights'], queryFn: () => api.get<Insights>('/me/insights'), enabled: wantInsights })
 
   const enrolled = offerings.data?.data ?? []
   const progressQueries = useQueries({
@@ -76,82 +79,91 @@ export function StudentDashboard() {
           {agenda.data && (agenda.data.sessions.length > 0 || agenda.data.deadlines.length > 0) && <WeeklyPlan agenda={agenda.data} />}
         </Card>
 
-        <Card title="Missing work">
-          {insights.isPending && <Loading />}
-          {insights.isError && <p className="muted">We could not load this just now.</p>}
-          {insights.data && insights.data.missing.length === 0 && (
-            <EmptyState title="Nothing overdue" icon="✅">
-              Everything that has come due so far is submitted.
-            </EmptyState>
-          )}
-          {insights.data && insights.data.missing.length > 0 && (
-            <ul className="agenda">
-              {insights.data.missing.map((m) => (
-                <MissingRow key={`${m.type}${m.id}`} item={m} />
-              ))}
-            </ul>
-          )}
-        </Card>
+        {wantInsights ? (
+          <Card title="Missing work">
+            {insights.isPending && <Loading />}
+            {insights.isError && <p className="muted">We could not load this just now.</p>}
+            {insights.data && insights.data.missing.length === 0 && (
+              <EmptyState title="Nothing overdue" icon="✅">
+                Everything that has come due so far is submitted.
+              </EmptyState>
+            )}
+            {insights.data && insights.data.missing.length > 0 && (
+              <ul className="agenda">
+                {insights.data.missing.map((m) => (
+                  <MissingRow key={`${m.type}${m.id}`} item={m} />
+                ))}
+              </ul>
+            )}
+          </Card>
+        ) : (
+          <Card title="Missing work, feedback & recommendations">
+            <p className="muted small">Low-data mode is on, so this is not loaded automatically.</p>
+            <Button onClick={() => setWantInsights(true)}>Load anyway</Button>
+          </Card>
+        )}
       </div>
 
-      <div className="grid-2">
-        <Card title="Recent feedback">
-          {insights.isPending && <Loading />}
-          {insights.isError && <p className="muted">We could not load this just now.</p>}
-          {insights.data && insights.data.recent_feedback.length === 0 && <p className="muted">No published feedback yet.</p>}
-          {insights.data && insights.data.recent_feedback.length > 0 && (
-            <ul className="agenda">
-              {insights.data.recent_feedback.map((f, i) => (
-                <li key={i}>
-                  <span className="agenda-icon" aria-hidden="true">
-                    💬
-                  </span>
-                  <span>
-                    <strong>{f.assignment}</strong>
-                    <span className="muted small block">
-                      {f.course} · {f.score}/{f.max_score}
+      {wantInsights && (
+        <div className="grid-2">
+          <Card title="Recent feedback">
+            {insights.isPending && <Loading />}
+            {insights.isError && <p className="muted">We could not load this just now.</p>}
+            {insights.data && insights.data.recent_feedback.length === 0 && <p className="muted">No published feedback yet.</p>}
+            {insights.data && insights.data.recent_feedback.length > 0 && (
+              <ul className="agenda">
+                {insights.data.recent_feedback.map((f, i) => (
+                  <li key={i}>
+                    <span className="agenda-icon" aria-hidden="true">
+                      💬
                     </span>
-                    <span className="small block">{f.feedback}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card title="Topics to review">
-          {insights.isPending && <Loading />}
-          {insights.isError && <p className="muted">We could not load this just now.</p>}
-          {insights.data && insights.data.weak_topics.length === 0 && <p className="muted">Nothing flagged — your marks look solid across every topic.</p>}
-          {insights.data && insights.data.weak_topics.length > 0 && (
-            <ul className="agenda">
-              {insights.data.weak_topics.map((t) => (
-                <li key={t.module_id}>
-                  <span className="agenda-icon" aria-hidden="true">
-                    📉
-                  </span>
-                  <span>
-                    <Link to={`/courses/${t.offering_id}/classwork#module-${t.module_id}`}>
-                      <strong>{t.title}</strong>
-                    </Link>
-                    <span className="muted small block">Averaging {t.percent}% — worth a second look</span>
-                    {t.practice_quiz_ids.length > 0 && (
-                      <span className="small block">
-                        {t.practice_quiz_ids.map((qid, i) => (
-                          <span key={qid}>
-                            {i > 0 && ', '}
-                            <Link to={`/quizzes/${qid}`}>Practice quiz</Link>
-                          </span>
-                        ))}
+                    <span>
+                      <strong>{f.assignment}</strong>
+                      <span className="muted small block">
+                        {f.course} · {f.score}/{f.max_score}
                       </span>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
+                      <span className="small block">{f.feedback}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card title="Topics to review">
+            {insights.isPending && <Loading />}
+            {insights.isError && <p className="muted">We could not load this just now.</p>}
+            {insights.data && insights.data.weak_topics.length === 0 && <p className="muted">Nothing flagged — your marks look solid across every topic.</p>}
+            {insights.data && insights.data.weak_topics.length > 0 && (
+              <ul className="agenda">
+                {insights.data.weak_topics.map((t) => (
+                  <li key={t.module_id}>
+                    <span className="agenda-icon" aria-hidden="true">
+                      📉
+                    </span>
+                    <span>
+                      <Link to={`/courses/${t.offering_id}/classwork#module-${t.module_id}`}>
+                        <strong>{t.title}</strong>
+                      </Link>
+                      <span className="muted small block">Averaging {t.percent}% — worth a second look</span>
+                      {t.practice_quiz_ids.length > 0 && (
+                        <span className="small block">
+                          {t.practice_quiz_ids.map((qid, i) => (
+                            <span key={qid}>
+                              {i > 0 && ', '}
+                              <Link to={`/quizzes/${qid}`}>Practice quiz</Link>
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+      )}
 
       <CalendarSync />
     </>

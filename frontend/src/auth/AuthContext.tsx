@@ -49,6 +49,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null)
   }, [clearSession])
 
+  // Low-data mode trades freshness for fewer requests: less frequent background refetching everywhere, no change needed per screen.
+  useEffect(() => {
+    const low = !!user?.low_data_mode
+    queryClient.setDefaultOptions({
+      queries: {
+        ...queryClient.getDefaultOptions().queries,
+        staleTime: low ? 5 * 60_000 : 15_000,
+        refetchOnWindowFocus: !low,
+        refetchOnReconnect: !low,
+      },
+    })
+  }, [queryClient, user?.low_data_mode])
+
   useEffect(() => {
     if (!tokenStore.get()) return
     let cancelled = false
