@@ -219,6 +219,18 @@ class LmsController extends Controller
         return response()->json($teacher);
     }
 
+    /** A teacher publishes when students can reach them for this course. Only that teacher, or a course administrator, may set it. */
+    public function updateTeacher(Request $request, CourseOffering $offering, User $user): JsonResponse
+    {
+        $this->authorize('manage', $offering);
+        abort_unless($request->user()->is($user) || $request->user()->can('manage-courses'), 403);
+        $assignment = TeachingAssignment::where('course_offering_id', $offering->id)->where('user_id', $user->id)->firstOrFail();
+        $data = $request->validate(['consultation_hours' => ['nullable', 'string', 'max:500']]);
+        $assignment->update($data);
+
+        return response()->json($assignment->load('user:id,name'));
+    }
+
     public function module(Request $request, CourseOffering $offering): JsonResponse
     {
         $this->authorize('manage', $offering);

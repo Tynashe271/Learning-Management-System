@@ -166,6 +166,7 @@ export interface Teacher {
   id: number
   user_id: number
   user?: { id: number; name: string; email?: string } | null
+  consultation_hours?: string | null
 }
 
 export interface Offering {

@@ -76,6 +76,26 @@ class ManagementTest extends TestCase
         $this->actingAs($this->lecturer)->postJson('/api/offerings/'.$this->offering->id.'/modules', ['title' => 'Week 1'])->assertForbidden();
     }
 
+    public function test_a_teacher_can_publish_their_own_consultation_hours_but_not_a_colleagues(): void
+    {
+        $colleague = $this->userWithRole('lecturer');
+        $this->teach($this->offering, $colleague);
+        $student = $this->userWithRole('student');
+        $this->enrol($this->offering, $student);
+
+        $this->actingAs($this->lecturer)->patchJson('/api/offerings/'.$this->offering->id.'/teachers/'.$this->lecturer->id, ['consultation_hours' => 'Tuesdays 2-4pm, Room 204'])
+            ->assertOk()->assertJsonPath('consultation_hours', 'Tuesdays 2-4pm, Room 204');
+        $this->actingAs($this->lecturer)->patchJson('/api/offerings/'.$this->offering->id.'/teachers/'.$colleague->id, ['consultation_hours' => 'Sneaky'])->assertForbidden();
+        $this->actingAs($this->admin)->patchJson('/api/offerings/'.$this->offering->id.'/teachers/'.$colleague->id, ['consultation_hours' => 'By appointment'])
+            ->assertOk()->assertJsonPath('consultation_hours', 'By appointment');
+        $this->actingAs($student)->patchJson('/api/offerings/'.$this->offering->id.'/teachers/'.$this->lecturer->id, ['consultation_hours' => 'Nope'])->assertForbidden();
+
+        $roster = $this->actingAs($this->admin)->getJson('/api/offerings/'.$this->offering->id.'/roster')->assertOk();
+        $this->assertSame('Tuesdays 2-4pm, Room 204', collect($roster->json('teachers'))->firstWhere('user_id', $this->lecturer->id)['consultation_hours']);
+        $shown = $this->actingAs($student)->getJson('/api/offerings/'.$this->offering->id)->assertOk();
+        $this->assertSame('By appointment', collect($shown->json('teachers'))->firstWhere('user_id', $colleague->id)['consultation_hours']);
+    }
+
     public function test_registrars_can_import_enrolments_by_email(): void
     {
         $registrar = $this->userWithRole('registrar');

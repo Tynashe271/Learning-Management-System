@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../../api/client'
-import type { EnrolmentImportResult, OfferingSummary, Person, Roster, RoleName } from '../../api/types'
-import { useAuth } from '../../auth/AuthContext'
+import type { EnrolmentImportResult, OfferingSummary, Person, Roster, RoleName, Teacher } from '../../api/types'
+import { useAuth, useMe } from '../../auth/AuthContext'
 import { PersonPicker } from '../../components/PersonPicker'
 import { Alert, Badge, Button, Card, EmptyState, FileField, FormError, Modal, Pager, QueryView, SelectField, Table, TextArea, pagerFromMeta, useConfirm } from '../../components/ui'
 import { formatDateTime, plural } from '../../lib/format'
-import { useApiMutation } from '../../lib/hooks'
+import { fieldError, useApiMutation } from '../../lib/hooks'
 import { useOffering } from './context'
 
 export function OverviewTab() {
@@ -83,11 +83,13 @@ export function OverviewTab() {
 export function PeopleTab() {
   const { id, admin, registrar } = useOffering()
   const { can } = useAuth()
+  const me = useMe()
   const confirm = useConfirm()
   const [page, setPage] = useState(1)
   const [enrolling, setEnrolling] = useState(false)
   const [assigning, setAssigning] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [settingHoursFor, setSettingHoursFor] = useState<Teacher | null>(null)
   const query = useQuery({ queryKey: ['roster', id, page], queryFn: () => api.get<Roster>(`/offerings/${id}/roster`, { page }), placeholderData: (previous) => previous })
 
   const setStatus = useApiMutation((v: { userId: number; status: 'active' | 'withdrawn' }) => api.post(`/offerings/${id}/enrolments`, { user_id: v.userId, status: v.status }), { invalidate: [['roster', id]], toastError: true, success: 'Enrolment updated.' })
@@ -116,7 +118,13 @@ export function PeopleTab() {
                     <div className="grow">
                       <strong>{t.user?.name}</strong>
                       <span className="muted small block">{t.user?.email}</span>
+                      {t.consultation_hours && <span className="small block">🕘 {t.consultation_hours}</span>}
                     </div>
+                    {(admin || t.user_id === me.id) && (
+                      <Button small onClick={() => setSettingHoursFor(t)}>
+                        {t.consultation_hours ? 'Edit hours' : 'Set hours'}
+                      </Button>
+                    )}
                     {admin && (
                       <Button
                         small
@@ -133,6 +141,7 @@ export function PeopleTab() {
               </ul>
             )}
           </Card>
+          {settingHoursFor && <ConsultationHoursDialog offeringId={id} teacher={settingHoursFor} onClose={() => setSettingHoursFor(null)} />}
 
           <Card
             title={`Students (${data.meta.total})`}
@@ -211,6 +220,44 @@ function AssignDialog({ offeringId, teacherIds, onClose }: { offeringId: number;
         <option value="teaching-assistant">Teaching assistant</option>
       </SelectField>
       <PersonPicker key={role} role={role} exclude={teacherIds} actionLabel="Assign" onPick={(p) => assign.mutate(p)} />
+    </Modal>
+  )
+}
+
+function ConsultationHoursDialog({ offeringId, teacher, onClose }: { offeringId: number; teacher: Teacher; onClose: () => void }) {
+  const [hours, setHours] = useState(teacher.consultation_hours ?? '')
+  const save = useApiMutation(() => api.patch(`/offerings/${offeringId}/teachers/${teacher.user_id}`, { consultation_hours: hours.trim() || null }), {
+    invalidate: [['roster', offeringId], ['offering', offeringId]],
+    success: 'Consultation hours saved.',
+    onSuccess: onClose,
+  })
+  return (
+    <Modal title={`Consultation hours for ${teacher.user?.name}`} onClose={onClose}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          save.mutate()
+        }}
+      >
+        <TextArea
+          label="When can students reach you for this course?"
+          optional
+          rows={3}
+          value={hours}
+          onChange={(e) => setHours(e.target.value)}
+          error={fieldError(save.error, 'consultation_hours')}
+          maxLength={500}
+          placeholder="e.g. Tuesdays 2-4pm, Room 204, or by appointment"
+          autoFocus
+        />
+        {save.error && !fieldError(save.error, 'consultation_hours') && <FormError error={save.error} />}
+        <div className="form-actions">
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={save.isPending}>
+            Save
+          </Button>
+        </div>
+      </form>
     </Modal>
   )
 }

@@ -26,9 +26,22 @@ export function StreamTab() {
       .map((q) => ({ key: `qz${q.id}`, at: q.created_at as string, icon: '❓', kind: 'New quiz', title: q.title, to: `/quizzes/${q.id}` })),
   ].sort((a, b) => b.at.localeCompare(a.at))
 
+  const withHours = (offering.teachers ?? []).filter((t) => t.consultation_hours)
+
   return (
     <>
       {manage && <Composer offeringId={id} />}
+      {withHours.length > 0 && (
+        <Card title="Office hours">
+          <ul className="plain-list">
+            {withHours.map((t) => (
+              <li key={t.id}>
+                <strong>{t.user?.name}</strong>: {t.consultation_hours}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
       {announcements.isPending && <Loading />}
       {announcements.isError && <ErrorState error={announcements.error} onRetry={() => void announcements.refetch()} />}
       {announcements.data && feed.length === 0 && (
