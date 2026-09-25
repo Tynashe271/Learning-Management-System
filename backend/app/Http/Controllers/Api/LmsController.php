@@ -1,0 +1,445 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Assignment;
+use App\Models\Course;
+use App\Models\CourseModule;
+use App\Models\CourseOffering;
+use App\Models\LearningItem;
+use App\Models\RubricCriterion;
+use App\Models\Submission;
+use App\Models\TeachingAssignment;
+use App\Models\User;
+use App\Notifications\GradePublished;
+use App\Rules\CleanFile;
+use App\Services\EnrolmentService;
+use App\Services\LoginGuard;
+use App\Support\PasswordPolicy;
+use App\Support\SecurityLog;
+use Closure;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+
+class LmsController extends Controller
+{
+    public function createUser(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->can('manage-users'), 403);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            // Emails are compared without regard to case, so "Ada@uni.edu" and "ada@uni.edu" cannot be two accounts.
+            'email' => ['required', 'email', 'max:255', function (string $attribute, mixed $value, Closure $fail) {
+                if (User::whereRaw('lower(email) = ?', [mb_strtolower((string) $value)])->exists()) {
+                    $fail('The email has already been taken.');
+                }
+            }],
+            'password' => PasswordPolicy::rules(),
+            'role' => ['required', Rule::in(User::ROLES)],
+        ]);
+        abort_if($data['role'] === 'super-admin' && ! $request->user()->hasRole('super-admin'), 403);
+        $user = User::create(['name' => $data['name'], 'email' => mb_strtolower($data['email']), 'password' => $data['password']]);
+        $user->assignRole($data['role']);
+        activity()->causedBy($request->user())->performedOn($user)->withProperties(['role' => $data['role']])->log('user created');
+
+        return response()->json($user->load('roles'), 201);
+    }
+
+    public function notifications(Request $request): JsonResponse
+    {
+        return response()->json($request->user()->notifications()->latest()->paginate(20));
+    }
+
+    public function readNotification(Request $request, string $notification): JsonResponse
+    {
+        $record = $request->user()->notifications()->findOrFail($notification);
+        $record->markAsRead();
+
+        return response()->json(['message' => 'Notification read.']);
+    }
+
+    public function login(Request $request, LoginGuard $guard): JsonResponse
+    {
+        $data = $request->validate(['email' => ['required', 'email'], 'password' => ['required', 'string']]);
+        $email = mb_strtolower($data['email']);
+        $who = SecurityLog::emailFingerprint($email);
+
+        if ($seconds = $guard->retryAfter($email)) {
+            SecurityLog::event('login.blocked_while_locked', ['email' => $who], 'warning');
+            throw new ThrottleRequestsException('Too many failed sign-in attempts. Try again in '.max(1, (int) ceil($seconds / 60)).' minute(s).', null, ['Retry-After' => $seconds]);
+        }
+
+        $user = User::whereRaw('lower(email) = ?', [$email])->first();
+        if ($user) {
+            $valid = Hash::check($data['password'], $user->password);
+        } else {
+            Hash::make($data['password']); // the same work whether or not the account exists, so timing does not reveal it
+            $valid = false;
+        }
+        if (! $valid || ! $user->is_active) {
+            $locked = $guard->fail($email);
+            SecurityLog::event($locked ? 'login.locked' : 'login.failed', ['email' => $who], 'warning');
+            throw ValidationException::withMessages(['email' => 'Invalid credentials.']);
+        }
+        if (config('lms.sso.enabled') && ! config('lms.sso.password_login') && ! $user->hasRole('super-admin')) {
+            throw ValidationException::withMessages(['email' => 'Password sign-in is turned off. Use single sign-on.']);
+        }
+        // During maintenance only super administrators may sign in; everyone else is told why, without being issued a token.
+        if (config('lms.maintenance.enabled') && ! $user->hasRole('super-admin')) {
+            return response()->json(['message' => (string) config('lms.maintenance.message'), 'maintenance' => true], 503, ['Retry-After' => 300]);
+        }
+        $guard->clear($email);
+        $user->forceFill(['last_login_at' => now()])->save();
+        SecurityLog::event('login.success', ['user_id' => $user->id, 'email' => $who, 'method' => 'password']);
+
+        return response()->json(['token' => $user->createToken('api')->plainTextToken, 'user' => $user->only('id', 'name', 'email'), 'roles' => $user->getRoleNames()]);
+    }
+
+    public function logout(Request $request): JsonResponse
+    {
+        $request->user()->currentAccessToken()?->delete();
+
+        return response()->json(['message' => 'Signed out.']);
+    }
+
+    /**
+     * The course offerings the caller may see. Staff who run the catalogue see every offering (archived ones only when asked
+     * for); teachers and students also see their past, archived ones, read-only. Filters: `term_id`, `department_id`, `q`
+     * (course code or title), `status` (published or draft) and `archived` (exclude, include, only).
+     */
+    public function offerings(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $filters = $request->validate([
+            'archived' => ['sometimes', Rule::in(['exclude', 'include', 'only'])], 'term_id' => ['sometimes', 'integer'], 'department_id' => ['sometimes', 'integer'],
+            'q' => ['sometimes', 'string', 'max:100'], 'status' => ['sometimes', Rule::in(['published', 'draft'])],
+        ]);
+        $staff = $user->can('manage-courses') || $user->can('manage-enrolments');
+        $query = CourseOffering::with(['course.department:id,code,name', 'term'])->orderBy('id');
+        if (! $staff) {
+            $query->where(function ($q) use ($user) {
+                $q->whereHas('teachers', fn ($t) => $t->where('user_id', $user->id))
+                    ->orWhere(fn ($e) => $e->where('published', true)->whereHas('enrolments', fn ($n) => $n->where('user_id', $user->id)->where('status', 'active')));
+            });
+        }
+        match ($filters['archived'] ?? ($staff ? 'exclude' : 'include')) {
+            'exclude' => $query->whereNull('archived_at'),
+            'only' => $query->whereNotNull('archived_at'),
+            default => null,
+        };
+        if (isset($filters['term_id'])) {
+            $query->where('academic_term_id', $filters['term_id']);
+        }
+        if (isset($filters['department_id'])) {
+            $query->whereHas('course', fn ($c) => $c->where('department_id', $filters['department_id']));
+        }
+        if (isset($filters['status'])) {
+            $query->where('published', $filters['status'] === 'published');
+        }
+        if (isset($filters['q'])) {
+            $like = '%'.strtolower(preg_replace('/[!%_]/', '!$0', $filters['q'])).'%';
+            $query->whereHas('course', fn ($c) => $c->whereRaw("lower(code) like ? escape '!'", [$like])->orWhereRaw("lower(title) like ? escape '!'", [$like]));
+        }
+
+        return response()->json($query->paginate(20));
+    }
+
+    public function offering(Request $request, CourseOffering $offering): JsonResponse
+    {
+        $this->authorize('view', $offering);
+        $manage = $request->user()->can('manage', $offering);
+        $offering->load(['course', 'term', 'modules' => function ($q) use ($manage) {
+            if (! $manage) {
+                $q->where('published', true);
+            }
+            $q->orderBy('position')->with(['items' => function ($items) use ($manage) {
+                if (! $manage) {
+                    $items->where('published', true);
+                }
+                $items->orderBy('position');
+            }]);
+        }, 'assignments' => function ($q) use ($manage) {
+            if (! $manage) {
+                $q->where('published', true);
+            }
+        }, 'quizzes' => function ($q) use ($manage) {
+            if (! $manage) {
+                $q->where('published', true);
+            }
+            $q->withCount('questions');
+        }]);
+
+        // Who teaches it, and whether the caller may edit it, so a frontend can show the right controls.
+        $offering->load('teachers.user:id,name');
+
+        return response()->json($offering->toArray() + ['abilities' => ['manage' => $manage]]);
+    }
+
+    /**
+     * Enrols a student, or withdraws them. Enrolling is refused when the offering is archived or full; an administrator who may
+     * manage courses can pass `override` to go over the capacity on purpose (recorded in the audit log).
+     */
+    public function enrol(Request $request, CourseOffering $offering, EnrolmentService $enrolments): JsonResponse
+    {
+        abort_unless($request->user()->can('manage-enrolments'), 403);
+        $data = $request->validate(['user_id' => ['required', 'exists:users,id'], 'status' => ['required', Rule::in(['active', 'withdrawn'])], 'override' => ['sometimes', 'boolean']]);
+        $override = $request->boolean('override') && $request->user()->can('manage-courses');
+        if ($request->boolean('override') && ! $override) {
+            abort(403, 'Only a course administrator can enrol beyond the capacity.');
+        }
+
+        $enrolment = $data['status'] === 'active'
+            ? $enrolments->activate($offering, (int) $data['user_id'], $override)
+            : $enrolments->withdraw($offering, (int) $data['user_id']);
+        $over = $override && $offering->capacity !== null && $offering->activeEnrolmentCount() > $offering->capacity;
+        activity()->causedBy($request->user())->performedOn($enrolment)->withProperties(['user_id' => $data['user_id'], 'status' => $data['status'], 'over_capacity' => $over])->log('enrolment changed');
+
+        return response()->json($enrolment);
+    }
+
+    public function teacher(Request $request, CourseOffering $offering): JsonResponse
+    {
+        abort_unless($request->user()->can('manage-courses'), 403);
+        $data = $request->validate(['user_id' => ['required', 'exists:users,id']]);
+        $teacherUser = User::findOrFail($data['user_id']);
+        if (! $teacherUser->can('teach-courses')) {
+            throw ValidationException::withMessages(['user_id' => 'User must have teaching permission.']);
+        }
+        $teacher = TeachingAssignment::firstOrCreate(['course_offering_id' => $offering->id, 'user_id' => $data['user_id']]);
+        activity()->causedBy($request->user())->performedOn($offering)->withProperties($data)->log('teacher assigned');
+
+        return response()->json($teacher);
+    }
+
+    public function module(Request $request, CourseOffering $offering): JsonResponse
+    {
+        $this->authorize('manage', $offering);
+        $data = $request->validate(['title' => ['required', 'string', 'max:255'], 'position' => ['sometimes', 'integer', 'min:0'], 'published' => ['sometimes', 'boolean']]);
+
+        return response()->json($offering->modules()->create($data), 201);
+    }
+
+    public function updateModule(Request $request, CourseModule $module): JsonResponse
+    {
+        $this->authorize('manage', CourseOffering::findOrFail($module->course_offering_id));
+        $data = $request->validate(['title' => ['sometimes', 'string', 'max:255'], 'position' => ['sometimes', 'integer', 'min:0'], 'published' => ['sometimes', 'boolean']]);
+        $module->update($data);
+
+        return response()->json($module);
+    }
+
+    public function item(Request $request, CourseModule $module): JsonResponse
+    {
+        $offering = CourseOffering::findOrFail($module->course_offering_id);
+        $this->authorize('manage', $offering);
+        $data = $request->validate(['title' => ['required', 'string', 'max:255'], 'type' => ['required', Rule::in(['text', 'link', 'file'])], 'body' => ['nullable', 'string'], 'file' => ['bail', 'nullable', 'file', 'max:'.(int) config('lms.limits.upload_mb') * 1024, 'mimes:'.config('lms.upload_mimes'), new CleanFile], 'position' => ['sometimes', 'integer', 'min:0'], 'published' => ['sometimes', 'boolean']]);
+        if ($data['type'] === 'file' && ! $request->hasFile('file')) {
+            throw ValidationException::withMessages(['file' => 'A file is required.']);
+        }
+        if ($data['type'] === 'link') {
+            $request->validate(['body' => ['required', 'url:http,https', 'max:2048']]);
+        } elseif ($data['type'] === 'text') {
+            $request->validate(['body' => ['required', 'string']]);
+        }
+        if ($request->hasFile('file')) {
+            $data['storage_path'] = $request->file('file')->store('course-files/'.$offering->id, 's3');
+        }
+        unset($data['file']);
+
+        return response()->json($module->items()->create($data), 201);
+    }
+
+    public function updateItem(Request $request, LearningItem $item): JsonResponse
+    {
+        $module = CourseModule::findOrFail($item->course_module_id);
+        $this->authorize('manage', CourseOffering::findOrFail($module->course_offering_id));
+        $data = $request->validate(['title' => ['sometimes', 'string', 'max:255'], 'body' => ['sometimes', 'nullable', 'string'], 'position' => ['sometimes', 'integer', 'min:0'], 'published' => ['sometimes', 'boolean']]);
+        $item->update($data);
+
+        return response()->json($item);
+    }
+
+    public function downloadItem(Request $request, LearningItem $item)
+    {
+        $module = CourseModule::findOrFail($item->course_module_id);
+        $offering = CourseOffering::findOrFail($module->course_offering_id);
+        $this->authorize('view', $offering);
+        abort_unless($request->user()->can('manage', $offering) || ($module->published && $item->published), 403);
+        abort_unless($item->type === 'file' && $item->storage_path, 404);
+
+        return Storage::disk('s3')->download($item->storage_path);
+    }
+
+    public function assignment(Request $request, CourseOffering $offering): JsonResponse
+    {
+        $this->authorize('manage', $offering);
+        $data = $request->validate(['title' => ['required', 'string', 'max:255'], 'instructions' => ['nullable', 'string'], 'due_at' => ['required', 'date', 'after:now'], 'max_score' => ['required', 'integer', 'min:1'], 'published' => ['sometimes', 'boolean']]);
+
+        return response()->json($offering->assignments()->create($data), 201);
+    }
+
+    public function updateAssignment(Request $request, Assignment $assignment): JsonResponse
+    {
+        $this->authorize('manage', $assignment->offering);
+        $data = $request->validate(['title' => ['sometimes', 'string', 'max:255'], 'instructions' => ['sometimes', 'nullable', 'string'], 'due_at' => ['sometimes', 'date', 'after:now'], 'published' => ['sometimes', 'boolean'], 'change_reason' => ['sometimes', 'string', 'max:1000']]);
+        if (isset($data['due_at']) && empty($data['change_reason'])) {
+            throw ValidationException::withMessages(['change_reason' => 'A reason is required for deadline changes.']);
+        }
+        $reason = $data['change_reason'] ?? null;
+        unset($data['change_reason']);
+        $assignment->update($data);
+        activity()->causedBy($request->user())->performedOn($assignment)->withProperties(['changes' => $data, 'reason' => $reason])->log('assignment changed');
+
+        return response()->json($assignment);
+    }
+
+    public function submit(Request $request, Assignment $assignment): JsonResponse
+    {
+        $this->authorize('submit', $assignment);
+        $data = $request->validate(['body' => ['nullable', 'string'], 'file' => ['bail', 'nullable', 'file', 'max:'.(int) config('lms.limits.upload_mb') * 1024, 'mimes:'.config('lms.upload_mimes'), new CleanFile]]);
+        if (empty($data['body']) && ! $request->hasFile('file')) {
+            throw ValidationException::withMessages(['body' => 'Provide text or a file.']);
+        }
+        $alreadySubmitted = ValidationException::withMessages(['assignment' => 'Already submitted.']);
+        if (Submission::where('assignment_id', $assignment->id)->where('user_id', $request->user()->id)->exists()) {
+            throw $alreadySubmitted;
+        }
+        $path = $request->hasFile('file') ? $request->file('file')->store('submissions/'.$assignment->id.'/'.$request->user()->id, 's3') : null;
+        try {
+            $submission = Submission::create(['assignment_id' => $assignment->id, 'user_id' => $request->user()->id, 'body' => $data['body'] ?? null, 'storage_path' => $path, 'submitted_at' => now()]);
+        } catch (UniqueConstraintViolationException) {
+            // A concurrent request won the race; drop the file we just stored.
+            if ($path) {
+                Storage::disk('s3')->delete($path);
+            }
+            throw $alreadySubmitted;
+        }
+        activity()->causedBy($request->user())->performedOn($submission)->log('assignment submitted');
+
+        return response()->json($submission, 201);
+    }
+
+    /** One assignment, with its course and what the caller may do with it, so a page can be built from its link alone. */
+    public function showAssignment(Request $request, Assignment $assignment): JsonResponse
+    {
+        $this->authorize('view', $assignment);
+        $user = $request->user();
+        $assignment->load('offering.course:id,code,title', 'offering.term:id,name');
+
+        return response()->json($assignment->toArray() + ['abilities' => [
+            'manage' => $user->can('manage', $assignment->offering),
+            'grade' => $user->can('grade', $assignment),
+            'submit' => $user->can('submit', $assignment),
+        ]]);
+    }
+
+    public function submissions(Request $request, Assignment $assignment): JsonResponse
+    {
+        $this->authorize('grade', $assignment);
+
+        return response()->json(Submission::where('assignment_id', $assignment->id)->with('gradeRecords', 'user:id,name,email')->orderBy('id')->paginate(20));
+    }
+
+    public function downloadSubmission(Request $request, Submission $submission)
+    {
+        abort_unless(
+            $submission->user_id === $request->user()->id
+                || $request->user()->can('grade', $submission->assignment),
+            403
+        );
+        abort_unless($submission->storage_path, 404);
+
+        return Storage::disk('s3')->download($submission->storage_path);
+    }
+
+    public function grade(Request $request, Submission $submission): JsonResponse
+    {
+        $assignment = $submission->assignment;
+        $this->authorize('grade', $assignment);
+        $rubric = $assignment->rubricCriteria()->with('levels')->orderBy('position')->orderBy('id')->get();
+        $rules = ['status' => ['required', Rule::in(['draft', 'published'])], 'feedback' => ['nullable', 'string'], 'change_reason' => ['nullable', 'string']];
+        if ($rubric->isEmpty()) {
+            $rules += ['score' => ['required', 'numeric', 'min:0', 'max:'.$assignment->max_score], 'criteria' => ['prohibited']];
+        } else {
+            // With a rubric the score is the sum of the criteria marks; a separate score is not accepted.
+            $rules += [
+                'criteria' => ['required', 'array'],
+                'criteria.*.criterion_id' => ['required', 'integer', Rule::in($rubric->pluck('id')->all())],
+                // Either pick one of the criterion's levels (its points are used) or give points directly.
+                'criteria.*.level_id' => ['nullable', 'integer'],
+                'criteria.*.points' => ['required_without:criteria.*.level_id', 'nullable', 'numeric', 'min:0'],
+                'criteria.*.comment' => ['nullable', 'string', 'max:2000'],
+            ];
+        }
+        $data = $request->validate($rules);
+        if ($rubric->isNotEmpty()) {
+            [$data['score'], $data['criteria_scores']] = $this->scoreRubric($rubric, $data['criteria']);
+            unset($data['criteria']);
+        }
+        if ($submission->gradeRecords()->exists() && empty($data['change_reason'])) {
+            throw ValidationException::withMessages(['change_reason' => 'A reason is required for grade changes.']);
+        }
+        $grade = $submission->gradeRecords()->create($data + ['graded_by' => $request->user()->id]);
+        activity()->causedBy($request->user())->performedOn($submission)->withProperties(['grade_record_id' => $grade->id, 'status' => $grade->status])->log('grade recorded');
+        if ($grade->status === 'published') {
+            $submission->user->notify(GradePublished::for($submission, $assignment));
+        }
+
+        return response()->json($grade, 201);
+    }
+
+    /**
+     * @param  Collection<int, RubricCriterion>  $rubric
+     * @param  list<array<string, mixed>>  $given
+     * @return array{0: float|int, 1: list<array<string, mixed>>} the total and a snapshot of each criterion's mark
+     */
+    private function scoreRubric(Collection $rubric, array $given): array
+    {
+        $byCriterion = collect($given)->keyBy('criterion_id');
+        if ($byCriterion->count() !== count($given) || $byCriterion->count() !== $rubric->count()) {
+            throw ValidationException::withMessages(['criteria' => 'Give exactly one mark for each rubric criterion.']);
+        }
+        $total = 0;
+        $snapshot = [];
+        foreach ($rubric as $criterion) {
+            $entry = $byCriterion[$criterion->id];
+            $level = null;
+            if (! empty($entry['level_id'])) {
+                $level = $criterion->levels->firstWhere('id', (int) $entry['level_id']);
+                if (! $level) {
+                    throw ValidationException::withMessages(['criteria' => "The chosen level does not belong to \"{$criterion->title}\"."]);
+                }
+                if (isset($entry['points']) && (float) $entry['points'] !== (float) $level->points) {
+                    throw ValidationException::withMessages(['criteria' => "\"{$criterion->title}\": the points do not match the chosen level ({$level->points})."]);
+                }
+            }
+            $points = $level ? (float) $level->points : (float) $entry['points'];
+            if ($points > $criterion->max_points) {
+                throw ValidationException::withMessages(['criteria' => "\"{$criterion->title}\" is worth at most {$criterion->max_points} points."]);
+            }
+            $total += $points;
+            $snapshot[] = [
+                'criterion_id' => $criterion->id, 'title' => $criterion->title, 'max_points' => $criterion->max_points, 'points' => $points,
+                'level_id' => $level?->id, 'level_title' => $level?->title, 'comment' => $entry['comment'] ?? null,
+            ];
+        }
+
+        return [$total, $snapshot];
+    }
+
+    public function myGrade(Request $request, Assignment $assignment): JsonResponse
+    {
+        $this->authorize('view', $assignment);
+        $submission = Submission::where('assignment_id', $assignment->id)->where('user_id', $request->user()->id)->firstOrFail();
+
+        return response()->json(['submission' => $submission, 'grade' => $submission->gradeRecords()->where('status', 'published')->latest('id')->first()]);
+    }
+}

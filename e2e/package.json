@@ -1,0 +1,17 @@
+{
+  "name": "lms-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Real-browser tests for the University LMS: phone layout, downloads, password flows and every role.",
+  "scripts": {
+    "test": "node run.mjs",
+    "test:mobile": "node run.mjs mobile",
+    "test:desktop": "node run.mjs desktop",
+    "test:admin": "node run.mjs admin",
+    "clean": "node run.mjs --clean-only"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.55.0"
+  }
+}

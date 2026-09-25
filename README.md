@@ -1,0 +1,301 @@
+# University LMS
+
+Laravel 13 JSON API for a university learning management system: accounts and roles with single sign-on, the academic catalogue, course content, assignments with rubrics (including level descriptions), quizzes, grading, a gradebook, progress tracking, attendance with self check-in and online-meeting links, announcements, discussions, private messages with attachments, grade appeals, summary emails, virus scanning, similarity screening, bulk imports, course copying, notifications, and an audit trail. The backend is in `backend/` and the web frontend, which uses every endpoint, is in `frontend/`.
+
+## Local setup with Podman
+
+1. Copy `backend/.env.example` to `backend/.env`. Set `LMS_ADMIN_EMAIL` and `LMS_ADMIN_PASSWORD` in that file before seeding. Use a unique password. The app connects to the database as a restricted role, `lms_app` (see Security and operations): set `LMS_APP_DB_PASSWORD` in a root `.env` file next to `compose.yaml` before the first `compose up`, and use the same value as `DB_PASSWORD` in `backend/.env`. If changing the owner password or the MinIO credentials, change the matching defaults in `compose.yaml` or provide root Compose variables too.
+2. Run `podman compose up --build -d` from this directory (Podman Compose is the provider; the image is built from `backend/Containerfile`).
+3. Run `podman compose exec app php artisan migrate --database=pgsql_migrate --force` (migrations use the database owner; the app's own role cannot change tables) and `podman compose exec app php artisan db:seed --force`. After pulling new migrations, run `migrate` again and restart the queue worker (`podman compose restart queue`) so Horizon loads new code.
+4. The API is at `http://localhost:8080/api`; liveness is `http://localhost:8080/up`, and a fuller health report is `http://localhost:8080/api/health`. Mailpit is at `http://localhost:8025`, and the MinIO console is at `http://localhost:9001`.
+
+5. The web frontend is at `http://localhost:5173` (see [Frontend](#frontend)). Sign in with the administrator you seeded, then create terms, courses, accounts and offerings from the Administration menu.
+
+The image is built once (`localhost/lms-backend:dev`) and shared by the app, queue, and scheduler containers. Composer dependencies live in the `vendor_data` volume, so a host `vendor/` folder is not needed. After changing `composer.json` or `composer.lock`, run `podman compose build app`, then `podman volume rm university-lms_vendor_data` and `podman compose up -d` to refresh it.
+
+Do not expose this local HTTP setup on a public network. Configure TLS, production secrets, backups, and an institutional identity integration before deployment.
+
+## Frontend
+
+`frontend/` is a single-page web app (React, TypeScript, Vite) that talks to the API in the browser. It covers every endpoint below, for every role:
+
+| Area | Screens |
+|---|---|
+| Everyone | Sign in (password or single sign-on), forgot and reset password, dashboard ("needs your attention", notifications, courses), notifications, profile (name, password, summary-email preference and preview), private messages with attachments, footer links to the privacy policy and terms |
+| Students | Course content with progress ticks and downloads, assignments with submission, rubric, grade breakdown and appeals, quizzes with a timer and results, announcements, discussions, classes with meeting links and check-in by code, attendance, own grades, my appeals |
+| Lecturers and assistants | Modules, items and files; assignments and rubrics with levels; grading (rubric, drafts, reasons for changes); similarity check; quizzes and all four question types; announcements; discussions and moderation; classes, check-in codes and the roll; gradebook with CSV download; progress; appeals |
+| Students (registration) | Register for courses that allow it while the term's registration window is open, see the places left, and drop before the add/drop deadline |
+| Registrars and administrators | Enrolment (one at a time, or from a list or CSV, respecting course capacity); teachers; terms with academic years and registration dates, departments, courses and offerings; publishing, archiving; copying a course to another term; accounts and one page per person (role, sign-in problems, sessions, privacy tools); CSV import with a dry run; usage and enrolment reports; audit log with filters and download; security events; system status |
+| Institution and system administrators | Settings, roles and permissions, notices to everyone, integrations, system and failed jobs, backups: see [System administration](#system-administration) |
+
+Under Administration the menu is grouped as Academics, Institution, Security and records, and System, and each person sees only the groups their permissions allow.
+
+What each person sees follows their permissions: menus, tabs and buttons that someone may not use are hidden, and the API still enforces every rule. Failed requests show a clear message with a retry, lists have loading and empty states, the app retries dropped connections safely (every change carries an `Idempotency-Key`), and a session that ends returns to the sign-in page.
+
+**Run it.** `podman compose up --build -d` starts it with the rest of the stack at `http://localhost:5173`. For development with hot reload, run `npm install` and `npm run dev` in `frontend/` (it uses the same address). The browser must be allowed by the API: `LMS_FRONTEND_URL` in `backend/.env` must be the address the frontend is served from (default `http://localhost:5173`), and the API's `LMS_CORS_ORIGINS` follows it.
+
+**Point it at the API.** The container reads `LMS_API_URL` when it starts (default `http://localhost:8080/api`; set it in a root `.env` next to `compose.yaml` or in the environment). It writes that address into `config.js` and into the page's Content-Security-Policy, so one built image works everywhere. Under `npm run dev` edit `frontend/public/config.js` or set `VITE_API_URL`.
+
+**Checks.** `npm run typecheck`, `npm test` (unit and screen tests with a fake API) and `npm run build`, all run in CI. Real-browser tests of the whole stack, including phone size, downloads, password flows and every role, are in [`e2e/`](e2e/README.md) (`cd e2e && npm install && npm test`); they need the stack running and clean up after themselves.
+
+**Sessions.** The sign-in token lives in the browser's session storage, so it is gone when the tab closes, unless the person ticks "Keep me signed in on this device" (local storage). Reset and invitation emails link to `<LMS_FRONTEND_URL>/reset-password`, and single sign-on returns to `<LMS_FRONTEND_URL>/sso/callback`.
+
+## System administration
+
+This is a university system, not a school one: terms and academic years, departments and faculties, course levels and credits, registration windows and add/drop deadlines, lecturers and teaching assistants, registrars, and institution-wide reporting. Each of the eighteen duties of a system administrator maps to a screen, an API and a permission below. What a role may do is a set of permissions (`manage-users`, `manage-courses`, `manage-enrolments`, `manage-settings`, `manage-system`, …) that a super administrator can edit under **Roles and permissions**.
+
+| # | Duty | Where it is (frontend screen → API) | Permission |
+|---|---|---|---|
+| 1 | User management | **People** and each person's page: create, search, import a CSV with a dry run, change name, email and role, activate or deactivate, unlock, email a reset link, sign out everywhere, delete (only if the account never produced anything), export all their data, anonymise. `/users`, `/users/{id}/…` | `manage-users` (anonymise: `manage-system`) |
+| 2 | Role and permission management | **Roles and permissions**: a matrix of the seven roles, edit one role's permissions, or put it back to the starting set. The super administrator role is locked so the system can never lock out its own administrators. Every change is audited and security-logged. `/roles` | view: `manage-users`; edit: `manage-system` |
+| 3 | Course management | **Terms and courses**: departments, courses with department, level and credits, offerings with capacity and self-registration, publish, archive a course, an offering or a whole term (read-only history, restorable), assign lecturers (a course's People tab), copy a course into another term. `/departments`, `/courses`, `/offerings`, `/terms/{id}/archive` | `manage-courses` |
+| 4 | System configuration | **Settings**: institution name, support contacts, time zone and date format, grade appeal window, late-check-in minutes, upload size and allowed file types, message attachment limits, password rules, lockout, session length, notification defaults, backups, maintenance. Saved in the database over the server configuration; "Use the default" goes back. `/settings`, `/auth/config` | `manage-settings` |
+| 5 | Security management | **Settings > Security** (password length, upper and lower case, number, symbol, lockout, session length), **Security** (sign-ins, failures, lockouts, refused requests, busiest failing addresses; searchable), single sign-on (server configuration), roles. `/security/events`, `/security/summary` | `manage-users` / `manage-settings` |
+| 6 | Database management | **System and jobs** shows the database's size, speed, record counts and whether any update (migration) is waiting, and **Housekeeping** removes expired records. Changing the structure is done at the server (`php artisan migrate`), deliberately: the app's database account can read and write rows but cannot alter tables. There is no SQL console. | `manage-system` |
+| 7 | Backup and recovery | **Backups**: back up now (with or without uploaded files), automatic nightly backup, list, check against checksums, download, delete. Restore is a server command (see below). `/backups` | `manage-system` |
+| 8 | System monitoring | **System status** (health of database, cache, storage, scheduler, queue) and **System and jobs** (versions, disk, storage by kind, queue depth, scheduler heartbeat, and a list of what needs attention). `/health`, `/system` | staff / `manage-system` |
+| 9 | Technical support | A person's page shows why they cannot sign in (deactivated, locked, no sessions), unlocks them, emails a reset link and signs them out everywhere. Failed background jobs can be retried or deleted. Integrations can be tested for real. The footer shows the support address. `/users/{id}/unlock`, `/system/failed-jobs` | `manage-users` / `manage-system` |
+| 10 | Enrolment administration | Enrol and withdraw one person, or import a list or CSV, on a course's People tab; a course's places (capacity) are enforced under a lock so it can never be over-filled, and a list import says who did not fit. Students may register themselves where an offering allows it. `/offerings/{id}/enrolments…`, `/registration` | `manage-enrolments` |
+| 11 | Academic period management | **Terms and courses > Academic terms**: academic year, start and end, the current term, when student registration opens and closes, and the last day to add or drop; the dates are validated against each other. | `manage-courses` |
+| 12 | Integration management | **Integrations**: single sign-on, email, file storage, virus scanning, the student-records system, online meetings, payments, API access. Each shows its state and which server setting to change, and the first four can be tested for real (the email test sends a message to you). Connection secrets are never shown or stored in the app. `/integrations` | `manage-settings` |
+| 13 | Notification management | **Settings > Notifications** (email on or off, deadline reminders and how many days ahead, default summary-email setting), **Notices to everyone** (a banner across every screen for chosen roles, with a start and end, optionally also as a notification), and each person's own summary-email preference. `/system-announcements` | `manage-settings` |
+| 14 | Audit and activity logs | **Audit log** (who did what, filtered by person, words and dates, downloadable as a spreadsheet; entries cannot be edited or deleted) and **Security** (sign-in and access events). `/audit-log` | `manage-users` |
+| 15 | Reports and analytics | **Reports**: an overview, usage (sign-ins, submissions, quiz attempts and new accounts per day for 30 days, active people) and enrolment by term and department with the fullest and largest courses, downloadable. Each course also has progress, a gradebook and a CSV. `/reports/…` | `manage-courses` (enrolment: or `manage-enrolments`) |
+| 16 | System maintenance and updates | **Settings > Maintenance** (only super administrators can use the system meanwhile; everyone else and the sign-in page see your message), **Housekeeping** (preview and remove old records, refresh saved copies), and a warning when a database update is waiting. Installing a new version is done at the server (below). | `manage-settings` / `manage-system` |
+| 17 | Data privacy and access control | Role permissions, the person's data export, deletion or anonymisation (submissions and grades stay, under "Former user"), retention of low-value records, links to the privacy policy and terms, email addresses stored only as a short hash in security logs, and every backup download recorded. | `manage-users` / `manage-system` |
+| 18 | System availability | The health endpoint for an uptime monitor, the scheduler heartbeat, maintenance mode with a message, nightly backups, retries, and `Retry-After` on every limit. Running more than one copy behind a load balancer, or a failover database, is infrastructure and is not built here. | `manage-system` |
+
+**Things you do at the server, on purpose.**
+
+- Install or update: pull the new code, `podman compose up --build -d`, then `podman compose exec app php artisan migrate --database=pgsql_migrate --force` and `php artisan db:seed --force` (adds any new permission; it never overwrites a role you have edited). The System screen warns when a migration is waiting.
+- `php artisan lms:backup` makes a backup now; `lms:restore` (no argument) lists them and `lms:restore <file name>` puts one back. Restore checks the backup, makes a safety copy of the current data, puts the site into maintenance, replaces the database and the uploaded files, applies any newer migrations, and brings the site back. Add `--skip-files` to restore only the database. Restore uses the migration account (`DB_MIGRATE_*`), because the everyday account cannot reset the counters. `lms:prune [--dry-run]` removes expired sign-ins, used links, old read notifications and old security events; `lms:e2e` is for the browser tests.
+- Backups are written to `storage/app/backups` by default (`LMS_BACKUP_PATH`, `LMS_BACKUP_DISK`). Copy them off the machine: a backup on the same disk is lost with the disk. A backup holds every password hash and every grade; protect it as you would the database.
+- Backups and the queue: a backup runs on its own worker so a long one never delays emails. `podman compose up` starts it (the `queue` container runs Horizon with a `backups` supervisor); after upgrading from an older version, restart that container.
+
+**Honest limits.**
+
+- Departments are categories for courses, reports and filters. There are no department-scoped administrators yet: a department administrator manages every course.
+- The seven roles are fixed; their permissions are editable. You cannot invent an eighth role or edit the super administrator.
+- The screens are in English. The institution's chosen locale and time zone change how dates and numbers are written, not the words.
+- The student-records system connects by CSV, not by a live vendor connection; payments and fees are not part of this system (tuition belongs in the finance system); video meetings are links, not created automatically.
+- Important dates are the term, registration and add/drop dates. There is no general academic calendar (exam timetables, holidays).
+- A backup can be restored only at the server.
+
+## API
+
+All routes are under `/api`. `POST /login` returns a Sanctum bearer token; send it as `Authorization: Bearer <token>` on everything else. Send `Accept: application/json`. List endpoints are paginated. Tokens expire after 720 minutes (`SANCTUM_TOKEN_EXPIRATION`, in minutes).
+
+**Roles.** Everyone at the university uses the LMS; administrators are one of seven kinds of user. What each role can do is checked through the real API in `tests/Feature/RoleCapabilitiesTest.php`, so this table cannot drift from the code:
+
+| Role | Can do |
+|---|---|
+| `student` | In courses they are actively enrolled in: read published material, submit assignments, take quizzes, see their own grades, appeal a published grade, check in to class, discuss, and message people they share a course with. Nothing else. |
+| `lecturer` | In the courses they are assigned to: build content, set assignments and quizzes, grade with rubrics, post announcements, take attendance, and decide grade appeals. |
+| `teaching-assistant` | Manage and grade the courses they are assigned to, like a lecturer, except they **cannot decide grade appeals**. |
+| `registrar` | Enrol students (one at a time or from a file), look up users and offerings, and message anyone. They do not touch course content. |
+| `department-admin` | Run the catalogue and every course: create terms and courses, assign teachers, copy courses, enrol students, edit any course's content, take attendance, decide appeals, and message anyone. They **cannot create accounts, import users, or read the audit log**, and they do not grade. |
+| `university-admin` | Everything a department admin can do, plus create and deactivate accounts, import users from a file, and read the audit log. They do not grade. |
+| `super-admin` | Everything, including grading. The one thing a super-admin cannot do is act as a student: submitting work or taking a quiz still needs an active enrolment. |
+
+Course-level powers (content, announcements, attendance, grading) apply only to courses the person is assigned to; department and university admins can manage every course. Students see only offerings they are actively enrolled in, and only published content.
+### Account
+
+| Route | Who | Purpose |
+|---|---|---|
+| `POST /login` | anyone | Email and password for a token. Rate limited; deactivated accounts cannot sign in. |
+| `POST /logout` | signed in | Revoke the current token. |
+| `GET /me`, `PATCH /me` | signed in | Show the profile, roles and the permissions those roles grant (so a frontend can show the right screens); change your own name. |
+| `GET /contacts` (`?q=`) | signed in | The people you may start a private message with: teachers and classmates of your courses (names only), or anyone active for staff who manage users or enrolments. |
+| `POST /me/password` | signed in | Change password (needs `current_password`, `password`, `password_confirmation`; the rules are in `GET /auth/config` under `password_policy`, at least 12 characters). Signs out other devices. |
+| `GET`/`PATCH /me/preferences` | signed in | Read or change how often you get the summary email: `digest_frequency` is `off` (the default unless the institution changes it), `daily`, or `weekly`. |
+| `GET /me/digest-preview` | signed in | What your next summary email would say right now. Nothing is sent. |
+| `POST /forgot-password`, `POST /reset-password` | anyone | Email a reset link to the frontend (`LMS_FRONTEND_URL`), then set a new password with its token. The response never reveals whether an account exists. Reset revokes all tokens. |
+| `GET /notifications`, `POST /notifications/{id}/read` | signed in | Database notifications (assignment reminders, announcements, published grades). |
+| `GET /auth/config` | anyone | Tells the login screen whether single sign-on is on and whether password sign-in is still allowed, plus the institution (name, support contacts, time zone, locale), the password rules and whether maintenance mode is on. |
+| `GET /auth/sso`, `POST /auth/sso/callback` | anyone | Sign in with the university's identity provider; see [Single sign-on](#single-sign-on). |
+
+### Administration
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /users` (`?role=`, `?q=`, `?status=`) | user admins, registrars | Search users (with `last_login_at`). |
+| `POST /users` | user admins | Create a user with a role. Only super-admins can create super-admins. The password must meet the policy. |
+| `POST /users/import` | user admins | Upload a CSV with the columns `name,email,role` (max 1000 rows, columns in any order; commas or semicolons). Each new user gets a welcome email with a link, valid for 7 days, to choose a password. Bad rows are reported by line number and skipped; the rest are created. `dry_run=1` checks the file without creating anything; `send_invitations=0` skips the emails. |
+| `GET /users/{id}` | user admins | One account in full: state, lockout, active sessions, courses, recent security events, and what records it owns. |
+| `PATCH /users/{id}` | user admins | Change `name`, `email`, `role` and `is_active`. Only a super-admin may grant or remove that role; nobody changes their own role or deactivates themselves; the last active super-admin cannot be demoted or deactivated. Deactivating revokes tokens. |
+| `POST /users/{id}/unlock`, `/reset-link`, `/sessions/revoke` | user admins | Clear a lockout; email a password reset link; sign the person out everywhere. |
+| `GET /users/{id}/export` | user admins | Everything held about one person, as JSON. |
+| `DELETE /users/{id}` | user admins | Delete an account that never produced anything; otherwise refused with the reason. |
+| `POST /users/{id}/anonymise` | system admins | Replace name and email, block sign-in, empty their messages, keep grades and submissions. Needs `confirm_email`. Cannot be undone. |
+| `GET /roles`, `PUT /roles/{role}/permissions`, `POST /roles/{role}/reset` | view: user admins; change: system admins | The permission catalogue and each role's permissions; set exactly which permissions a role holds; put it back to the starting set. The super-admin role cannot be edited. |
+| `GET /settings`, `PUT /settings` | settings admins | Every setting with its value, default and whether it was changed; save some (`settings`) and/or reset others (`reset`). Nothing is saved unless every value is valid. |
+| `GET /audit-log` (`?q=`, `?causer_id=`, `?from=`, `?to=`, `?subject_type=`, `?format=csv`) | user admins | Who changed what: grades, deadlines, enrolments, accounts, settings, roles, backups, deletions. CSV holds up to 20,000 entries. |
+| `GET /security/events`, `GET /security/summary` | user admins | Sign-ins, failures, lockouts and refused requests (filter by `event`, `level`, `user_id`, `email`, dates); counts for the last day and week and the busiest failing addresses. |
+| `GET /reports/overview` | course admins | Institution-wide counts. |
+| `GET /reports/usage` | course admins | Per-day sign-ins, submissions, quiz attempts and new accounts for 30 days; active people over 7 and 30 days. |
+| `GET /reports/enrolments` (`?term_id=`, `?format=csv`) | course admins, registrars | Enrolment, places and how full, by term and department; the fullest and largest courses. |
+| `GET /system`, `GET`/`POST`/`DELETE /system/failed-jobs…`, `POST /system/refresh`, `POST /system/prune` | system admins | Versions, capacity, queue, scheduler, pending migrations and a list of warnings; retry or delete failed jobs; forget saved copies of reports, settings and permissions; remove expired records (`dry_run` to preview). |
+| `GET`/`POST /backups`, `POST /backups/{name}/verify`, `GET /backups/{name}/download`, `DELETE /backups/{name}` | system admins | List backups; start one in the background; check one against its checksums; download (recorded in the audit and security logs); delete. There is no restore endpoint, on purpose. |
+| `GET /integrations`, `POST /integrations/{key}/test` | settings admins | State of each connection; try single sign-on, email, storage or the virus scanner for real. |
+| `GET`/`POST /system-announcements`, `PATCH`/`DELETE /system-announcements/{id}`, `GET /system-announcements/active` | settings admins (`active`: everyone) | Notices for the whole institution, for chosen roles and dates; `notify` also puts one in each recipient's notifications. `active` returns what the caller should see now. |
+
+### Catalogue and offerings
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET`/`POST /terms`, `PATCH /terms/{id}`, `POST /terms/{id}/archive` | course admins | Academic terms with `academic_year`, `registration_opens_on`, `registration_closes_on`, `add_drop_deadline` and `is_current` (only one term is current). Archiving a term archives its offerings (`archived`: true or false). |
+| `GET`/`POST /departments`, `PATCH`/`DELETE /departments/{id}` | course admins (list also registrars) | Faculties and departments. A department with courses is archived, not deleted. |
+| `GET`/`POST /courses`, `PATCH /courses/{id}` | course admins | Catalogue courses (unique code) with `department_id`, `credits` and `level` (certificate, diploma, undergraduate, postgraduate, doctoral); filter by `q`, `department_id`, `level`, `archived`. |
+| `GET`/`POST /offerings`, `PATCH /offerings/{id}` | course admins (list also registrars) | A course in a term. `PATCH` changes `published`, `section`, `capacity`, `self_enrolment` and `archived`. The list filters by `term_id`, `department_id`, `q`, `status` and `archived`. |
+| `GET /registration`, `POST`/`DELETE /offerings/{id}/register` | students | Courses a student may register for themselves (published, self-registration on, term not over), with whether registration is open, the places left and the drop deadline; register and drop. Registration works only inside the term's window and while places remain; a registrar's enrolment can be changed only by a registrar. |
+| `GET /offerings/{id}` | anyone who can view it | Modules, items, assignments, and quizzes (unpublished ones only for managers), the teachers, and `abilities.manage` (whether the caller may edit this course). |
+| `POST /offerings/{id}/teachers`, `DELETE /offerings/{id}/teachers/{user}` | course admins | Assign or remove teaching staff. |
+| `POST /offerings/{id}/enrolments` | registrars, admins | Enrol or withdraw one user (`status`: `active`/`withdrawn`). |
+| `POST /offerings/{id}/enrolments/import` | registrars, admins | Either `{"emails": [...]}` or a CSV `file` with an `email` column (max 500). Enrols or re-activates existing students; returns `enrolled`, `not_found`, `invalid` and `full` (students who did not fit because the course has no places left). This is the way to load a student-record export. |
+| `POST /offerings/{id}/copy` | course admins | Build next term's offering from this one: modules, items (files are duplicated, not shared), assignments with rubrics, and quizzes with questions. Body: `academic_term_id`, `section`, optional `copy_teachers`. The copy is unpublished, and copied assignments and quizzes are unpublished with dates shifted by the distance between the two terms' start dates. People, submissions, attempts, announcements, and discussions are never copied. |
+| `GET /offerings/{id}/roster` | managers, registrars | Teachers and enrolments. |
+| `GET /offerings/{id}/summary` | managers | Enrolled count, per-assignment submitted/graded/awaiting, per-quiz participation. |
+
+### Content, progress, and communication
+
+| Route | Who | Purpose |
+|---|---|---|
+| `POST /offerings/{id}/modules`, `PATCH`/`DELETE /modules/{id}` | managers | Weekly or topic modules. Deleting also removes the stored files. |
+| `POST /modules/{id}/items`, `PATCH`/`DELETE /items/{id}` | managers | Items of type `text`, `link` (http/https only), or `file`. |
+| `GET /items/{id}/download` | viewers | Download a file item. |
+| `POST`/`DELETE /items/{id}/complete` | enrolled students | Mark material done or not done. |
+| `GET /offerings/{id}/progress` | viewers | A student gets their own completion; managers get every student's. |
+| `GET`/`POST /offerings/{id}/announcements`, `DELETE /announcements/{id}` | view / managers | Announcements; posting notifies actively enrolled students. |
+| `GET /messages`, `GET`/`POST /messages/{user}` | signed in | Private one-to-one messages: up to 5000 characters of text, files, or both. The inbox lists conversations with unread counts; opening a thread marks it read. You can write to people you share a course with (as teacher or actively enrolled student), to anyone who has already written to you, and, for administrators, to anyone. Rate limited. Nobody, including administrators, can read other people's conversations through the API. |
+| `POST /messages/{user}` with files | signed in | Send as `multipart/form-data` with `body` and/or `attachments[]` (up to 5 files, 10 MB each, the same allowed types as course files, virus-scanned when scanning is on). The recipient is checked before anything is scanned or stored. |
+| `GET /message-attachments/{id}/download` | sender and recipient only | Downloads as an attachment under the original file name. Nobody else, including administrators, can fetch it. |
+| `GET`/`POST /offerings/{id}/sessions`, `PATCH`/`DELETE /sessions/{id}` | view / managers | Scheduled class meetings with a start and end, an optional room, and an optional `join_url` (http/https only) for an online meeting on Zoom, Teams, Meet, or any other service. Students also see their own attendance status on each session. |
+| `GET`/`PUT /sessions/{id}/attendance` | managers | The roll of actively enrolled students, and marking or correcting attendance (`present`, `late`, `absent`, `excused`, with an optional note) for one or many students at once. |
+| `GET /offerings/{id}/attendance` | viewers | A student gets their own totals; managers get every student's. Late counts as attended; excused sessions are left out of the percentage. |
+| `POST /sessions/{id}/checkin/open` (`{minutes}`, default 15), `POST /sessions/{id}/checkin/close`, `GET /sessions/{id}/checkin` | managers | Self check-in: the teacher opens a window and reads the six-digit code out in class; the status call shows the code, whether it is open, and how many students have checked in. |
+| `POST /sessions/{id}/checkin` (`{code}`) | enrolled students | Marks the student present, or late once more than `LMS_CHECKIN_LATE_AFTER_MINUTES` (default 10) have passed since the session's start. Rate limited to 10 tries a minute. A teacher's own mark always wins, teachers can correct a self check-in afterwards, and the code never appears in session listings. This proves the student had the code, not that they were in the room. |
+| `GET`/`POST /offerings/{id}/discussions`, `GET`/`DELETE /discussions/{id}`, `POST /discussions/{id}/posts`, `DELETE /posts/{id}` | enrolled students and staff | Forum threads and replies. Authors delete their own; managers moderate. |
+
+### Assignments and grading
+
+| Route | Who | Purpose |
+|---|---|---|
+| `POST /offerings/{id}/assignments`, `PATCH`/`DELETE /assignments/{id}` | managers | Changing a deadline needs `change_reason` and is audit-logged. Assignments with submissions cannot be deleted. |
+| `GET /assignments/{id}` | anyone who can view it | One assignment with its course and what the caller may do: `abilities.manage`, `.grade`, `.submit`. |
+| `POST /assignments/{id}/submissions` | enrolled students | Text and/or file, once, before the deadline. |
+| `GET /assignments/{id}/submissions`, `GET /submissions/{id}/download` | graders / owner | List and download submissions. |
+| `GET`/`PUT`/`DELETE /assignments/{id}/rubric` | view / managers | A rubric is a list of criteria with maximum points that must add up to the assignment's maximum score. Each criterion can list levels (a title, a description, and points, for example "Excellent, 9 points: a clear thesis backed by evidence") that graders pick from and students can read; level points cannot exceed the criterion's maximum. The rubric is frozen once any grade exists. |
+| `POST /submissions/{id}/grades` | graders | Append a grade record (`draft` or `published`). Later changes need `change_reason`. With a rubric, send `criteria: [{criterion_id, level_id or points, comment}]` (one per criterion) instead of `score`; the total is calculated and each criterion's mark is kept. Publishing notifies the student by database notification and email (the email says a grade is ready but never contains the mark). |
+| `GET /assignments/{id}/similarity` (`?threshold=0.5`) | graders | Screens the class's written answers and plain-text files (.txt, .md, .csv) against each other for copied text. See the note below. |
+| `POST /submissions/{id}/appeal` (`{reason}`) | the student | Appeal a published grade once, within `LMS_APPEAL_WINDOW_DAYS` (default 14) days of it being published. Teaching staff are notified. A student can withdraw an open appeal (`DELETE /appeals/{id}`) and file it again while the window is open. |
+| `GET /my-appeals`, `GET /offerings/{id}/appeals` (`?status=`), `GET /appeals/{id}` | student / managers / either | Appeals, open ones first. The detail includes the published grade history. |
+| `POST /appeals/{id}/resolve` (`{outcome, response}`) | lecturers and course admins (permission `resolve-appeals`) | `upheld` needs a revised grade to have been published first through the normal grading route, with its change reason; `rejected` is refused if the grade was changed. The student is notified of the outcome by email and in the app; the explanation is read after signing in. Decisions are final and audit-logged. |
+| `GET /assignments/{id}/my-grade` | students | Your submission and latest published grade. |
+| `GET /offerings/{id}/gradebook` (`?format=csv`) | managers | Every student's marks: latest published assignment grade and best submitted quiz attempt. CSV cells are protected against spreadsheet formula injection. |
+| `GET /offerings/{id}/my-grades` | students | Your own row of the gradebook. |
+
+Percent is calculated over the items a student has a mark for, so work not yet graded does not lower it.
+
+### Quizzes
+
+Question types: `single_choice`, `multiple_choice` (all correct options required, no partial credit), `true_false` (send `"correct": true|false`), and `short_answer` (each option is an accepted answer; matching ignores case and extra spaces). All are graded automatically on submission.
+
+| Route | Who | Purpose |
+|---|---|---|
+| `POST /offerings/{id}/quizzes`, `GET`/`PATCH`/`DELETE /quizzes/{id}` | managers (GET: viewers) | `due_at`, optional `opens_at`, `time_limit_minutes`, `max_attempts`. Students never receive questions from `GET`. Deadline changes need `change_reason`. |
+| `POST /quizzes/{id}/questions`, `PATCH`/`DELETE /questions/{id}` | managers | Author questions. Locked once anyone has attempted the quiz; a quiz with attempts cannot be deleted, only unpublished. |
+| `POST /quizzes/{id}/attempts` | enrolled students | Start (or resume) an attempt. The response holds the questions without correct answers, plus the `deadline`. |
+| `POST /attempts/{id}/submit` | the student | Body `{"answers": [{"question_id", "option_ids": [...] or "text"}]}`. An attempt still open a minute past its deadline is closed with a zero score. |
+| `GET /attempts/{id}`, `GET /quizzes/{id}/my-attempts`, `GET /quizzes/{id}/attempts` | owner or staff / student / staff | Results and attempt lists. |
+
+### Uploads
+
+Course files and submissions are limited to 25 MB and to the extensions in `LMS_UPLOAD_MIMES` (documents, spreadsheets, slides, text/CSV/Markdown, ZIP, common images, MP3/MP4). The check looks at the file's real content, so a renamed executable is rejected. Files live in a private S3 bucket and are only served through authorized API routes. Message attachments are limited to 5 files of 10 MB each. PHP and nginx are set up for these sizes in `infra/php/lms.ini` and `infra/nginx/default.conf` (mounted by `compose.yaml`); PHP's built-in defaults (2 MB per file) would reject them, so apply the same values if you deploy without Compose.
+
+**Virus scanning** is built in but off by default, because it needs the ClamAV service. To turn it on, run `podman compose --profile scan up -d` (about 1 GB of RAM; the first start downloads the signature database and takes a few minutes), then set `LMS_VIRUS_SCAN=true` in `backend/.env`. Every upload is streamed to ClamAV before it is stored, and infected files are rejected with a 422. If the scanner cannot be reached, uploads are refused (the safe default); set `LMS_VIRUS_SCAN_FAIL_OPEN=true` to accept them with a logged warning instead. Uploads up to 25 MB are scanned. Tested against a real ClamAV with the standard EICAR test file.
+
+**Similarity screening** compares a class against itself using overlapping five-word phrases. It reads written answers and plain-text files only (not PDF or Word), needs at least 20 words per submission, and handles up to 300 submissions at a time. It cannot see the web or earlier terms' work, and a high score is a reason to read two submissions side by side, not proof of copying. It is not a replacement for a commercial service such as Turnitin.
+
+### Single sign-on
+
+Sign-in through any OpenID Connect provider (Microsoft Entra ID, Google Workspace, Okta, Keycloak, and others) using the authorization-code flow with PKCE. It is off until you set these in `backend/.env`:
+
+| Setting | Purpose |
+|---|---|
+| `LMS_SSO_ENABLED=true` | Turns it on (also needs the three values below). |
+| `LMS_SSO_ISSUER`, `LMS_SSO_CLIENT_ID`, `LMS_SSO_CLIENT_SECRET` | From the provider's app registration. The issuer is the address that serves `/.well-known/openid-configuration`. |
+| `LMS_FRONTEND_URL` | Where your frontend lives. Register `<LMS_FRONTEND_URL>/sso/callback` as the redirect address at the provider, or set `LMS_SSO_REDIRECT_URI` to another address. |
+| `LMS_SSO_AUTO_PROVISION` | `true` creates a student account on someone's first sign-in. Default `false`: they must already have an account. Staff roles are never granted by the provider; an administrator assigns them. |
+| `LMS_SSO_ALLOWED_DOMAINS` | Comma-separated email domains allowed to sign in, for example `uni.edu,staff.uni.edu`. |
+| `LMS_SSO_REQUIRE_VERIFIED_EMAIL` | Default `true`: the provider must say the email is verified. Set `false` for providers such as Microsoft Entra ID that do not send that claim; only do so when the provider itself controls who can have an address at your domain. |
+| `LMS_SSO_PASSWORD_LOGIN` | Set `false` to stop everyone except super-admins from signing in with a password once SSO is on. Keep a super-admin as a break-glass account. |
+
+The frontend calls `GET /auth/sso`, sends the browser to the returned `url`, and when the provider redirects back it posts the `code` and `state` to `POST /auth/sso/callback`, which returns the same token as a normal login. The ID token's signature (RS256 only), issuer, audience, expiry, and nonce are all checked; each `state` works once and expires after 10 minutes. The first sign-in links the account to the provider's stable user id, so a later change of email at the provider can neither lock a person out nor let someone else take over their account. SAML is not supported.
+
+### Scheduled jobs
+
+Every night (in the institution's time zone) the scheduler makes a backup at 02:30 (`LMS_BACKUPS`, keeping the newest `LMS_BACKUPS_KEEP`) and removes expired records at 03:15. It also writes a heartbeat every minute, which the health check and the System screen read. The scheduler queues email and database reminders at 08:00 UTC for assignments due the next calendar day. At 07:00 UTC it also sends summary emails (daily, and weekly on Mondays) to people who chose that setting: what they missed while unread, unsubmitted work due within a week, how many messages are waiting, and, for teaching staff, work waiting for a published grade and open appeals. Summaries contain counts and titles only, never marks or message text, and nothing is sent when there is nothing to say. New accounts start on `LMS_DIGEST_DEFAULT` (`off`, `daily`, or `weekly`; default `off`). Run one by hand with `podman compose exec app php artisan lms:send-digests daily`.
+
+## What is and is not integrated
+
+Some things a university expects are tied to its own systems, so they are provided in the form that works with any institution:
+
+| Need | What is built | What it does not do |
+|---|---|---|
+| Single sign-on | OpenID Connect (see above) | SAML. Not tested against a live Microsoft, Google, or Okta tenant; it was tested against a stand-in provider that signs real tokens and enforces the client secret and PKCE. Point it at your provider and try it before relying on it. |
+| Student-record system | CSV import of users and enrolments; most registration systems can export one | A live connection to a specific vendor's system, and automatic nightly sync. |
+| Plagiarism checking | Similarity screening within a class | Turnitin or any external service, comparison with the web or earlier terms, and PDF or Word files. |
+| Video meetings | A meeting link on each class session, and attendance | Creating meetings automatically in Zoom, Teams, or Meet. |
+| Virus scanning | ClamAV, opt-in (see Uploads) | Scanning files already stored before it was switched on. |
+
+Still not built: second-marker moderation of whole cohorts, message deletion, location-checked attendance, and per-message email alerts. Quiz attempts that expire while a student is offline are closed the next time the attempt is read or started, not by a background job. Run behind TLS with production secrets and tested backups before a pilot (see Security and operations). The Composer lock is resolved for PHP 8.3, including `spatie/laravel-activitylog` 4.x, which supports Laravel 13 and PHP 8.3.
+## Security and operations
+
+Every item below is enforced by code and covered by tests (`SecurityHardeningTest`, `ReliabilityTest`, `PerformanceTest`, `PreflightAndEmptyStatesTest`), and was also checked against the running stack. `php artisan lms:preflight --production` prints a PASS/WARN/FAIL checklist of the settings that must be right before launch and exits non-zero on any FAIL. Run it in the deployed environment.
+
+**Abuse and cost limits**
+
+| Concern | What is done |
+|---|---|
+| Rate limiting | Per user: 120 requests/minute for the API. Sign-in: 5/minute per address and email. Stricter limits for password reset, submissions, messages, check-in and SSO. Expensive endpoints (gradebook, reports, audit log, imports, course copy, similarity): 10/minute. Public endpoints: 60/minute per address. Limited requests get `429` with `Retry-After`. |
+| Spending caps | The system has no paid third-party API, but the resources that cost money are capped: 25 MB per file, 200 MB of uploads per user per day (`LMS_DAILY_UPLOAD_MB`), 512 KB per JSON body (`LMS_JSON_BODY_KB`), 55 MB per request at nginx, and at most 200 rows per page. Also set billing alerts with your cloud storage and email provider. |
+| Upload safety | Extension allow-list checked against the file's real content, size limits, optional ClamAV scan, private bucket. |
+| Request size | Oversized JSON gets `413`; nginx and PHP limits are aligned (`infra/`). |
+| Large results | Lists, and the gradebook, progress and roster views, are paginated (`?page=`, `?per_page=`, capped at 200). CSV export streams in chunks. |
+| Repeated requests | Send an `Idempotency-Key` header (8-100 characters) on any POST/PUT/PATCH/DELETE and a retry returns the first result instead of repeating the action (`Idempotent-Replayed: true`). The same key with a different request is refused (`422`), and a duplicate that is still running gets `409`. Use it for enrolments, submissions and anything a user might double-click. GET answers carry an `ETag`, so `If-None-Match` returns a tiny `304`. The reports overview is cached for 60 seconds, and nginx gzip-compresses responses. |
+
+**Accounts and sessions**
+
+- Passwords are bcrypt-hashed (`BCRYPT_ROUNDS`), at least 12 characters, and never logged. Changing a password revokes every other token; resetting one revokes all of them. Reset links expire after 1 hour and work once. Invitation links use their own table, so a long-lived invitation can never act as a reset link. Asking for a reset gives the same answer whether or not the address exists.
+- Sign-in is timing-equalised and gives one message for "no such user" and "wrong password". After 5 wrong passwords an email is locked for 15 minutes, even against the right password (`LMS_LOCKOUT_ATTEMPTS`, `LMS_LOCKOUT_MINUTES`). Emails are unique regardless of case.
+- Authentication uses bearer tokens that expire (`SANCTUM_TOKEN_EXPIRATION`), not cookies. There is no cookie for another site to abuse and so no CSRF token to forget; the cookie session stack is not enabled. If you ever add cookie sessions, cookies default to `Secure` in production (`SESSION_SECURE_COOKIE`).
+- No default admin route or account exists: the only admin is the one you seed from `LMS_ADMIN_EMAIL` and `LMS_ADMIN_PASSWORD`. `/` returns a small JSON status, not a framework welcome page.
+
+**Transport and browser rules**
+
+- CORS accepts only the origins in `LMS_CORS_ORIGINS` (default: your frontend's origin). `lms:preflight` fails if it contains `*`.
+- Every response carries `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` and a `default-src 'none'` content security policy. `Strict-Transport-Security` is added on https requests (or always when `LMS_FORCE_HSTS=true`). Server and PHP versions are hidden and directory listing is off.
+- Behind a load balancer or reverse proxy, set `TRUSTED_PROXIES` to its address. Without it every visitor looks like the proxy, so limits and lockouts would apply to everyone at once. Terminate TLS there and redirect http to https.
+
+**Input handling**
+
+- Every request is validated. Database access uses the query builder with bound parameters (no SQL built from strings). Text fields (names, titles, sections, locations, labels) have HTML stripped, and responses are JSON with `nosniff`, so stored text cannot run as a page. The API sends no user text to any AI model, so prompt injection and AI-usage caps do not apply.
+- Payments, subscriptions, prices and webhooks do not exist in this system, so "prevent duplicate payments or subscriptions", "verify payment webhooks" and "server-set prices" are not applicable. If you add billing, use the same `Idempotency-Key` mechanism and verify webhook signatures.
+
+**Reliability and monitoring**
+
+- Errors always come back as JSON with a `request_id` (also sent as `X-Request-Id` and written to every log line). When the database, cache or storage is unreachable the API answers `503` with `Retry-After` instead of a stack trace, and with `APP_DEBUG=false` no internals are ever shown. Database, Redis and S3 calls have connection timeouts, nginx and PHP have request timeouts, and queued jobs retry three times with backoff.
+- `GET /api/health` (no login, rate limited) reports database, cache, storage, scheduler and queue status: `200` with `ok` or `degraded`, or `503` when something essential is down. Point an uptime monitor (UptimeRobot, Better Stack and similar) at it and alert on anything but `ok`. Set `SENTRY_LARAVEL_DSN` to send exceptions to Sentry.
+- Logs go to files and stderr (`podman logs`). Security events are written as JSON to a separate 90-day log (`storage/logs/security-*.log` and stderr): `login.success`, `login.failed`, `login.locked`, `login.blocked_while_locked`, `password.changed`, `password.reset`, `password.reset_requested`, `sso.failed`, `account.activated`, `account.deactivated`, `access.denied` and `throttle.hit`. Emails appear only as a short hash, and passwords and tokens never appear. Administrative actions also go to the audit log.
+- Database indexes cover every foreign key and the common filters (see the `add_performance_indexes` migration). Eager loading is enforced: a query that would load related rows one at a time throws in development and is logged in production.
+- Loading, empty and error screens are the frontend's job. The API helps by returning an empty list (never an error) when there is nothing to show, one consistent error shape, and `Retry-After` on every limit.
+
+**Database permissions.** The running app uses `lms_app`, created by `infra/postgres/app-role.sql`. It can read and write rows only: it cannot create, alter or drop tables, truncate, create roles, or connect to other databases, and its queries are cancelled after 30 seconds. If the app were ever tricked into running attacker-chosen SQL, that is all an attacker would get. For an existing database, run `psql -U lms -d lms -v app_password='...' -f infra/postgres/app-role.sql` once, then switch `DB_USERNAME` and `DB_PASSWORD` in `backend/.env` and add the `DB_MIGRATE_*` values. Run migrations with `php artisan migrate --database=pgsql_migrate --force`.
+
+**Dependencies.** CI runs `composer audit` on every push; run it before each release too.
+
+**Still yours to do before a launch.** Serve over https with a real certificate: put a TLS-terminating reverse proxy (Caddy, nginx, a cloud load balancer) in front of both the frontend and the API, and set `LMS_API_URL` (frontend container), `LMS_FRONTEND_URL` and `APP_URL` (`backend/.env`) to the https addresses. The frontend's Content-Security-Policy is generated from `LMS_API_URL`, so nothing else needs editing. Set `APP_ENV=production`, `APP_DEBUG=false`, real secrets, `TRUSTED_PROXIES`, `LMS_CORS_ORIGINS`, real mail, a Sentry DSN and an uptime monitor. Turn on virus scanning. Publish a privacy policy and terms page and put their addresses in `LMS_PRIVACY_URL` and `LMS_TERMS_URL` (a frontend can read them from `GET /api/auth/config`). Set up the nightly backup (Administration > Backups), copy the backups off the machine, and test a restore on a copy. Then run `php artisan lms:preflight --production` until it shows no FAIL.
+
+## Checks
+
+Run `podman compose exec app php artisan test` for PHPUnit tests (they use in-memory SQLite). CI runs migrations, tests, and Pint on PHP 8.3 and PostgreSQL 16. Some behaviour differs between SQLite and PostgreSQL, so when changing queries also try them against the running stack. The frontend has its own tests (`cd frontend && npm test`) and the whole stack has real-browser tests in `e2e/`; `php artisan lms:e2e seed|clean` creates and removes the accounts they use, and refuses to run in production.
