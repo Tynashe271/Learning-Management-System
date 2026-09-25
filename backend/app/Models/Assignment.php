@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Assignment extends Model
@@ -23,6 +24,17 @@ class Assignment extends Model
     public function submissions(): HasMany
     {
         return $this->hasMany(Submission::class);
+    }
+
+    public function targetedUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'assignment_targets')->withTimestamps();
+    }
+
+    /** No targets set means visible to the whole class. */
+    public function isVisibleTo(User $user): bool
+    {
+        return ! $this->targetedUsers()->exists() || $this->targetedUsers()->where('users.id', $user->id)->exists();
     }
 
     public function rubricCriteria(): HasMany

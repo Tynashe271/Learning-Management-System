@@ -4,6 +4,7 @@ import type { Module, Quiz } from '../../api/types'
 import { Button, CheckField, FormError, Modal, SelectField, TextArea, TextField } from '../../components/ui'
 import { fromLocalInput, toLocalInput } from '../../lib/format'
 import { fieldError, useApiMutation } from '../../lib/hooks'
+import { TargetPicker } from './TargetPicker'
 
 export function QuizDialog({
   offeringId,
@@ -29,6 +30,8 @@ export function QuizDialog({
   const [isPractice, setIsPractice] = useState(quiz?.is_practice ?? false)
   const [topicId, setTopicId] = useState(String(quiz ? (quiz.course_module_id ?? '') : (defaultModuleId ?? '')))
   const [reason, setReason] = useState('')
+  const [targetMode, setTargetMode] = useState<'everyone' | 'specific'>((quiz?.target_user_ids?.length ?? 0) > 0 ? 'specific' : 'everyone')
+  const [targetIds, setTargetIds] = useState<number[]>(quiz?.target_user_ids ?? [])
 
   const dueChanged = editing && dueAt !== toLocalInput(quiz.due_at)
   const save = useApiMutation(
@@ -42,6 +45,7 @@ export function QuizDialog({
         published,
         is_practice: isPractice,
         course_module_id: topicId ? Number(topicId) : null,
+        target_user_ids: targetMode === 'specific' ? targetIds : [],
       }
       if (!editing || dueChanged) body.due_at = fromLocalInput(dueAt)
       if (dueChanged) body.change_reason = reason.trim()
@@ -82,6 +86,7 @@ export function QuizDialog({
           <TextField label="Attempts allowed" type="number" min={1} max={isPractice ? 999 : 20} value={attempts} onChange={(e) => setAttempts(e.target.value)} error={fieldError(save.error, 'max_attempts')} />
         </div>
         {dueChanged && <TextArea label="Reason for changing the deadline" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} error={fieldError(save.error, 'change_reason')} hint="Recorded in the audit log." required />}
+        <TargetPicker offeringId={offeringId} mode={targetMode} ids={targetIds} onModeChange={setTargetMode} onIdsChange={setTargetIds} />
         <CheckField
           label="Practice quiz"
           hint="Ungraded and doesn't count toward marks. Raises the attempts limit up to 999, for retaking freely."

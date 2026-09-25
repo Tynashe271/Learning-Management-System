@@ -68,10 +68,12 @@ class AgendaBuilder
         }
         $now = now();
         $assignments = Assignment::with('offering.course:id,code')->whereIn('course_offering_id', $enrolled)->where('published', true)
-            ->where('due_at', '<', $now)->whereDoesntHave('submissions', fn ($q) => $q->where('user_id', $user->id))->get()
+            ->where('due_at', '<', $now)->whereDoesntHave('submissions', fn ($q) => $q->where('user_id', $user->id))
+            ->where(fn ($q) => $q->whereDoesntHave('targetedUsers')->orWhereHas('targetedUsers', fn ($t) => $t->where('users.id', $user->id)))->get()
             ->map(fn ($a) => ['type' => 'assignment', 'id' => $a->id, 'title' => $a->title, 'course' => $a->offering->course->code, 'at' => $a->due_at->toIso8601String()]);
         $quizzes = Quiz::with('offering.course:id,code')->whereIn('course_offering_id', $enrolled)->where('published', true)
-            ->where('due_at', '<', $now)->whereDoesntHave('attempts', fn ($q) => $q->where('user_id', $user->id)->whereNotNull('submitted_at'))->get()
+            ->where('due_at', '<', $now)->whereDoesntHave('attempts', fn ($q) => $q->where('user_id', $user->id)->whereNotNull('submitted_at'))
+            ->where(fn ($q) => $q->whereDoesntHave('targetedUsers')->orWhereHas('targetedUsers', fn ($t) => $t->where('users.id', $user->id)))->get()
             ->map(fn ($q) => ['type' => 'quiz', 'id' => $q->id, 'title' => $q->title, 'course' => $q->offering->course->code, 'at' => $q->due_at->toIso8601String()]);
 
         return $assignments->concat($quizzes)->sortBy('at')->values()->all();
@@ -84,10 +86,12 @@ class AgendaBuilder
             return [];
         }
         $assignments = Assignment::with('offering.course:id,code')->whereIn('course_offering_id', $offerings)->where('published', true)
-            ->whereBetween('due_at', [$from, $until])->whereDoesntHave('submissions', fn ($q) => $q->where('user_id', $user->id))->get()
+            ->whereBetween('due_at', [$from, $until])->whereDoesntHave('submissions', fn ($q) => $q->where('user_id', $user->id))
+            ->where(fn ($q) => $q->whereDoesntHave('targetedUsers')->orWhereHas('targetedUsers', fn ($t) => $t->where('users.id', $user->id)))->get()
             ->map(fn ($a) => ['type' => 'assignment', 'id' => $a->id, 'title' => $a->title, 'course' => $a->offering->course->code, 'at' => $a->due_at->toIso8601String()]);
         $quizzes = Quiz::with('offering.course:id,code')->whereIn('course_offering_id', $offerings)->where('published', true)
-            ->whereBetween('due_at', [$from, $until])->whereDoesntHave('attempts', fn ($q) => $q->where('user_id', $user->id)->whereNotNull('submitted_at'))->get()
+            ->whereBetween('due_at', [$from, $until])->whereDoesntHave('attempts', fn ($q) => $q->where('user_id', $user->id)->whereNotNull('submitted_at'))
+            ->where(fn ($q) => $q->whereDoesntHave('targetedUsers')->orWhereHas('targetedUsers', fn ($t) => $t->where('users.id', $user->id)))->get()
             ->map(fn ($q) => ['type' => 'quiz', 'id' => $q->id, 'title' => $q->title, 'course' => $q->offering->course->code, 'at' => $q->due_at->toIso8601String()]);
 
         return $assignments->concat($quizzes)->sortBy('at')->values()->all();

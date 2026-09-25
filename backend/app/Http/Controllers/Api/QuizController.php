@@ -28,17 +28,30 @@ class QuizController extends Controller
             'published' => ['sometimes', 'boolean'],
             'is_practice' => ['sometimes', 'boolean'],
             'course_module_id' => ['nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $offering->id)],
+            'target_user_ids' => ['sometimes', 'array'],
+            'target_user_ids.*' => ['integer', Rule::exists('enrolments', 'user_id')->where('course_offering_id', $offering->id)->where('status', 'active')],
         ]);
         $this->assertWindow($data['opens_at'] ?? null, $data['due_at']);
+        $targetIds = $data['target_user_ids'] ?? null;
+        unset($data['target_user_ids']);
 
-        return response()->json($offering->quizzes()->create($data), 201);
+        $quiz = $offering->quizzes()->create($data);
+        if ($targetIds !== null) {
+            $quiz->targetedUsers()->sync($targetIds);
+        }
+        $quiz->target_user_ids = $quiz->targetedUsers()->pluck('users.id')->all();
+
+        return response()->json($quiz, 201);
     }
 
     public function show(Request $request, Quiz $quiz): JsonResponse
     {
         $this->authorize('view', $quiz);
         if ($request->user()->can('manage', $quiz->offering)) {
-            return response()->json($quiz->load(['questions' => fn ($q) => $q->ordered(), 'questions.options']));
+            $quiz->load(['questions' => fn ($q) => $q->ordered(), 'questions.options']);
+            $quiz->target_user_ids = $quiz->targetedUsers()->pluck('users.id')->all();
+
+            return response()->json($quiz);
         }
 
         // Students never receive questions here; they arrive with an attempt.
@@ -64,15 +77,23 @@ class QuizController extends Controller
             'is_practice' => ['sometimes', 'boolean'],
             'change_reason' => ['sometimes', 'string', 'max:1000'],
             'course_module_id' => ['sometimes', 'nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $quiz->course_offering_id)],
+            'target_user_ids' => ['sometimes', 'array'],
+            'target_user_ids.*' => ['integer', Rule::exists('enrolments', 'user_id')->where('course_offering_id', $quiz->course_offering_id)->where('status', 'active')],
         ]);
         if (isset($data['due_at']) && empty($data['change_reason'])) {
             throw ValidationException::withMessages(['change_reason' => 'A reason is required for deadline changes.']);
         }
         $this->assertWindow(array_key_exists('opens_at', $data) ? $data['opens_at'] : $quiz->opens_at, $data['due_at'] ?? $quiz->due_at);
+        $targetIds = array_key_exists('target_user_ids', $data) ? $data['target_user_ids'] : null;
+        unset($data['target_user_ids']);
         $reason = $data['change_reason'] ?? null;
         unset($data['change_reason']);
         $quiz->update($data);
+        if ($targetIds !== null) {
+            $quiz->targetedUsers()->sync($targetIds);
+        }
         activity()->causedBy($request->user())->performedOn($quiz)->withProperties(['changes' => $data, 'reason' => $reason])->log('quiz changed');
+        $quiz->target_user_ids = $quiz->targetedUsers()->pluck('users.id')->all();
 
         return response()->json($quiz);
     }

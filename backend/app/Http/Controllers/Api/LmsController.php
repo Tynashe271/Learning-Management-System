@@ -166,19 +166,28 @@ class LmsController extends Controller
                 }
                 $items->orderBy('position');
             }]);
-        }, 'assignments' => function ($q) use ($manage) {
-            if (! $manage) {
-                $q->where('published', true);
+        }, 'assignments' => function ($q) use ($manage, $request) {
+            if ($manage) {
+                $q->with('targetedUsers:id');
+            } else {
+                $q->where('published', true)->where(fn ($visible) => $visible->whereDoesntHave('targetedUsers')->orWhereHas('targetedUsers', fn ($t) => $t->where('users.id', $request->user()->id)));
             }
-        }, 'quizzes' => function ($q) use ($manage) {
-            if (! $manage) {
-                $q->where('published', true);
+        }, 'quizzes' => function ($q) use ($manage, $request) {
+            if ($manage) {
+                $q->with('targetedUsers:id');
+            } else {
+                $q->where('published', true)->where(fn ($visible) => $visible->whereDoesntHave('targetedUsers')->orWhereHas('targetedUsers', fn ($t) => $t->where('users.id', $request->user()->id)));
             }
             $q->withCount('questions');
         }]);
 
         // Who teaches it, and whether the caller may edit it, so a frontend can show the right controls.
         $offering->load('teachers.user:id,name');
+
+        if ($manage) {
+            $offering->assignments->each(fn ($a) => $a->target_user_ids = $a->targetedUsers->pluck('id')->all())->each->unsetRelation('targetedUsers');
+            $offering->quizzes->each(fn ($q) => $q->target_user_ids = $q->targetedUsers->pluck('id')->all())->each->unsetRelation('targetedUsers');
+        }
 
         return response()->json($offering->toArray() + ['abilities' => ['manage' => $manage]]);
     }
@@ -324,22 +333,54 @@ class LmsController extends Controller
     public function assignment(Request $request, CourseOffering $offering): JsonResponse
     {
         $this->authorize('manage', $offering);
-        $data = $request->validate(['title' => ['required', 'string', 'max:255'], 'instructions' => ['nullable', 'string'], 'due_at' => ['required', 'date', 'after:now'], 'max_score' => ['required', 'integer', 'min:1'], 'published' => ['sometimes', 'boolean'], 'course_module_id' => ['nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $offering->id)]]);
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'instructions' => ['nullable', 'string'],
+            'due_at' => ['required', 'date', 'after:now'],
+            'max_score' => ['required', 'integer', 'min:1'],
+            'published' => ['sometimes', 'boolean'],
+            'course_module_id' => ['nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $offering->id)],
+            'target_user_ids' => ['sometimes', 'array'],
+            'target_user_ids.*' => ['integer', Rule::exists('enrolments', 'user_id')->where('course_offering_id', $offering->id)->where('status', 'active')],
+        ]);
+        $targetIds = $data['target_user_ids'] ?? null;
+        unset($data['target_user_ids']);
 
-        return response()->json($offering->assignments()->create($data), 201);
+        $assignment = $offering->assignments()->create($data);
+        if ($targetIds !== null) {
+            $assignment->targetedUsers()->sync($targetIds);
+        }
+        $assignment->target_user_ids = $assignment->targetedUsers()->pluck('users.id')->all();
+
+        return response()->json($assignment, 201);
     }
 
     public function updateAssignment(Request $request, Assignment $assignment): JsonResponse
     {
         $this->authorize('manage', $assignment->offering);
-        $data = $request->validate(['title' => ['sometimes', 'string', 'max:255'], 'instructions' => ['sometimes', 'nullable', 'string'], 'due_at' => ['sometimes', 'date', 'after:now'], 'published' => ['sometimes', 'boolean'], 'change_reason' => ['sometimes', 'string', 'max:1000'], 'course_module_id' => ['sometimes', 'nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $assignment->course_offering_id)]]);
+        $data = $request->validate([
+            'title' => ['sometimes', 'string', 'max:255'],
+            'instructions' => ['sometimes', 'nullable', 'string'],
+            'due_at' => ['sometimes', 'date', 'after:now'],
+            'published' => ['sometimes', 'boolean'],
+            'change_reason' => ['sometimes', 'string', 'max:1000'],
+            'course_module_id' => ['sometimes', 'nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $assignment->course_offering_id)],
+            'target_user_ids' => ['sometimes', 'array'],
+            'target_user_ids.*' => ['integer', Rule::exists('enrolments', 'user_id')->where('course_offering_id', $assignment->course_offering_id)->where('status', 'active')],
+        ]);
         if (isset($data['due_at']) && empty($data['change_reason'])) {
             throw ValidationException::withMessages(['change_reason' => 'A reason is required for deadline changes.']);
         }
+        $targetIds = array_key_exists('target_user_ids', $data) ? $data['target_user_ids'] : null;
+        unset($data['target_user_ids']);
         $reason = $data['change_reason'] ?? null;
         unset($data['change_reason']);
         $assignment->update($data);
+        if ($targetIds !== null) {
+            $assignment->targetedUsers()->sync($targetIds);
+        }
         activity()->causedBy($request->user())->performedOn($assignment)->withProperties(['changes' => $data, 'reason' => $reason])->log('assignment changed');
+        $assignment->target_user_ids = $assignment->targetedUsers()->pluck('users.id')->all();
 
         return response()->json($assignment);
     }
@@ -376,9 +417,13 @@ class LmsController extends Controller
         $this->authorize('view', $assignment);
         $user = $request->user();
         $assignment->load('offering.course:id,code,title', 'offering.term:id,name', 'offering.modules:id,course_offering_id,title,position');
+        $manage = $user->can('manage', $assignment->offering);
+        if ($manage) {
+            $assignment->target_user_ids = $assignment->targetedUsers()->pluck('users.id')->all();
+        }
 
         return response()->json($assignment->toArray() + ['abilities' => [
-            'manage' => $user->can('manage', $assignment->offering),
+            'manage' => $manage,
             'grade' => $user->can('grade', $assignment),
             'submit' => $user->can('submit', $assignment),
         ]]);

@@ -334,6 +334,11 @@ function AssignmentRow({ assignment, manage }: { assignment: Assignment; manage:
           <div className="muted small">
             Due {formatDateTime(assignment.due_at)} · Out of {assignment.max_score} {isPast(assignment.due_at) && <Badge tone="neutral">Closed</Badge>}
           </div>
+          {manage && !!assignment.target_user_ids?.length && (
+            <div className="muted small">
+              Assigned to {assignment.target_user_ids.length} student{assignment.target_user_ids.length === 1 ? '' : 's'}
+            </div>
+          )}
         </div>
       </div>
     </li>
@@ -360,6 +365,11 @@ function QuizRow({ quiz, manage }: { quiz: Quiz; manage: boolean }) {
               </>
             )}
           </div>
+          {manage && !!quiz.target_user_ids?.length && (
+            <div className="muted small">
+              Assigned to {quiz.target_user_ids.length} student{quiz.target_user_ids.length === 1 ? '' : 's'}
+            </div>
+          )}
         </div>
       </div>
     </li>

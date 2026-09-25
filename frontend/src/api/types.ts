@@ -251,6 +251,8 @@ export interface Assignment {
   max_score: number
   published: boolean
   created_at?: string
+  /** present only in the manage view; absent means visible to the whole class */
+  target_user_ids?: number[]
 }
 
 export interface RubricLevel {
@@ -411,6 +413,8 @@ export interface Quiz {
   questions_count?: number
   total_points?: number
   attempts_used?: number
+  /** present only in the manage view; absent means visible to the whole class */
+  target_user_ids?: number[]
 }
 
 export interface AttemptSummary {

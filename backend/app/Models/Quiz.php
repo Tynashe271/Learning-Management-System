@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Quiz extends Model
@@ -18,6 +19,17 @@ class Quiz extends Model
     public function offering(): BelongsTo
     {
         return $this->belongsTo(CourseOffering::class, 'course_offering_id');
+    }
+
+    public function targetedUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'quiz_targets')->withTimestamps();
+    }
+
+    /** No targets set means visible to the whole class. */
+    public function isVisibleTo(User $user): bool
+    {
+        return ! $this->targetedUsers()->exists() || $this->targetedUsers()->where('users.id', $user->id)->exists();
     }
 
     public function questions(): HasMany

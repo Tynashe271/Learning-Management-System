@@ -9,8 +9,11 @@ class AssignmentPolicy
 {
     public function view(User $user, Assignment $assignment): bool
     {
-        return $user->can('view', $assignment->offering)
-            && ($assignment->published || $user->can('manage', $assignment->offering));
+        if ($user->can('manage', $assignment->offering)) {
+            return $user->can('view', $assignment->offering);
+        }
+
+        return $user->can('view', $assignment->offering) && $assignment->published && $assignment->isVisibleTo($user);
     }
 
     public function submit(User $user, Assignment $assignment): bool
@@ -20,6 +23,7 @@ class AssignmentPolicy
             && $assignment->offering->published
             && $assignment->offering->archived_at === null
             && $assignment->offering->enrolments()->where('user_id', $user->id)->where('status', 'active')->exists()
+            && $assignment->isVisibleTo($user)
             && now()->lessThanOrEqualTo($assignment->due_at);
     }
 
