@@ -225,6 +225,7 @@ export interface Module {
   title: string
   position: number
   published: boolean
+  prerequisite_module_id?: number | null
   items?: LearningItem[]
 }
 

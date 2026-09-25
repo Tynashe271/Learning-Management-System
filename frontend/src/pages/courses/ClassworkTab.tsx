@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { api } from '../../api/client'
 import type { Assignment, LearningItem, Module, Offering, Progress, Quiz } from '../../api/types'
-import { Badge, Button, Card, CheckField, EmptyState, FileField, FormError, Modal, ProgressRing, PublishedBadge, TextArea, TextField, useConfirm } from '../../components/ui'
+import { Badge, Button, Card, CheckField, EmptyState, FileField, FormError, Modal, ProgressRing, PublishedBadge, SelectField, TextArea, TextField, useConfirm } from '../../components/ui'
 import { DownloadButton, bool, fieldError, useApiMutation } from '../../lib/hooks'
 import { formatDateTime, formatPercent, isPast } from '../../lib/format'
 import { AssignmentDialog } from './AssignmentsTab'
@@ -37,6 +37,15 @@ export function ClassworkTab() {
   const ungroupedAssignments = assignments.filter((a) => !a.course_module_id)
   const ungroupedQuizzes = quizzes.filter((q) => !q.course_module_id)
   const isEmpty = modules.length === 0 && ungroupedAssignments.length === 0 && ungroupedQuizzes.length === 0
+
+  const moduleById = new Map(modules.map((m) => [m.id, m]))
+  // Managers always see every topic unlocked, so they can build content ahead of time.
+  function isModuleLocked(module: Module): boolean {
+    if (!student || !module.prerequisite_module_id) return false
+    const prerequisite = moduleById.get(module.prerequisite_module_id)
+    const items = prerequisite?.items ?? []
+    return items.length > 0 && !items.every((item) => done.has(item.id))
+  }
 
   return (
     <>
@@ -78,6 +87,8 @@ export function ClassworkTab() {
           nextItemId={nextItemId}
           assignments={assignments.filter((a) => a.course_module_id === module.id)}
           quizzes={quizzes.filter((q) => q.course_module_id === module.id)}
+          locked={isModuleLocked(module)}
+          prerequisiteTitle={module.prerequisite_module_id ? moduleById.get(module.prerequisite_module_id)?.title : undefined}
           onEdit={() => setModuleDialog(module)}
           onNew={(kind) => setCreating({ moduleId: module.id, kind })}
         />
@@ -127,6 +138,8 @@ function TopicCard({
   nextItemId,
   assignments,
   quizzes,
+  locked,
+  prerequisiteTitle,
   onEdit,
   onNew,
 }: {
@@ -138,6 +151,8 @@ function TopicCard({
   nextItemId?: number
   assignments: Assignment[]
   quizzes: Quiz[]
+  locked: boolean
+  prerequisiteTitle?: string
   onEdit: () => void
   onNew: (kind: 'assignment' | 'quiz') => void
 }) {
@@ -149,6 +164,21 @@ function TopicCard({
   const items = module.items ?? []
   const trackable = items.length + assignments.length + quizzes.length
   const doneInModule = items.filter((item) => done.has(item.id)).length
+
+  if (locked) {
+    return (
+      <Card
+        id={`module-${module.id}`}
+        title={
+          <>
+            {module.title} <Badge tone="neutral">🔒 Locked</Badge>
+          </>
+        }
+      >
+        <p className="muted">Unlocks after completing “{prerequisiteTitle}”.</p>
+      </Card>
+    )
+  }
 
   return (
     <Card
@@ -340,9 +370,11 @@ function ModuleDialog({ offering, module, onClose }: { offering: Offering; modul
   const [title, setTitle] = useState(module?.title ?? '')
   const [position, setPosition] = useState(String(module?.position ?? (offering.modules?.length ?? 0)))
   const [published, setPublished] = useState(module?.published ?? false)
+  const [prerequisiteId, setPrerequisiteId] = useState(module?.prerequisite_module_id ? String(module.prerequisite_module_id) : '')
+  const otherModules = (offering.modules ?? []).filter((m) => m.id !== module?.id)
   const save = useApiMutation(
     () => {
-      const body = { title: title.trim(), position: Number(position) || 0, published }
+      const body = { title: title.trim(), position: Number(position) || 0, published, prerequisite_module_id: prerequisiteId ? Number(prerequisiteId) : null }
       return module ? api.patch(`/modules/${module.id}`, body) : api.post(`/offerings/${offering.id}/modules`, body)
     },
     { invalidate: [['offering', offering.id]], success: module ? 'Topic saved.' : 'Topic added.', onSuccess: onClose },
@@ -357,8 +389,25 @@ function ModuleDialog({ offering, module, onClose }: { offering: Offering; modul
       >
         <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} error={fieldError(save.error, 'title')} maxLength={255} autoFocus required />
         <TextField label="Position" type="number" min={0} value={position} onChange={(e) => setPosition(e.target.value)} hint="Topics are shown in ascending order." error={fieldError(save.error, 'position')} />
+        {otherModules.length > 0 && (
+          <SelectField
+            label="Prerequisite topic"
+            hint="Students must complete every item in this topic before this one appears for them."
+            optional
+            value={prerequisiteId}
+            onChange={(e) => setPrerequisiteId(e.target.value)}
+            error={fieldError(save.error, 'prerequisite_module_id')}
+          >
+            <option value="">None</option>
+            {otherModules.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.title}
+              </option>
+            ))}
+          </SelectField>
+        )}
         <CheckField label="Published" hint="Students can see published topics." checked={published} onChange={(e) => setPublished(e.target.checked)} />
-        {save.error && !fieldError(save.error, 'title') && !fieldError(save.error, 'position') && <FormError error={save.error} />}
+        {save.error && !fieldError(save.error, 'title') && !fieldError(save.error, 'position') && !fieldError(save.error, 'prerequisite_module_id') && <FormError error={save.error} />}
         <div className="form-actions">
           <Button onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="primary" loading={save.isPending} disabled={!title.trim()}>

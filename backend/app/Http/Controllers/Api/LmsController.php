@@ -234,7 +234,12 @@ class LmsController extends Controller
     public function module(Request $request, CourseOffering $offering): JsonResponse
     {
         $this->authorize('manage', $offering);
-        $data = $request->validate(['title' => ['required', 'string', 'max:255'], 'position' => ['sometimes', 'integer', 'min:0'], 'published' => ['sometimes', 'boolean']]);
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'position' => ['sometimes', 'integer', 'min:0'],
+            'published' => ['sometimes', 'boolean'],
+            'prerequisite_module_id' => ['nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $offering->id)],
+        ]);
 
         return response()->json($offering->modules()->create($data), 201);
     }
@@ -242,10 +247,36 @@ class LmsController extends Controller
     public function updateModule(Request $request, CourseModule $module): JsonResponse
     {
         $this->authorize('manage', CourseOffering::findOrFail($module->course_offering_id));
-        $data = $request->validate(['title' => ['sometimes', 'string', 'max:255'], 'position' => ['sometimes', 'integer', 'min:0'], 'published' => ['sometimes', 'boolean']]);
+        $data = $request->validate([
+            'title' => ['sometimes', 'string', 'max:255'],
+            'position' => ['sometimes', 'integer', 'min:0'],
+            'published' => ['sometimes', 'boolean'],
+            'prerequisite_module_id' => [
+                'sometimes', 'nullable', 'integer',
+                Rule::exists('course_modules', 'id')->where('course_offering_id', $module->course_offering_id),
+                Rule::notIn([$module->id]),
+            ],
+        ]);
+        if (array_key_exists('prerequisite_module_id', $data) && $data['prerequisite_module_id'] && $this->wouldCreateCycle($module, $data['prerequisite_module_id'])) {
+            throw ValidationException::withMessages(['prerequisite_module_id' => 'That would make a topic a prerequisite of itself, directly or through a chain of other topics.']);
+        }
         $module->update($data);
 
         return response()->json($module);
+    }
+
+    /** Walks up a proposed prerequisite chain (bounded, so a corrupt chain can never hang the request) looking for a way back to $module. */
+    private function wouldCreateCycle(CourseModule $module, int $proposedPrerequisiteId): bool
+    {
+        $currentId = $proposedPrerequisiteId;
+        for ($hops = 0; $hops < 50 && $currentId !== null; $hops++) {
+            if ($currentId === $module->id) {
+                return true;
+            }
+            $currentId = CourseModule::where('id', $currentId)->value('prerequisite_module_id');
+        }
+
+        return false;
     }
 
     public function item(Request $request, CourseModule $module): JsonResponse
