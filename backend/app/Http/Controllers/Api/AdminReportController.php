@@ -82,7 +82,7 @@ class AdminReportController extends Controller
 
     public function overview(Request $request): JsonResponse
     {
-        abort_unless($request->user()->can('manage-courses'), 403);
+        abort_unless($request->user()->can('manage-courses') || $request->user()->can('manage-enrolments'), 403);
 
         // Counting whole tables is the costliest thing a dashboard does, and to-the-second accuracy is not needed:
         // everyone who opens the report within a minute shares one calculation.
@@ -102,7 +102,22 @@ class AdminReportController extends Controller
             'submissions' => Submission::count(),
             'quizzes' => Quiz::count(),
             'quiz_attempts_submitted' => QuizAttempt::whereNotNull('submitted_at')->count(),
+            'warnings' => $this->catalogueWarnings(),
         ]));
+    }
+
+    /** Course-catalogue health checks worth a coordinator's or administrator's attention, cheap enough to run every minute. */
+    private function catalogueWarnings(): array
+    {
+        $unstaffed = CourseOffering::where('published', true)->whereDoesntHave('teachers')
+            ->with('course:id,code', 'term:id,name')->get()
+            ->map(fn ($o) => "{$o->course->code} ({$o->term->name}) is published but has no teacher assigned.");
+        $startingSoon = CourseOffering::where('published', false)
+            ->whereHas('term', fn ($q) => $q->whereBetween('starts_on', [now()->toDateString(), now()->addDays(14)->toDateString()]))
+            ->with('course:id,code', 'term:id,name')->get()
+            ->map(fn ($o) => "{$o->course->code} ({$o->term->name}) starts within 14 days but is not published.");
+
+        return $unstaffed->concat($startingSoon)->values()->all();
     }
 
     /**

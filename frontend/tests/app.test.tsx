@@ -15,6 +15,8 @@ const shared = {
   'GET /notifications': () => ({ body: emptyPage }),
   'GET /offerings': () => ({ body: emptyPage }),
   'GET /me/digest-preview': () => ({ body: { since: '2026-01-01T00:00:00Z', summary: null } }),
+  'GET /me/agenda': () => ({ body: { sessions: [], deadlines: [] } }),
+  'GET /me/insights': () => ({ body: { missing: [], recent_feedback: [], weak_topics: [] } }),
 }
 
 describe('signing in', () => {
@@ -131,7 +133,7 @@ describe('what each person sees', () => {
     mockApi({
       ...shared,
       'GET /me': () => ({ body: adminMe }),
-      'GET /reports/overview': () => ({ body: { users: { total: 3, active: 3, by_role: {} }, offerings: { total: 1, published: 1 }, enrolments_active: 2, assignments: 1, submissions: 1, quizzes: 1, quiz_attempts_submitted: 1 } }),
+      'GET /reports/overview': () => ({ body: { users: { total: 3, active: 3, by_role: {} }, offerings: { total: 1, published: 1 }, enrolments_active: 2, assignments: 1, submissions: 1, quizzes: 1, quiz_attempts_submitted: 1, warnings: [] } }),
     })
     renderApp(<App />, '/')
     const nav = await screen.findByRole('navigation', { name: 'Main' })

@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import type { DigestSummary, Notification, Offering, Overview, Page } from '../api/types'
+import type { Agenda, DigestSummary, Notification, Offering, Overview, Page } from '../api/types'
 import { ROLE_LABELS } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
-import { Badge, Card, EmptyState, ErrorState, Loading, PageHeader, QueryView, Stat } from '../components/ui'
+import { Alert, Badge, Card, EmptyState, ErrorState, Loading, PageHeader, QueryView, Stat } from '../components/ui'
 import { formatDateTime, plural, relativeTime } from '../lib/format'
 import { useTitle } from '../lib/hooks'
 import { notificationLink, notificationText } from '../lib/notifications'
@@ -23,25 +23,59 @@ function StaffDashboard() {
   const offerings = useQuery({ queryKey: ['offerings', 1], queryFn: () => api.get<Page<Offering>>('/offerings', { page: 1 }) })
   const todo = useQuery({ queryKey: ['digest-preview'], queryFn: () => api.get<DigestSummary>('/me/digest-preview'), staleTime: 60_000, retry: false })
   const notifications = useQuery({ queryKey: ['notifications', 'bell'], queryFn: () => api.get<Page<Notification>>('/notifications') })
-  const overview = useQuery({ queryKey: ['overview'], queryFn: () => api.get<Overview>('/reports/overview'), enabled: can('manage-courses'), staleTime: 60_000 })
+  const canSeeOverview = can('manage-courses') || can('manage-enrolments')
+  const overview = useQuery({ queryKey: ['overview'], queryFn: () => api.get<Overview>('/reports/overview'), enabled: canSeeOverview, staleTime: 60_000 })
+  const agenda = useQuery({ queryKey: ['me', 'agenda'], queryFn: () => api.get<Agenda>('/me/agenda', { days: 7 }) })
 
   return (
     <>
       <PageHeader title={`Welcome, ${user?.name ?? ''}`} subtitle={(user?.roles ?? []).map((r) => ROLE_LABELS[r.name] ?? r.name).join(' · ')} />
 
-      {can('manage-courses') && (
+      {canSeeOverview && (
         <Card title="The university at a glance" actions={<Link to="/admin/reports">Full report</Link>}>
           <QueryView query={overview}>
             {(o) => (
-              <div className="stats">
-                <Stat label="Accounts" value={o.users.total} hint={`${o.users.active} active`} />
-                <Stat label="Course offerings" value={o.offerings.total} hint={`${o.offerings.published} published`} />
-                <Stat label="Active enrolments" value={o.enrolments_active} />
-                <Stat label="Assignments" value={o.assignments} hint={`${o.submissions} submissions`} />
-                <Stat label="Quizzes" value={o.quizzes} hint={`${o.quiz_attempts_submitted} attempts`} />
-              </div>
+              <>
+                <div className="stats">
+                  <Stat label="Accounts" value={o.users.total} hint={`${o.users.active} active`} />
+                  {can('manage-courses') && <Stat label="Course offerings" value={o.offerings.total} hint={`${o.offerings.published} published`} />}
+                  <Stat label="Active enrolments" value={o.enrolments_active} />
+                  {can('manage-courses') && <Stat label="Assignments" value={o.assignments} hint={`${o.submissions} submissions`} />}
+                  {can('manage-courses') && <Stat label="Quizzes" value={o.quizzes} hint={`${o.quiz_attempts_submitted} attempts`} />}
+                </div>
+                {can('manage-courses') && o.warnings.length > 0 && (
+                  <Alert tone="warn">
+                    <ul className="plain-list">
+                      {o.warnings.map((w, i) => (
+                        <li key={i}>{w}</li>
+                      ))}
+                    </ul>
+                  </Alert>
+                )}
+              </>
             )}
           </QueryView>
+        </Card>
+      )}
+
+      {agenda.data && agenda.data.sessions.length > 0 && (
+        <Card title="Upcoming classes you teach">
+          <ul className="list">
+            {agenda.data.sessions.slice(0, 5).map((s, i) => (
+              <li key={i}>
+                <span className="agenda-icon" aria-hidden="true">
+                  🎥
+                </span>
+                <span>
+                  <strong>{s.title}</strong>
+                  <span className="muted small block">
+                    {s.course} · {formatDateTime(s.at)}
+                    {s.location ? ` · ${s.location}` : ''}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
 

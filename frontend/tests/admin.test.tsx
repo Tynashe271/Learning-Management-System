@@ -23,7 +23,9 @@ const shared = {
   'GET /notifications': () => ({ body: emptyPage }),
   'GET /system-announcements/active': () => ({ body: [] }),
   'GET /offerings': () => ({ body: emptyPage }),
-  'GET /reports/overview': () => ({ body: { users: { total: 3, active: 3, by_role: {} }, offerings: { total: 1, published: 1 }, enrolments_active: 2, assignments: 1, submissions: 1, quizzes: 1, quiz_attempts_submitted: 1 } }),
+  'GET /reports/overview': () => ({ body: { users: { total: 3, active: 3, by_role: {} }, offerings: { total: 1, published: 1 }, enrolments_active: 2, assignments: 1, submissions: 1, quizzes: 1, quiz_attempts_submitted: 1, warnings: [] } }),
+  'GET /me/agenda': () => ({ body: { sessions: [], deadlines: [] } }),
+  'GET /me/insights': () => ({ body: { missing: [], recent_feedback: [], weak_topics: [] } }),
 }
 
 beforeEach(() => {

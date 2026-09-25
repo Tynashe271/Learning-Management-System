@@ -1,19 +1,21 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import type { DigestSummary, Offering, Page, Progress } from '../api/types'
+import type { Agenda, AgendaDeadline, AgendaSession, Insights, Offering, Page, Progress } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { CourseCard } from '../components/CourseCard'
-import { Card, EmptyState, ErrorState, Loading, ProgressRing } from '../components/ui'
-import { formatDateTime, plural } from '../lib/format'
-import { useTitle } from '../lib/hooks'
+import { Badge, Button, Card, EmptyState, ErrorState, Loading, ProgressRing } from '../components/ui'
+import { dayLabel, formatTime, plural } from '../lib/format'
+import { useApiMutation, useTitle } from '../lib/hooks'
 
 export function StudentDashboard() {
   useTitle('My learning')
   const { user } = useAuth()
 
   const offerings = useQuery({ queryKey: ['offerings', 1], queryFn: () => api.get<Page<Offering>>('/offerings', { page: 1 }) })
-  const todo = useQuery({ queryKey: ['digest-preview'], queryFn: () => api.get<DigestSummary>('/me/digest-preview'), staleTime: 60_000, retry: false })
+  const agenda = useQuery({ queryKey: ['me', 'agenda'], queryFn: () => api.get<Agenda>('/me/agenda', { days: 7 }) })
+  const insights = useQuery({ queryKey: ['me', 'insights'], queryFn: () => api.get<Insights>('/me/insights') })
 
   const enrolled = offerings.data?.data ?? []
   const progressQueries = useQueries({
@@ -62,57 +64,208 @@ export function StudentDashboard() {
         </div>
       )}
 
-      <Card title="Coming up">
-        {todo.isPending && <Loading />}
-        {todo.isError && <p className="muted">We could not load your summary just now. {(todo.error as Error).message}</p>}
-        {todo.data && !todo.data.summary && (
-          <EmptyState title="You are all caught up" icon="🎉">
-            Nothing is due this week and nothing is waiting for you.
-          </EmptyState>
-        )}
-        {todo.data?.summary && <Agenda summary={todo.data.summary} />}
-      </Card>
+      <div className="grid-2">
+        <Card title="Today & this week">
+          {agenda.isPending && <Loading />}
+          {agenda.isError && <p className="muted">We could not load your agenda just now. {(agenda.error as Error).message}</p>}
+          {agenda.data && agenda.data.sessions.length === 0 && agenda.data.deadlines.length === 0 && (
+            <EmptyState title="Nothing on your plate this week" icon="🎉">
+              No classes and nothing due for the next 7 days.
+            </EmptyState>
+          )}
+          {agenda.data && (agenda.data.sessions.length > 0 || agenda.data.deadlines.length > 0) && <WeeklyPlan agenda={agenda.data} />}
+        </Card>
+
+        <Card title="Missing work">
+          {insights.isPending && <Loading />}
+          {insights.isError && <p className="muted">We could not load this just now.</p>}
+          {insights.data && insights.data.missing.length === 0 && (
+            <EmptyState title="Nothing overdue" icon="✅">
+              Everything that has come due so far is submitted.
+            </EmptyState>
+          )}
+          {insights.data && insights.data.missing.length > 0 && (
+            <ul className="agenda">
+              {insights.data.missing.map((m) => (
+                <MissingRow key={`${m.type}${m.id}`} item={m} />
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid-2">
+        <Card title="Recent feedback">
+          {insights.isPending && <Loading />}
+          {insights.isError && <p className="muted">We could not load this just now.</p>}
+          {insights.data && insights.data.recent_feedback.length === 0 && <p className="muted">No published feedback yet.</p>}
+          {insights.data && insights.data.recent_feedback.length > 0 && (
+            <ul className="agenda">
+              {insights.data.recent_feedback.map((f, i) => (
+                <li key={i}>
+                  <span className="agenda-icon" aria-hidden="true">
+                    💬
+                  </span>
+                  <span>
+                    <strong>{f.assignment}</strong>
+                    <span className="muted small block">
+                      {f.course} · {f.score}/{f.max_score}
+                    </span>
+                    <span className="small block">{f.feedback}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card title="Topics to review">
+          {insights.isPending && <Loading />}
+          {insights.isError && <p className="muted">We could not load this just now.</p>}
+          {insights.data && insights.data.weak_topics.length === 0 && <p className="muted">Nothing flagged — your marks look solid across every topic.</p>}
+          {insights.data && insights.data.weak_topics.length > 0 && (
+            <ul className="agenda">
+              {insights.data.weak_topics.map((t) => (
+                <li key={t.module_id}>
+                  <span className="agenda-icon" aria-hidden="true">
+                    📉
+                  </span>
+                  <span>
+                    <Link to={`/courses/${t.offering_id}/classwork#module-${t.module_id}`}>
+                      <strong>{t.title}</strong>
+                    </Link>
+                    <span className="muted small block">Averaging {t.percent}% — worth a second look</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+
+      <CalendarSync />
     </>
   )
 }
 
-function Agenda({ summary }: { summary: NonNullable<DigestSummary['summary']> }) {
-  return (
-    <ul className="agenda">
-      {summary.deadlines?.map((d, i) => (
-        <li key={`d${i}`}>
+function WeeklyPlan({ agenda }: { agenda: Agenda }) {
+  type Item = { at: string; node: ReactNode }
+  const items: Item[] = [
+    ...agenda.sessions.map((s: AgendaSession) => ({
+      at: s.at,
+      node: (
+        <>
           <span className="agenda-icon" aria-hidden="true">
-            {d.type === 'quiz' ? '📝' : '📄'}
+            🎥
+          </span>
+          <span>
+            <strong>{s.title}</strong>
+            <span className="muted small block">
+              {s.course} · {formatTime(s.at)}
+              {s.location ? ` · ${s.location}` : ''}
+            </span>
+          </span>
+        </>
+      ),
+    })),
+    ...agenda.deadlines.map((d: AgendaDeadline) => ({
+      at: d.at,
+      node: (
+        <>
+          <span className="agenda-icon" aria-hidden="true">
+            {d.type === 'quiz' ? '❓' : '📝'}
           </span>
           <span>
             <strong>{d.title}</strong>
             <span className="muted small block">
-              {d.course} · due {formatDateTime(d.due_at)}
+              {d.course} · due {formatTime(d.at)}
             </span>
           </span>
-        </li>
+        </>
+      ),
+    })),
+  ].sort((a, b) => a.at.localeCompare(b.at))
+
+  const days = new Map<string, Item[]>()
+  for (const item of items) {
+    const label = dayLabel(item.at)
+    days.set(label, [...(days.get(label) ?? []), item])
+  }
+
+  const itemCount = agenda.deadlines.length
+  const estimateMinutes = itemCount * 45
+
+  return (
+    <>
+      {[...days.entries()].map(([label, dayItems]) => (
+        <div key={label} className="agenda-day">
+          <h3>{label}</h3>
+          <ul className="agenda">
+            {dayItems.map((item, i) => (
+              <li key={i}>{item.node}</li>
+            ))}
+          </ul>
+        </div>
       ))}
-      {summary.to_grade?.map((g, i) => (
-        <li key={`g${i}`}>
-          <span className="agenda-icon" aria-hidden="true">
-            ⏳
-          </span>
-          <span>
-            <strong>{g.assignment}</strong>
-            <span className="muted small block">
-              {g.course} · {plural(g.awaiting, 'submission')} waiting for a published grade
-            </span>
-          </span>
-        </li>
-      ))}
-      {!!summary.open_appeals && (
-        <li>
-          <span className="agenda-icon" aria-hidden="true">
-            ⚖️
-          </span>
-          <Link to="/courses">{plural(summary.open_appeals, 'open grade appeal')}</Link>
-        </li>
+      {itemCount > 0 && (
+        <p className="muted small">
+          Roughly {plural(estimateMinutes, 'minute')} of work due this week ({plural(itemCount, 'item')}) — a rough guide, not a tracked total.
+        </p>
       )}
-    </ul>
+    </>
+  )
+}
+
+function MissingRow({ item }: { item: AgendaDeadline }) {
+  const link = item.type === 'quiz' ? `/quizzes/${item.id}` : `/assignments/${item.id}`
+  return (
+    <li>
+      <span className="agenda-icon" aria-hidden="true">
+        ⚠️
+      </span>
+      <span>
+        <Link to={link}>
+          <strong>{item.title}</strong>
+        </Link>
+        <span className="muted small block">
+          {item.course} · was due <Badge tone="bad">overdue</Badge>
+        </span>
+      </span>
+    </li>
+  )
+}
+
+function CalendarSync() {
+  const [url, setUrl] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const get = useApiMutation(() => api.post<{ url: string }>('/me/calendar-token'), { onSuccess: (r) => setUrl(r.url) })
+
+  return (
+    <Card title="Sync to your calendar">
+      <p className="muted small">Add your classes and deadlines to Google Calendar, Outlook or Apple Calendar. It updates on its own — no need to redo this.</p>
+      {!url && (
+        <Button onClick={() => get.mutate()} loading={get.isPending}>
+          Get my calendar link
+        </Button>
+      )}
+      {url && (
+        <div className="inline-form">
+          <div className="field grow">
+            <label htmlFor="ics-url">Subscribe URL</label>
+            <input id="ics-url" type="text" readOnly value={url} onFocus={(e) => e.currentTarget.select()} />
+          </div>
+          <Button
+            onClick={async () => {
+              await navigator.clipboard.writeText(url)
+              setCopied(true)
+              setTimeout(() => setCopied(false), 2000)
+            }}
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </Button>
+        </div>
+      )}
+      {url && <p className="hint">In Google Calendar: Other calendars → + → From URL, then paste this in. Outlook and Apple Calendar have a similar &quot;subscribe by URL&quot; option.</p>}
+    </Card>
   )
 }

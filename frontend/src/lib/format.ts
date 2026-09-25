@@ -102,6 +102,17 @@ export function isPast(value: string | null | undefined, now: Date = new Date())
   return !!value && new Date(value).getTime() < now.getTime()
 }
 
+/** Groups agenda-style items into "Today", "Tomorrow", or a weekday/date heading, for a daily-plan view. */
+export function dayLabel(value: string, now: Date = new Date()): string {
+  const date = new Date(value)
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((startOf(date) - startOf(now)) / 86_400_000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Tomorrow'
+  if (days > 1 && days < 7) return new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(date)
+  return formatDate(value)
+}
+
 /** Ways to show the initials of a name in an avatar circle. */
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)

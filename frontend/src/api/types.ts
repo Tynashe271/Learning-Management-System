@@ -560,6 +560,53 @@ export interface Overview {
   submissions: number
   quizzes: number
   quiz_attempts_submitted: number
+  warnings: string[]
+}
+
+// ---- dashboard ---------------------------------------------------------------------------------------------------
+export interface AgendaSession {
+  type: 'session'
+  title: string
+  course: string
+  at: string
+  ends_at: string
+  location: string | null
+  join_url: string | null
+}
+
+export interface AgendaDeadline {
+  type: 'assignment' | 'quiz'
+  id: number
+  title: string
+  course: string
+  at: string
+}
+
+export interface Agenda {
+  sessions: AgendaSession[]
+  deadlines: AgendaDeadline[]
+}
+
+export interface RecentFeedback {
+  assignment: string
+  course: string
+  score: number
+  max_score: number
+  feedback: string
+  at: string
+}
+
+export interface WeakTopic {
+  offering_id: number
+  module_id: number
+  title: string
+  percent: number
+}
+
+export interface Insights {
+  missing: AgendaDeadline[]
+  recent_feedback: RecentFeedback[]
+  weak_topics: WeakTopic[]
 }
 
 export interface Health {

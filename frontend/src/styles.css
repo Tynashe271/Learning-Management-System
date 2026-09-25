@@ -661,6 +661,18 @@ pre.code {
 .agenda-icon {
   font-size: 1.1rem;
 }
+.agenda-day + .agenda-day {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border);
+}
+.agenda-day h3 {
+  margin: 0 0 0.15rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
 
 /* ---- states ---- */
 .state {

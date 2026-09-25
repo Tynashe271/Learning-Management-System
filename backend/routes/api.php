@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\BackupController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CheckinController;
 use App\Http\Controllers\Api\CourseCopyController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\DigestController;
 use App\Http\Controllers\Api\DiscussionController;
@@ -47,6 +48,7 @@ Route::get('/auth/sso', [SsoController::class, 'redirect'])->middleware('throttl
 Route::post('/auth/sso/callback', [SsoController::class, 'callback'])->middleware('throttle:sso');
 Route::post('/forgot-password', [AccountController::class, 'forgotPassword'])->middleware('throttle:password');
 Route::post('/reset-password', [AccountController::class, 'resetPassword'])->middleware('throttle:password');
+Route::get('/me/calendar/{token}.ics', [DashboardController::class, 'calendarFeed'])->where('token', '[A-Za-z0-9]+')->middleware('throttle:public');
 
 Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.get'])->group(function () {
     // Account
@@ -56,6 +58,9 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/me/preferences', [DigestController::class, 'show']);
     Route::patch('/me/preferences', [DigestController::class, 'update']);
     Route::get('/me/digest-preview', [DigestController::class, 'preview'])->middleware('throttle:heavy');
+    Route::get('/me/agenda', [DashboardController::class, 'agenda']);
+    Route::get('/me/insights', [DashboardController::class, 'insights']);
+    Route::post('/me/calendar-token', [DashboardController::class, 'calendarToken']);
     Route::post('/logout', [LmsController::class, 'logout']);
     Route::get('/notifications', [LmsController::class, 'notifications']);
     Route::post('/notifications/{notification}/read', [LmsController::class, 'readNotification']);

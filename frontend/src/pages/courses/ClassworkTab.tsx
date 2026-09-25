@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { api } from '../../api/client'
 import type { Assignment, LearningItem, Module, Offering, Progress, Quiz } from '../../api/types'
 import { Badge, Button, Card, CheckField, EmptyState, FileField, FormError, Modal, ProgressRing, PublishedBadge, TextArea, TextField, useConfirm } from '../../components/ui'
@@ -18,6 +18,15 @@ export function ClassworkTab() {
   const assignments = offering.assignments ?? []
   const quizzes = offering.quizzes ?? []
   const [moduleDialog, setModuleDialog] = useState<Module | 'new' | null>(null)
+  const location = useLocation()
+
+  // A link to a specific topic (e.g. from "Topics to review" on the dashboard) arrives as a hash; React Router does
+  // not scroll to it on its own once the topic cards below have actually rendered.
+  useEffect(() => {
+    if (!location.hash) return
+    const target = document.querySelector(location.hash)
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [location.hash, modules.length])
   const [creating, setCreating] = useState<NewFor | null>(null)
 
   const progress = useQuery({ queryKey: ['progress', id, 'me'], queryFn: () => api.get<Progress>(`/offerings/${id}/progress`), enabled: student })
@@ -143,6 +152,7 @@ function TopicCard({
 
   return (
     <Card
+      id={`module-${module.id}`}
       title={
         <>
           {module.title} {manage && <PublishedBadge published={module.published} />}
