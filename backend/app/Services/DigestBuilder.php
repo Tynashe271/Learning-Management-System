@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Assignment;
-use App\Models\DirectMessage;
 use App\Models\Enrolment;
 use App\Models\GradeAppeal;
 use App\Models\Quiz;
@@ -17,8 +16,8 @@ use App\Notifications\GradePublished;
 use Carbon\CarbonInterface;
 
 /**
- * Works out what is worth telling one person about in a summary email. Counts and titles only: never marks, and never the
- * text of a private message. Returns null when there is nothing to say, so no empty emails are sent.
+ * Works out what is worth telling one person about in a summary email. Counts and titles only, never marks. Returns null
+ * when there is nothing to say, so no empty emails are sent.
  */
 class DigestBuilder
 {
@@ -37,7 +36,6 @@ class DigestBuilder
     {
         $summary = array_filter([
             'notifications' => $this->notifications($user, $since),
-            'unread_messages' => $this->unreadMessages($user),
             'deadlines' => $this->deadlines($user),
             'to_grade' => $this->toGrade($user),
             'open_appeals' => $this->openAppeals($user),
@@ -64,13 +62,6 @@ class DigestBuilder
                 'titles' => $group->pluck('data.title')->filter()->unique()->take(5)->values()->all(),
             ])->values()->all(),
         ];
-    }
-
-    private function unreadMessages(User $user): ?array
-    {
-        $rows = DirectMessage::where('recipient_id', $user->id)->whereNull('read_at')->selectRaw('sender_id, count(*) as n')->groupBy('sender_id')->get();
-
-        return $rows->isEmpty() ? null : ['count' => (int) $rows->sum('n'), 'people' => $rows->count()];
     }
 
     /** A student's unsubmitted assignments and untaken quizzes due within the next week. */

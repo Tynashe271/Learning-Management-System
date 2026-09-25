@@ -64,7 +64,6 @@ class AppServiceProvider extends ServiceProvider
         // Ten wrong codes a minute cannot brute-force a six-digit code inside its window.
         RateLimiter::for('checkin', fn (Request $request) => Limit::perMinute(10)->by($request->user()?->id ?: $request->ip()));
         RateLimiter::for('sso', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
-        RateLimiter::for('messages', fn (Request $request) => Limit::perMinute(30)->by($request->user()?->id ?: $request->ip()));
         RateLimiter::for('password', fn (Request $request) => Limit::perMinute(5)->by($request->ip().'|'.$request->input('email')));
         // A super-admin passes every check except the ones that mean "you are a student in this course": submitting work
         // and taking a quiz still need an active enrolment, so a super-admin cannot leave stray submissions in a class.

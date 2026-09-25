@@ -112,7 +112,6 @@ export interface DigestSummary {
   since: string
   summary: null | {
     notifications?: { total: number; groups: { label: string; count: number; titles: string[] }[] }
-    unread_messages?: { count: number; people: number }
     deadlines?: { type: 'assignment' | 'quiz'; title: string; course: string; due_at: string }[]
     to_grade?: { assignment: string; course: string; awaiting: number }[]
     open_appeals?: number
@@ -488,34 +487,6 @@ export interface AttendanceSummary extends Partial<AttendanceCounts> {
 }
 
 // ---- communication ---------------------------------------------------------------------------------------------
-export interface Attachment {
-  id: number
-  original_name: string
-  mime_type: string | null
-  size: number
-}
-
-export interface DirectMessage {
-  id: number
-  sender_id: number
-  recipient_id: number
-  body: string
-  read_at: string | null
-  created_at: string
-  attachments: Attachment[]
-}
-
-export interface Conversation {
-  user: { id: number; name: string; email: string } | null
-  unread: number
-  last_message: DirectMessage | null
-}
-
-export interface Conversations {
-  unread_total: number
-  conversations: Conversation[]
-}
-
 export interface Announcement {
   id: number
   title: string

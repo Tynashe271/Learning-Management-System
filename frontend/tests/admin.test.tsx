@@ -21,7 +21,6 @@ const config = {
 const shared = {
   'GET /auth/config': () => ({ body: config }),
   'GET /notifications': () => ({ body: emptyPage }),
-  'GET /messages': () => ({ body: { unread_total: 0, conversations: [] } }),
   'GET /system-announcements/active': () => ({ body: [] }),
   'GET /offerings': () => ({ body: emptyPage }),
   'GET /reports/overview': () => ({ body: { users: { total: 3, active: 3, by_role: {} }, offerings: { total: 1, published: 1 }, enrolments_active: 2, assignments: 1, submissions: 1, quizzes: 1, quiz_attempts_submitted: 1 } }),

@@ -31,9 +31,6 @@ class Digest extends Notification implements ShouldQueue
             $mail->line('**'.$s['notifications']['total'].' unread '.($s['notifications']['total'] === 1 ? 'update' : 'updates').'**');
             $mail->line(collect($s['notifications']['groups'])->map(fn ($g) => '- '.$g['label'].': '.$g['count'].($g['titles'] ? ' ('.collect($g['titles'])->map(fn ($t) => $this->plain($t))->implode(', ').')' : ''))->implode("\n"));
         }
-        if (isset($s['unread_messages'])) {
-            $mail->line('**Messages:** '.$s['unread_messages']['count'].' unread from '.$s['unread_messages']['people'].($s['unread_messages']['people'] === 1 ? ' person' : ' people').'.');
-        }
         if (! empty($s['deadlines'])) {
             $mail->line('**Due in the next 7 days**');
             $mail->line(collect($s['deadlines'])->map(fn ($d) => '- '.$this->plain($d['title']).' ('.$d['course'].', '.($d['type'] === 'quiz' ? 'quiz' : 'assignment').') due '.Carbon::parse($d['due_at'])->utc()->format('D j M, H:i').' UTC')->implode("\n"));

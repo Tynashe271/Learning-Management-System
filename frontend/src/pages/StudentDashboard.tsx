@@ -113,14 +113,6 @@ function Agenda({ summary }: { summary: NonNullable<DigestSummary['summary']> })
           <Link to="/courses">{plural(summary.open_appeals, 'open grade appeal')}</Link>
         </li>
       )}
-      {summary.unread_messages && (
-        <li>
-          <span className="agenda-icon" aria-hidden="true">
-            💬
-          </span>
-          <Link to="/messages">{plural(summary.unread_messages.count, 'unread message')}</Link> from {plural(summary.unread_messages.people, 'person', 'people')}
-        </li>
-      )}
     </ul>
   )
 }

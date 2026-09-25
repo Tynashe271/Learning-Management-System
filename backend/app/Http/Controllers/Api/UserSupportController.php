@@ -12,10 +12,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Throwable;
 
 /**
  * What an administrator needs to help one person: why they cannot sign in, what they are in, a way to unstick them, and the
@@ -97,7 +95,7 @@ class UserSupportController extends Controller
 
     /**
      * Deletes an account that has never produced anything. Anyone with academic or communication records is deactivated or
-     * anonymised instead: grades, submissions and messages are records the institution must be able to stand behind.
+     * anonymised instead: grades and submissions are records the institution must be able to stand behind.
      */
     public function destroy(Request $request, User $user): JsonResponse
     {
@@ -147,8 +145,6 @@ class UserSupportController extends Controller
             'attendance' => DB::table('attendance_records')->join('class_sessions', 'class_sessions.id', '=', 'attendance_records.class_session_id')->where('attendance_records.user_id', $id)->get(['class_sessions.title as class', 'class_sessions.starts_at', 'attendance_records.status']),
             'appeals' => DB::table('grade_appeals')->where('user_id', $id)->get(['reason', 'status', 'response', 'created_at']),
             'discussion_posts' => DB::table('discussion_posts')->where('user_id', $id)->get(['body', 'created_at']),
-            'messages_sent' => DB::table('direct_messages')->where('sender_id', $id)->get(['recipient_id', 'body', 'created_at']),
-            'messages_received_count' => DB::table('direct_messages')->where('recipient_id', $id)->count(),
             'security_events' => SecurityEvent::where('user_id', $id)->latest('id')->limit(200)->get(['event', 'ip', 'created_at']),
         ];
         activity()->causedBy($request->user())->performedOn($user)->log('user data exported');
@@ -159,8 +155,8 @@ class UserSupportController extends Controller
 
     /**
      * Erases who someone is while keeping what the institution must keep. The account stays (their submissions and grades still
-     * belong to a real record) but its name and email are replaced, sign-in is impossible, their messages are emptied and their
-     * notifications deleted. Cannot be undone, so the email must be typed to confirm.
+     * belong to a real record) but its name and email are replaced, sign-in is impossible, and their notifications are deleted.
+     * Cannot be undone, so the email must be typed to confirm.
      */
     public function anonymise(Request $request, User $user): JsonResponse
     {
@@ -176,10 +172,7 @@ class UserSupportController extends Controller
             throw ValidationException::withMessages(['user' => 'A super administrator account cannot be anonymised. Change its role first.']);
         }
 
-        $paths = DB::table('message_attachments')->join('direct_messages', 'direct_messages.id', '=', 'message_attachments.direct_message_id')->where('direct_messages.sender_id', $user->id)->pluck('message_attachments.storage_path')->all();
         DB::transaction(function () use ($user) {
-            DB::table('message_attachments')->whereIn('direct_message_id', DB::table('direct_messages')->where('sender_id', $user->id)->select('id'))->delete();
-            DB::table('direct_messages')->where('sender_id', $user->id)->update(['body' => '[removed]']);
             DB::table('notifications')->where('notifiable_type', User::class)->where('notifiable_id', $user->id)->delete();
             DB::table('personal_access_tokens')->where('tokenable_type', User::class)->where('tokenable_id', $user->id)->delete();
             DB::table('password_reset_tokens')->where('email', $user->email)->delete();
@@ -194,13 +187,6 @@ class UserSupportController extends Controller
                 'anonymised_at' => now(),
             ])->save();
         });
-        try {
-            if ($paths !== []) {
-                Storage::disk('s3')->delete($paths);
-            }
-        } catch (Throwable $e) {
-            report($e);
-        }
         activity()->causedBy($request->user())->withProperties(['user_id' => $user->id])->log('user anonymised');
         SecurityLog::event('account.anonymised', ['target_user_id' => $user->id], 'warning');
 
@@ -226,7 +212,6 @@ class UserSupportController extends Controller
             'quiz_attempts' => DB::table('quiz_attempts')->where('user_id', $id)->count(),
             'grades_given' => DB::table('grade_records')->where('graded_by', $id)->count(),
             'appeals' => DB::table('grade_appeals')->where('user_id', $id)->orWhere('resolved_by', $id)->count(),
-            'messages' => DB::table('direct_messages')->where('sender_id', $id)->orWhere('recipient_id', $id)->count(),
             'discussion_threads' => DB::table('discussion_threads')->where('user_id', $id)->count(),
             'discussion_posts' => DB::table('discussion_posts')->where('user_id', $id)->count(),
             'announcements' => DB::table('announcements')->where('user_id', $id)->count(),

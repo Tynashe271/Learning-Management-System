@@ -27,7 +27,7 @@ export function BackupsPage() {
 
   return (
     <>
-      <PageHeader title="Backups" subtitle="A copy of every account, course, grade and message, and the uploaded files, that you can go back to" />
+      <PageHeader title="Backups" subtitle="A copy of every account, course and grade, and the uploaded files, that you can go back to" />
       <QueryView query={query}>
         {(data) => (
           <>
@@ -36,7 +36,7 @@ export function BackupsPage() {
               <p className="muted">
                 {data.automatic.enabled ? `A backup is also made automatically every night at ${data.automatic.at}, and the newest ${data.automatic.keep} are kept.` : 'Automatic backups are switched off (Settings > Backups).'} Kept in: <code>{data.location}</code>.
               </p>
-              <CheckField label="Include uploaded files" hint="Course files, submissions and message attachments. Much bigger, but without them a restore has the records and not the documents." checked={files} onChange={(e) => setFiles(e.target.checked)} />
+              <CheckField label="Include uploaded files" hint="Course files and submissions. Much bigger, but without them a restore has the records and not the documents." checked={files} onChange={(e) => setFiles(e.target.checked)} />
               <Button variant="primary" onClick={() => create.mutate()} loading={create.isPending || data.status.running} disabled={data.status.running}>
                 {data.status.running ? 'A backup is running…' : 'Back up now'}
               </Button>

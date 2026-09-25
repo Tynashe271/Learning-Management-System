@@ -1092,7 +1092,7 @@ td .field > label {
   text-align: center;
 }
 
-/* ---- pickers, messages ---- */
+/* ---- pickers ---- */
 .picker input[type='search'] {
   margin-bottom: 0.5rem;
 }
@@ -1109,93 +1109,6 @@ td .field > label {
   gap: 0.75rem;
   padding: 0.5rem 0.25rem;
   border-bottom: 1px solid var(--border);
-}
-.messenger {
-  display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  gap: 1rem;
-  align-items: start;
-}
-.conversation-list,
-.thread-pane {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  min-height: 300px;
-}
-.conversation-list ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.conversation {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.7rem 0.9rem;
-  color: var(--text);
-  text-decoration: none;
-  border-bottom: 1px solid var(--border);
-}
-.conversation:hover,
-.conversation-active {
-  background: var(--surface-2);
-}
-.thread {
-  display: flex;
-  flex-direction: column;
-  min-height: 420px;
-}
-.thread-head {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border);
-}
-.thread-messages {
-  flex: 1;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-height: 55vh;
-  overflow-y: auto;
-}
-.bubble {
-  max-width: 78%;
-  padding: 0.5rem 0.8rem;
-  border-radius: 12px;
-  background: var(--surface-2);
-  align-self: flex-start;
-}
-.bubble p {
-  margin: 0;
-}
-.bubble-mine {
-  align-self: flex-end;
-  background: var(--primary);
-  color: var(--primary-text);
-}
-.bubble-mine .muted,
-.bubble-mine .bubble-time {
-  color: inherit;
-  opacity: 0.85;
-}
-.bubble-time {
-  display: block;
-  font-size: 0.72rem;
-  color: var(--muted);
-  margin-top: 0.15rem;
-}
-.attachments {
-  list-style: none;
-  padding: 0;
-  margin: 0.3rem 0 0;
-}
-.composer {
-  border-top: 1px solid var(--border);
-  padding: 0.75rem 1rem;
 }
 .post-head {
   display: flex;
@@ -1366,18 +1279,8 @@ td .field > label {
   margin: 0.75rem 0;
 }
 
-.back-link {
-  display: none;
-  font-size: 1.4rem;
-  text-decoration: none;
-  padding: 0 0.4rem;
-}
-
 /* ---- small screens ---- */
 @media (max-width: 860px) {
-  .back-link {
-    display: inline-block;
-  }
   .menu-btn {
     display: inline-block;
   }
@@ -1401,12 +1304,6 @@ td .field > label {
   }
   .content {
     padding: 1rem;
-  }
-  .messenger {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .messenger-open .conversation-list {
-    display: none;
   }
   .level-edit {
     grid-template-columns: 1fr;

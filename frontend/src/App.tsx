@@ -19,7 +19,6 @@ import { ImportUsersPage, UsersPage } from './pages/admin/UsersPage'
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SsoCallbackPage } from './pages/auth'
 import { Dashboard } from './pages/Dashboard'
 import { NotificationsPage, ProfilePage } from './pages/account'
-import { MessagesPage } from './pages/Messages'
 import { AppealPage, AppealsTab, MyAppealsPage } from './pages/courses/Appeals'
 import { AssignmentPage } from './pages/courses/AssignmentPage'
 import { AssignmentsTab } from './pages/courses/AssignmentsTab'
@@ -139,8 +138,6 @@ export function App() {
         <Route path="appeals/:id" element={<AppealPage />} />
         <Route path="my-appeals" element={<MyAppealsPage />} />
         <Route path="register" element={<RegisterPage />} />
-        <Route path="messages" element={<MessagesPage />} />
-        <Route path="messages/:userId" element={<MessagesPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
 

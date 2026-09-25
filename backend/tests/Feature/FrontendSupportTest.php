@@ -45,43 +45,6 @@ class FrontendSupportTest extends TestCase
         $this->actingAs($this->userWithRole('super-admin'))->getJson("/api/offerings/{$offering->id}")->assertJsonPath('abilities.manage', true);
     }
 
-    public function test_a_student_can_list_only_their_teachers_and_classmates_and_never_sees_emails(): void
-    {
-        $offering = $this->offering('A');
-        $elsewhere = $this->offering('B');
-        $me = $this->userWithRole('student', ['name' => 'Me']);
-        $classmate = $this->userWithRole('student', ['name' => 'Classmate']);
-        $stranger = $this->userWithRole('student', ['name' => 'Stranger']);
-        $teacher = $this->userWithRole('lecturer', ['name' => 'Teacher']);
-        $withdrawn = $this->userWithRole('student', ['name' => 'Withdrawn']);
-        $this->enrol($offering, $me);
-        $this->enrol($offering, $classmate);
-        $this->enrol($offering, $withdrawn, 'withdrawn');
-        $this->enrol($elsewhere, $stranger);
-        $this->teach($offering, $teacher);
-
-        $response = $this->actingAs($me)->getJson('/api/contacts')->assertOk();
-        $this->assertEqualsCanonicalizing(['Classmate', 'Teacher'], collect($response->json('data'))->pluck('name')->all());
-        $this->assertArrayNotHasKey('email', $response->json('data.0'));
-        $this->assertSame('student', collect($response->json('data'))->firstWhere('name', 'Classmate')['roles'][0]['name']);
-
-        $this->actingAs($me)->getJson('/api/contacts?q=class')->assertOk()->assertJsonCount(1, 'data');
-        $this->actingAs($me)->getJson('/api/contacts?q=%25')->assertOk()->assertJsonCount(0, 'data');
-    }
-
-    public function test_staff_who_manage_enrolments_can_list_anyone_with_emails_and_inactive_people_are_left_out(): void
-    {
-        $registrar = $this->userWithRole('registrar');
-        $active = $this->userWithRole('student', ['name' => 'Active']);
-        $this->userWithRole('student', ['name' => 'Gone', 'is_active' => false]);
-
-        $names = collect($this->actingAs($registrar)->getJson('/api/contacts')->assertOk()->json('data'));
-        $this->assertTrue($names->contains('name', 'Active'));
-        $this->assertFalse($names->contains('name', 'Gone'));
-        $this->assertFalse($names->contains('id', $registrar->id));
-        $this->assertSame($active->email, $names->firstWhere('name', 'Active')['email']);
-    }
-
     public function test_one_assignment_can_be_opened_by_its_id_with_the_callers_abilities(): void
     {
         $offering = $this->offering();
@@ -115,10 +78,5 @@ class FrontendSupportTest extends TestCase
 
         $this->actingAs($teacher)->getJson("/api/assignments/{$assignment->id}/submissions")->assertOk()
             ->assertJsonPath('data.0.user.name', 'Ada Lovelace')->assertJsonPath('data.0.user.email', $student->email);
-    }
-
-    public function test_contacts_needs_a_signed_in_user(): void
-    {
-        $this->getJson('/api/contacts')->assertUnauthorized();
     }
 }

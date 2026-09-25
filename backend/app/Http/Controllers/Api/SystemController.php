@@ -38,7 +38,7 @@ class SystemController extends Controller
         $size = $driver === 'pgsql' ? (int) DB::selectOne('select pg_database_size(current_database()) as s')->s : ($driver === 'sqlite' && is_file((string) config('database.connections.sqlite.database')) ? (int) filesize((string) config('database.connections.sqlite.database')) : null);
 
         $tables = [];
-        foreach (['users', 'courses', 'course_offerings', 'enrolments', 'assignments', 'submissions', 'grade_records', 'quiz_attempts', 'direct_messages', 'activity_log', 'security_events'] as $table) {
+        foreach (['users', 'courses', 'course_offerings', 'enrolments', 'assignments', 'submissions', 'grade_records', 'quiz_attempts', 'activity_log', 'security_events'] as $table) {
             $tables[$table] = DB::table($table)->count();
         }
 
@@ -199,7 +199,7 @@ class SystemController extends Controller
             $out = ['ok' => true, 'by_kind' => [], 'total_bytes' => 0, 'total_files' => 0, 'truncated' => false];
             try {
                 $driver = Storage::disk('s3')->getDriver();
-                foreach (['course-files' => 'Course files', 'submissions' => 'Submissions', 'message-attachments' => 'Message attachments'] as $prefix => $label) {
+                foreach (['course-files' => 'Course files', 'submissions' => 'Submissions'] as $prefix => $label) {
                     $files = 0;
                     $bytes = 0;
                     foreach ($driver->listContents($prefix, true) as $item) {

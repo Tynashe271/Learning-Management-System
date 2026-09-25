@@ -40,12 +40,6 @@ export async function run({ browser, password, ids }) {
       await page.getByRole('button', { name: 'Download your file' }).waitFor()
       f = await download(page, () => page.getByRole('button', { name: 'Download your file' }).click())
       check('a student can download their own submission', f.text === 'ADA ESSAY FILE CONTENT', JSON.stringify(f))
-
-      await page.goto(`${BASE}/messages`)
-      await page.locator('.conversation').first().click()
-      await page.getByRole('button', { name: 'Download' }).waitFor()
-      f = await download(page, () => page.getByRole('button', { name: 'Download' }).click())
-      check('a message attachment downloads under its original name', f.name === 'question.txt' && f.text === 'MESSAGE ATTACHMENT CONTENT', JSON.stringify(f))
       await context.close()
     }
     {

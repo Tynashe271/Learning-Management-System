@@ -108,7 +108,7 @@ function DigestCard() {
       <QueryView query={preferences}>
         {(prefs) => (
           <>
-            <p className="muted">A short email with what you missed and what is due soon. It contains counts and titles only, never marks or private messages.</p>
+            <p className="muted">A short email with what you missed and what is due soon. It contains counts and titles only, never marks.</p>
             <form
               onSubmit={(event) => {
                 event.preventDefault()
@@ -149,7 +149,6 @@ function DigestCard() {
                   <strong>{g.label}</strong> ({g.count}) {g.titles.length > 0 && <span className="muted">– {g.titles.join(', ')}</span>}
                 </li>
               ))}
-              {preview.data.summary.unread_messages && <li>{preview.data.summary.unread_messages.count} unread message(s)</li>}
               {preview.data.summary.deadlines?.map((d, i) => (
                 <li key={i}>
                   Due: {d.title} ({d.course}) – {formatDateTime(d.due_at)}

@@ -134,11 +134,6 @@ function Attention({ summary }: { summary: NonNullable<DigestSummary['summary']>
           <Link to="/courses">{plural(summary.open_appeals, 'open grade appeal')}</Link> waiting for your decision.
         </p>
       )}
-      {summary.unread_messages && (
-        <p>
-          <Link to="/messages">{plural(summary.unread_messages.count, 'unread message')}</Link> from {plural(summary.unread_messages.people, 'person', 'people')}.
-        </p>
-      )}
       {summary.notifications && (
         <p className="muted">
           {plural(summary.notifications.total, 'unread update')}: {summary.notifications.groups.map((g) => `${g.count} ${g.label.toLowerCase()}`).join(', ')}.

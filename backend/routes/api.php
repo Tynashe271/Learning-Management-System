@@ -8,7 +8,6 @@ use App\Http\Controllers\Api\AppealController;
 use App\Http\Controllers\Api\BackupController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CheckinController;
-use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\CourseCopyController;
 use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\DigestController;
@@ -19,7 +18,6 @@ use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\IntegrationController;
 use App\Http\Controllers\Api\LmsController;
 use App\Http\Controllers\Api\ManagementController;
-use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\ProgressController;
 use App\Http\Controllers\Api\QuizAttemptController;
 use App\Http\Controllers\Api\QuizController;
@@ -53,7 +51,6 @@ Route::post('/reset-password', [AccountController::class, 'resetPassword'])->mid
 Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.get'])->group(function () {
     // Account
     Route::get('/me', [AccountController::class, 'me']);
-    Route::get('/contacts', [ContactController::class, 'index']);
     Route::patch('/me', [AccountController::class, 'updateProfile']);
     Route::post('/me/password', [AccountController::class, 'changePassword']);
     Route::get('/me/preferences', [DigestController::class, 'show']);
@@ -159,10 +156,6 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::post('/sessions/{session}/checkin', [CheckinController::class, 'checkin'])->middleware('throttle:checkin');
 
     // Communication
-    Route::get('/messages', [MessageController::class, 'index']);
-    Route::get('/messages/{user}', [MessageController::class, 'thread']);
-    Route::post('/messages/{user}', [MessageController::class, 'send'])->middleware('throttle:messages');
-    Route::get('/message-attachments/{attachment}/download', [MessageController::class, 'download']);
     Route::get('/offerings/{offering}/announcements', [AnnouncementController::class, 'index']);
     Route::post('/offerings/{offering}/announcements', [AnnouncementController::class, 'store']);
     Route::delete('/announcements/{announcement}', [AnnouncementController::class, 'destroy']);

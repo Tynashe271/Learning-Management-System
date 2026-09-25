@@ -16,7 +16,6 @@ const TABLE_LABELS: Record<string, string> = {
   submissions: 'Submissions',
   grade_records: 'Grades recorded',
   quiz_attempts: 'Quiz attempts',
-  direct_messages: 'Messages',
   activity_log: 'Audit log entries',
   security_events: 'Security events',
 }

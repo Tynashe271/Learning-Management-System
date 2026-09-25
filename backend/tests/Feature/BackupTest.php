@@ -29,7 +29,7 @@ class BackupTest extends TestCase
         $this->backups = app(BackupService::class);
     }
 
-    /** A little institution: a course, a student with a submission and a grade, a message, and uploaded files. */
+    /** A little institution: a course, a student with a submission and a grade, and uploaded files. */
     private function populate(): array
     {
         $offering = $this->offering();
@@ -42,7 +42,7 @@ class BackupTest extends TestCase
         Storage::disk('s3')->put($submission->storage_path, 'THE ESSAY FILE');
         Storage::disk('s3')->put("course-files/{$offering->id}/notes.pdf", str_repeat('x', 1000));
         $submission->gradeRecords()->create(['graded_by' => $teacher->id, 'score' => 17.5, 'status' => 'published', 'criteria_scores' => [['title' => 'Argument', 'points' => 12]]]);
-        DB::table('direct_messages')->insert(['sender_id' => $student->id, 'recipient_id' => $teacher->id, 'body' => 'Hello', 'created_at' => now(), 'updated_at' => now()]);
+        $offering->announcements()->create(['user_id' => $teacher->id, 'title' => 'Notice', 'body' => 'Class moved to Room 2.']);
         $student->createToken('api');
         DB::table('password_reset_tokens')->insert(['email' => 'ada@example.test', 'token' => 'secret', 'created_at' => now()]);
 
@@ -115,7 +115,7 @@ class BackupTest extends TestCase
         foreach (['personal_access_tokens', 'password_reset_tokens', 'sessions', 'cache', 'jobs', 'migrations'] as $secret) {
             $this->assertNotContains("data/{$secret}.ndjson", $entries, "{$secret} must not be in a backup");
         }
-        $this->assertSame(1, $manifest['tables']['direct_messages']['rows']);
+        $this->assertSame(1, $manifest['tables']['grade_records']['rows']);
         $this->assertNotEmpty($manifest['migrations']);
     }
 
@@ -246,8 +246,8 @@ class BackupTest extends TestCase
         $name = $this->backups->create()['name'];
         $studentId = $data['student']->id;
 
-        // Afterwards: a message is deleted, a name and a grade change, someone is added, a file is lost, and a stray file appears.
-        DB::table('direct_messages')->delete();
+        // Afterwards: an announcement is deleted, a name and a grade change, someone is added, a file is lost, and a stray file appears.
+        DB::table('announcements')->delete();
         DB::table('grade_records')->update(['score' => 1]);
         DB::table('submissions')->update(['body' => 'edited later']);
         DB::table('users')->where('id', $studentId)->update(['name' => 'Renamed later']);
@@ -261,7 +261,7 @@ class BackupTest extends TestCase
         $this->assertNull(User::find($intruder->id), 'someone added after the backup is gone');
         $this->assertSame('17.50', number_format((float) DB::table('grade_records')->value('score'), 2, '.', ''));
         $this->assertSame('Unicode: café — 你好', DB::table('submissions')->value('body'));
-        $this->assertSame(1, DB::table('direct_messages')->count());
+        $this->assertSame(1, DB::table('announcements')->count());
         $this->assertSame([['title' => 'Argument', 'points' => 12]], json_decode(DB::table('grade_records')->value('criteria_scores'), true));
         $this->assertTrue(User::find($studentId)->hasRole('student'), 'roles come back too');
         $this->assertSame('THE ESSAY FILE', Storage::disk('s3')->get($data['submission']->storage_path));

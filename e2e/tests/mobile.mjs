@@ -76,18 +76,6 @@ export async function run({ browser, password, ids, artifacts }) {
   const choice = await page.locator('.choice').first().boundingBox()
   check('answer choices are easy to tap (at least 40px tall)', choice.height >= 40, String(choice.height))
 
-  await page.goto(`${BASE}/messages`)
-  await page.waitForSelector('.conversation')
-  await overflow('messages')
-  await shot('messages')
-  await page.locator('.conversation').first().click()
-  await page.waitForSelector('.thread')
-  check('on a phone the conversation list gives way to the thread', !(await page.locator('.conversation-list').isVisible()))
-  await overflow('a message thread')
-  await page.locator('.back-link').click()
-  await page.waitForSelector('.conversation')
-  check('the back arrow returns to the list', await page.locator('.conversation-list').isVisible())
-
   await page.goto(`${BASE}/profile`)
   await page.waitForSelector('form')
   await overflow('profile')

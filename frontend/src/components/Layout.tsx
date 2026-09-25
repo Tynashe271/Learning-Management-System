@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
-import type { Conversations, Notification, Page, SystemAnnouncement } from '../api/types'
+import type { Notification, Page, SystemAnnouncement } from '../api/types'
 import { ROLE_LABELS } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { institutionName, useAuthConfig } from '../lib/institution'
@@ -27,17 +27,14 @@ export function Layout() {
 
   const config = useAuthConfig()
   const notifications = useQuery({ queryKey: ['notifications', 'bell'], queryFn: () => api.get<Page<Notification>>('/notifications'), refetchInterval: 60_000, staleTime: 30_000 })
-  const messages = useQuery({ queryKey: ['messages', 'conversations'], queryFn: () => api.get<Conversations>('/messages'), refetchInterval: 60_000, staleTime: 30_000 })
 
   const unreadNotifications = notifications.data?.data.filter((n) => !n.read_at).length ?? 0
-  const unreadMessages = messages.data?.unread_total ?? 0
   const staffAdmin = can('manage-users') || can('manage-courses') || can('manage-enrolments')
   const name = institutionName(config.data)
 
   const main: NavItem[] = [
     { to: '/', label: isStudentOnly ? 'My learning' : 'Dashboard', show: true, end: true },
     { to: '/courses', label: isStudentOnly ? 'My courses' : 'Courses', show: true },
-    { to: '/messages', label: 'Messages', show: true },
     { to: '/notifications', label: 'Notifications', show: true },
     { to: '/register', label: 'Register for courses', show: hasRole('student') },
     { to: '/my-appeals', label: 'My grade appeals', show: can('submit-assignments') && !hasRole('super-admin') },
@@ -76,7 +73,6 @@ export function Layout() {
       .map((item) => (
         <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => `nav-link${isActive ? ' nav-active' : ''}`}>
           {item.label}
-          {item.to === '/messages' && unreadMessages > 0 && <span className="count" aria-label={`${unreadMessages} unread`}>{unreadMessages}</span>}
           {item.to === '/notifications' && unreadNotifications > 0 && <span className="count" aria-label={`${unreadNotifications} unread`}>{unreadNotifications}</span>}
         </NavLink>
       ))

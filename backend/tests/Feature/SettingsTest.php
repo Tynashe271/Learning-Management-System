@@ -72,7 +72,6 @@ class SettingsTest extends TestCase
         DB::table('settings')->insert([
             ['key' => 'academic.appeal_window_days', 'value' => '30', 'created_at' => now(), 'updated_at' => now()],
             ['key' => 'limits.upload_types', 'value' => '["pdf","txt"]', 'created_at' => now(), 'updated_at' => now()],
-            ['key' => 'limits.message_attachment_mb', 'value' => '3', 'created_at' => now(), 'updated_at' => now()],
         ]);
         Cache::forget(Settings::CACHE_KEY);
 
@@ -80,7 +79,6 @@ class SettingsTest extends TestCase
 
         $this->assertSame(30, config('lms.appeals.window_days'));
         $this->assertSame('pdf,txt', config('lms.upload_mimes'));
-        $this->assertSame(3072, config('lms.messages.max_attachment_kb'));
     }
 
     public function test_an_invalid_value_is_refused_and_nothing_at_all_is_saved(): void

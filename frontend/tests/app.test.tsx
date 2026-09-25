@@ -13,7 +13,6 @@ afterEach(() => vi.unstubAllGlobals())
 const shared = {
   'GET /auth/config': () => ({ body: { sso_enabled: false, sso_label: 'University sign-in', password_login: true, privacy_url: 'https://uni.test/privacy', terms_url: null } }),
   'GET /notifications': () => ({ body: emptyPage }),
-  'GET /messages': () => ({ body: { unread_total: 0, conversations: [] } }),
   'GET /offerings': () => ({ body: emptyPage }),
   'GET /me/digest-preview': () => ({ body: { since: '2026-01-01T00:00:00Z', summary: null } }),
 }

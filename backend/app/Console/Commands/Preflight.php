@@ -109,8 +109,6 @@ class Preflight extends Command
     private function costsAndLimits(): void
     {
         $this->check('Limits', 'JSON request bodies are capped', (int) config('lms.limits.json_body_kb') > 0, 'LMS_JSON_BODY_KB is '.config('lms.limits.json_body_kb').'.', always: true);
-        $this->check('Limits', 'Daily upload budget per person', (int) config('lms.limits.daily_upload_mb') > 0, 'LMS_DAILY_UPLOAD_MB is '.config('lms.limits.daily_upload_mb').'.', always: true);
-        $this->check('Limits', 'Message attachments are capped', (int) config('lms.messages.max_attachments') > 0 && (int) config('lms.messages.max_attachment_kb') > 0, config('lms.messages.max_attachments').' files of '.config('lms.messages.max_attachment_kb').' KB.', always: true);
     }
 
     /** Records one result. Production-only items are a WARN on a development machine unless $always is set. */

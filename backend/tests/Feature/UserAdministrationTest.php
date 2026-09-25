@@ -228,14 +228,11 @@ class UserAdministrationTest extends TestCase
         $submission = $assignment->submissions()->create(['user_id' => $student->id, 'body' => 'My essay', 'storage_path' => 'submissions/1/2/file.txt', 'submitted_at' => now()]);
         $submission->gradeRecords()->create(['graded_by' => $teacher->id, 'score' => 7, 'status' => 'published', 'feedback' => 'Good']);
         $submission->gradeRecords()->create(['graded_by' => $teacher->id, 'score' => 9, 'status' => 'draft']);
-        DB::table('direct_messages')->insert(['sender_id' => $student->id, 'recipient_id' => $teacher->id, 'body' => 'hello sir', 'created_at' => now(), 'updated_at' => now()]);
-        DB::table('direct_messages')->insert(['sender_id' => $teacher->id, 'recipient_id' => $student->id, 'body' => 'private reply', 'created_at' => now(), 'updated_at' => now()]);
 
         $export = $this->as($this->uniAdmin)->getJson("/api/users/{$student->id}/export")->assertOk();
 
         $export->assertJsonPath('profile.name', 'Ada Export')->assertJsonPath('enrolments.0.code', 'CSC101')->assertJsonPath('submissions.0.body', 'My essay')->assertJsonPath('submissions.0.file', 'file.txt')
-            ->assertJsonCount(1, 'grades')->assertJsonPath('grades.0.score', 7)->assertJsonPath('messages_sent.0.body', 'hello sir')->assertJsonPath('messages_received_count', 1);
-        $this->assertStringNotContainsString('private reply', $export->getContent(), "other people's messages are not handed over");
+            ->assertJsonCount(1, 'grades')->assertJsonPath('grades.0.score', 7);
         $this->assertStringNotContainsString('draft', json_encode($export->json('grades')));
         $this->assertSame(1, DB::table('activity_log')->where('description', 'user data exported')->count());
     }
@@ -250,9 +247,6 @@ class UserAdministrationTest extends TestCase
         $assignment = $offering->assignments()->create(['title' => 'Essay', 'due_at' => now()->addDay(), 'max_score' => 10, 'published' => true]);
         $submission = $assignment->submissions()->create(['user_id' => $student->id, 'body' => 'work', 'submitted_at' => now()]);
         $submission->gradeRecords()->create(['graded_by' => $teacher->id, 'score' => 8, 'status' => 'published']);
-        $message = DB::table('direct_messages')->insertGetId(['sender_id' => $student->id, 'recipient_id' => $teacher->id, 'body' => 'personal details', 'created_at' => now(), 'updated_at' => now()]);
-        DB::table('message_attachments')->insert(['direct_message_id' => $message, 'original_name' => 'id.pdf', 'storage_path' => "message-attachments/{$message}/id.pdf", 'mime_type' => 'application/pdf', 'size' => 4, 'created_at' => now(), 'updated_at' => now()]);
-        Storage::disk('s3')->put("message-attachments/{$message}/id.pdf", 'data');
         $student->createToken('api');
         $student->notify(new AppealFiled(1, 1, 'Essay'));
 
@@ -267,9 +261,6 @@ class UserAdministrationTest extends TestCase
         $this->assertNotNull($student->anonymised_at);
         $this->assertSame(0, $student->tokens()->count());
         $this->assertSame(0, DB::table('notifications')->where('notifiable_id', $student->id)->count());
-        $this->assertSame('[removed]', DB::table('direct_messages')->where('id', $message)->value('body'));
-        $this->assertSame(0, DB::table('message_attachments')->count());
-        Storage::disk('s3')->assertMissing("message-attachments/{$message}/id.pdf");
         $this->assertSame(1, DB::table('submissions')->where('user_id', $student->id)->count(), 'the submission is still there');
         $this->assertSame(1, DB::table('grade_records')->count(), 'and so is the grade');
         $this->postJson('/api/login', ['email' => 'ada@example.test', 'password' => 'password'])->assertUnprocessable();

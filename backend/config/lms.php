@@ -69,8 +69,6 @@ return [
         'server_max_mb' => env('LMS_SERVER_MAX_MB'),
         // Largest ordinary JSON request body. File uploads have their own limits (see infra/php/lms.ini).
         'json_body_kb' => (int) env('LMS_JSON_BODY_KB', 512),
-        // The most one person can upload through private messages in a rolling 24 hours: a cap on storage cost and abuse.
-        'daily_upload_mb' => (int) env('LMS_DAILY_UPLOAD_MB', 200),
     ],
 
     // Links the frontend can show in its footer and on the sign-in page. The institution must supply the actual documents.
@@ -87,11 +85,6 @@ return [
 
     // What new accounts get for the summary email: off, daily, or weekly. People change their own setting.
     'digest' => ['default' => env('LMS_DIGEST_DEFAULT', 'off')],
-
-    'messages' => [
-        'max_attachments' => (int) env('LMS_MESSAGE_MAX_ATTACHMENTS', 5),
-        'max_attachment_kb' => (int) env('LMS_MESSAGE_ATTACHMENT_KB', 10240),
-    ],
 
     // Uploads are streamed to a ClamAV daemon (see the `scan` profile in compose.yaml) before they are stored.
     'virus_scan' => [

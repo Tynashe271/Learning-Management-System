@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\CourseOffering;
-use App\Models\DirectMessage;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Console\Scheduling\Schedule;
@@ -315,15 +314,14 @@ class ReliabilityTest extends TestCase
 
     public function test_file_uploads_can_be_retried_safely_too(): void
     {
-        $other = $this->userWithRole('student');
-        $this->enrol($this->offering, $other);
+        $assignment = $this->offering->assignments()->create(['title' => 'Essay', 'due_at' => now()->addDay(), 'max_score' => 20, 'published' => true]);
         $send = fn () => $this->actingAs($this->student)->withHeaders(['Idempotency-Key' => 'upload-key-0001', 'Accept' => 'application/json'])
-            ->post('/api/messages/'.$other->id, ['body' => 'Notes', 'attachments' => [UploadedFile::fake()->create('notes.pdf', 20, 'application/pdf')]]);
+            ->post('/api/assignments/'.$assignment->id.'/submissions', ['body' => 'Notes', 'file' => UploadedFile::fake()->create('notes.pdf', 20, 'application/pdf')]);
 
         $first = $send()->assertCreated();
         $again = $send()->assertCreated();
 
-        $this->assertSame(1, DirectMessage::count());
+        $this->assertSame(1, DB::table('submissions')->count());
         $this->assertCount(1, Storage::disk('s3')->allFiles());
         $this->assertSame($first->json('id'), $again->json('id'));
         $again->assertHeader('Idempotent-Replayed', 'true');
@@ -372,11 +370,11 @@ class ReliabilityTest extends TestCase
 
     public function test_streamed_downloads_and_writes_are_never_given_an_etag(): void
     {
-        $other = $this->userWithRole('student');
-        $this->enrol($this->offering, $other);
-        $id = $this->actingAs($this->student)->post('/api/messages/'.$other->id, ['body' => 'x', 'attachments' => [UploadedFile::fake()->createWithContent('a.txt', 'file content')]], ['Accept' => 'application/json'])->assertCreated()->json('attachments.0.id');
+        $module = $this->offering->modules()->create(['title' => 'Week 1', 'published' => true]);
+        $item = $module->items()->create(['title' => 'Notes', 'type' => 'file', 'storage_path' => 'course-files/notes.txt', 'published' => true]);
+        Storage::disk('s3')->put($item->storage_path, 'file content');
 
-        $download = $this->actingAs($other)->withHeaders(['If-None-Match' => '"'.md5('').'"'])->get('/api/message-attachments/'.$id.'/download')->assertOk();
+        $download = $this->actingAs($this->student)->withHeaders(['If-None-Match' => '"'.md5('').'"'])->get('/api/items/'.$item->id.'/download')->assertOk();
 
         $this->assertSame('file content', $download->streamedContent(), 'a stale validator must not turn a file into an empty 304');
         $this->assertFalse($download->headers->has('ETag'));

@@ -4,13 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Assignment;
 use App\Models\CourseOffering;
-use App\Models\DirectMessage;
 use App\Models\Enrolment;
 use App\Models\ItemCompletion;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -128,7 +126,7 @@ class PerformanceTest extends TestCase
         }, fn () => $this->actingAs($student)->getJson('/api/offerings')->assertOk());
     }
 
-    public function test_discussions_the_inbox_and_the_audit_log_use_flat_queries(): void
+    public function test_discussions_and_the_audit_log_use_flat_queries(): void
     {
         $student = $this->userWithRole('student');
         $this->enrol($this->offering, $student);
@@ -138,12 +136,6 @@ class PerformanceTest extends TestCase
                 $thread->posts()->create(['user_id' => $student->id, 'body' => 'reply']);
             }
         }, fn () => $this->actingAs($student)->getJson('/api/offerings/'.$this->offering->id.'/discussions')->assertOk());
-
-        $this->assertQueriesDoNotGrow(function (int $n) use ($student) {
-            foreach ($this->students($n) as $other) {
-                DirectMessage::create(['sender_id' => $other->id, 'recipient_id' => $student->id, 'body' => 'hi']);
-            }
-        }, fn () => $this->actingAs($student)->getJson('/api/messages')->assertOk());
 
         $admin = $this->userWithRole('university-admin');
         $this->assertQueriesDoNotGrow(function (int $n) use ($admin) {
@@ -258,25 +250,6 @@ class PerformanceTest extends TestCase
         $this->travel(61)->seconds();
 
         $this->assertSame($first + 1, $this->actingAs($admin)->getJson('/api/reports/overview')->json('users.total'));
-    }
-
-    public function test_message_uploads_have_a_daily_budget_per_person(): void
-    {
-        Storage::fake('s3');
-        config(['lms.limits.daily_upload_mb' => 1]);
-        $ada = $this->userWithRole('student');
-        $ben = $this->userWithRole('student');
-        $this->enrol($this->offering, $ada);
-        $this->enrol($this->offering, $ben);
-        $send = fn (User $from, User $to, int $kb) => $this->actingAs($from)->post('/api/messages/'.$to->id, ['body' => 'x', 'attachments' => [UploadedFile::fake()->create('f.pdf', $kb, 'application/pdf')]], ['Accept' => 'application/json']);
-
-        $send($ada, $ben, 600)->assertCreated();
-        $send($ada, $ben, 600)->assertJsonValidationErrors('attachments');   // 1200 KB in a day is over the 1 MB budget
-        $send($ben, $ada, 600)->assertCreated();                                 // Ben's own budget is untouched
-        $send($ada, $ben, 300)->assertCreated();                                 // 900 KB in total is still inside the budget
-
-        $this->travel(25)->hours();
-        $send($ada, $ben, 600)->assertCreated();                                 // a new day
     }
 
     public function test_expensive_endpoints_have_a_tighter_limit_than_ordinary_ones(): void

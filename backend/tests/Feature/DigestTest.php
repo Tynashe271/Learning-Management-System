@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Assignment;
 use App\Models\CourseOffering;
-use App\Models\DirectMessage;
 use App\Models\GradeAppeal;
 use App\Models\User;
 use App\Notifications\AnnouncementPosted;
@@ -178,20 +177,6 @@ class DigestTest extends TestCase
         $this->assertNull($this->build($this->ada));
     }
 
-    public function test_unread_messages_are_counted_but_never_quoted(): void
-    {
-        foreach (['the secret plan', 'and another thing'] as $text) {
-            DirectMessage::create(['sender_id' => $this->ben->id, 'recipient_id' => $this->ada->id, 'body' => $text]);
-        }
-        DirectMessage::create(['sender_id' => $this->ada->id, 'recipient_id' => $this->ben->id, 'body' => 'my own message']);
-
-        $summary = $this->build($this->ada);
-
-        $this->assertSame(['count' => 2, 'people' => 1], $summary['unread_messages']);
-        $this->assertStringNotContainsString('secret plan', json_encode($summary));
-        $this->assertNull($this->build($this->lecturer), 'nobody wrote to the lecturer');
-    }
-
     public function test_teaching_staff_hear_about_work_waiting_for_a_grade_and_open_appeals(): void
     {
         $graded = $this->assignment(['title' => 'Graded essay']);
@@ -248,7 +233,6 @@ class DigestTest extends TestCase
     {
         $summary = [
             'notifications' => ['total' => 3, 'groups' => [['label' => 'New announcements', 'count' => 2, 'titles' => ['Welcome', '[click here](http://evil.test) **now**']], ['label' => 'Grades published', 'count' => 1, 'titles' => ['Essay']]]],
-            'unread_messages' => ['count' => 2, 'people' => 1],
             'deadlines' => [['type' => 'assignment', 'title' => 'Essay', 'course' => 'CSC101', 'due_at' => '2026-10-05T12:00:00+00:00']],
         ];
 
@@ -259,7 +243,6 @@ class DigestTest extends TestCase
         $this->assertStringContainsString('Hello Ada', $mail->greeting);
         $this->assertStringContainsString('**3 unread updates**', $text);
         $this->assertStringContainsString('New announcements: 2', $text);
-        $this->assertStringContainsString('2 unread from 1 person', $text);
         $this->assertStringContainsString('Essay (CSC101, assignment) due Mon 5 Oct, 12:00 UTC', $text);
         $this->assertStringContainsString('turn it off', implode(' ', $mail->outroLines));
         $this->assertSame('https://lms.test', $mail->actionUrl);
@@ -269,11 +252,10 @@ class DigestTest extends TestCase
 
     public function test_the_email_says_so_when_there_is_only_one_update_and_one_person(): void
     {
-        $mail = (new Digest(['notifications' => ['total' => 1, 'groups' => [['label' => 'Grades published', 'count' => 1, 'titles' => []]]], 'unread_messages' => ['count' => 1, 'people' => 1]], 'weekly'))->toMail($this->ada);
+        $mail = (new Digest(['notifications' => ['total' => 1, 'groups' => [['label' => 'Grades published', 'count' => 1, 'titles' => []]]]], 'weekly'))->toMail($this->ada);
         $text = implode("\n", $mail->introLines);
 
         $this->assertStringContainsString('1 unread update**', $text);
-        $this->assertStringContainsString('1 unread from 1 person', $text);
     }
 
     // ---- the scheduled command -----------------------------------------------------------------------------------

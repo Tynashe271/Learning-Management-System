@@ -135,7 +135,6 @@ class PreflightAndEmptyStatesTest extends TestCase
         foreach (['/api/notifications', '/api/offerings', '/api/my-appeals'] as $url) {
             $api($url)->assertJsonPath('data', [])->assertJsonPath('total', 0);
         }
-        $api('/api/messages')->assertJsonPath('conversations', [])->assertJsonPath('unread_total', 0);
     }
 
     public function test_a_brand_new_course_returns_empty_collections_not_errors(): void

@@ -3,7 +3,7 @@ import { apiLogin, call, future } from './lib.mjs'
 /**
  * Fills the seeded course with realistic content through the API (faster than clicking, and the content itself is not what the
  * tests check): a module with a reading, a link and a file; an assignment with a rubric; a quiz with all four question types; a
- * class; an announcement and a discussion; two submissions (one graded and appealed); and a message with an attachment.
+ * class; an announcement and a discussion; and two submissions (one graded and appealed).
  * Returns the ids the tests need, since they differ on every run.
  */
 export async function setupData(password, offering) {
@@ -57,11 +57,5 @@ export async function setupData(password, offering) {
   })
   const appeal = await call(ada, 'POST', `/submissions/${adaSubmission.id}/appeal`, { reason: 'I believe the style criterion deserved more points.' })
 
-  const me = await call(lect, 'GET', '/me')
-  const message = new FormData()
-  message.append('body', 'Hello Dr Lena, a question about style.')
-  message.append('attachments[]', new Blob(['MESSAGE ATTACHMENT CONTENT'], { type: 'text/plain' }), 'question.txt')
-  await call(ada, 'POST', `/messages/${me.id}`, message)
-
-  return { offering, assignment: assignment.id, quiz: quiz.id, session: session.id, appeal: appeal.id, lecturerId: me.id }
+  return { offering, assignment: assignment.id, quiz: quiz.id, session: session.id, appeal: appeal.id }
 }

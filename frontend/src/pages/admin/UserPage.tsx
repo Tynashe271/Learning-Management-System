@@ -54,13 +54,6 @@ function Account({ detail }: { detail: UserDetail }) {
             {user.email} · <Link to="/admin/users">All people</Link>
           </>
         }
-        actions={
-          !isSelf && !user.anonymised_at && (
-            <Link className="btn btn-secondary" to={`/messages/${user.id}`} state={{ name: user.name }}>
-              Message
-            </Link>
-          )
-        }
       />
       {user.anonymised_at && <Alert tone="warn">This account was anonymised on {formatDateTime(user.anonymised_at)}. Its name and email were replaced and nobody can sign in to it. Its academic records remain.</Alert>}
       {locked && <Alert tone="info">This is a super administrator account. Only another super administrator can change it.</Alert>}
@@ -302,7 +295,7 @@ function AnonymiseDialog({ detail, onClose }: { detail: UserDetail; onClose: () 
         }}
       >
         <Alert tone="warn">
-          This cannot be undone. The name and email are replaced, sign-in becomes impossible, their messages are emptied and their notifications and attachments are deleted. Their submissions and grades stay, under “Former user”.
+          This cannot be undone. The name and email are replaced, sign-in becomes impossible, and their notifications are deleted. Their submissions and grades stay, under “Former user”.
         </Alert>
         <TextField label={`Type ${user.email} to confirm`} value={typed} onChange={(e) => setTyped(e.target.value)} error={fieldError(run.error, 'confirm_email')} autoComplete="off" autoFocus />
         {run.error && !fieldError(run.error, 'confirm_email') && <FormError error={run.error} />}

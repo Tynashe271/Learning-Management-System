@@ -15,8 +15,8 @@ use Throwable;
 /**
  * Backs the institution's data up and puts it back.
  *
- * A backup is one .tar.gz holding every table as one JSON line per row, the uploaded files (course files, submissions, message
- * attachments), and a manifest with a checksum for each part. It leaves out things that are only temporary or secret and
+ * A backup is one .tar.gz holding every table as one JSON line per row, the uploaded files (course files, submissions), and a
+ * manifest with a checksum for each part. It leaves out things that are only temporary or secret and
  * that are safer to lose than to copy: cache, queued and failed jobs, sessions, sign-in tokens and reset links. After a
  * restore everyone simply signs in again.
  */
@@ -27,7 +27,7 @@ class BackupService
     /** Tables that are not backed up (temporary, or secrets that should not sit in a backup file). */
     public const EXCLUDED = ['cache', 'cache_locks', 'sessions', 'jobs', 'job_batches', 'failed_jobs', 'personal_access_tokens', 'password_reset_tokens', 'account_invitation_tokens', 'migrations'];
 
-    private const FILE_PREFIXES = ['course-files', 'submissions', 'message-attachments'];
+    private const FILE_PREFIXES = ['course-files', 'submissions'];
 
     public function disk(): Filesystem
     {

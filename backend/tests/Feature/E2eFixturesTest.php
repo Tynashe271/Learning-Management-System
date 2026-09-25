@@ -84,7 +84,7 @@ class E2eFixturesTest extends TestCase
         Storage::fake('s3');
         $this->seedFixtures();
 
-        // Work produced during a browser run: content, a graded and appealed submission, a quiz attempt, messages, discussion, attendance.
+        // Work produced during a browser run: content, a graded and appealed submission, a quiz attempt, discussion, attendance.
         $offering = $this->e2eOffering();
         [$lect, $ada, $ben, $admin] = array_map(fn ($e) => User::where('email', "e2e-{$e}@example.test")->firstOrFail(), ['lect', 'stu1', 'stu2', 'admin']);
         $module = $offering->modules()->create(['title' => 'Week 1', 'published' => true]);
@@ -106,14 +106,11 @@ class E2eFixturesTest extends TestCase
         $offering->announcements()->create(['user_id' => $lect->id, 'title' => 'News', 'body' => 'Hello']);
         $session = $offering->sessions()->create(['title' => 'Lecture', 'starts_at' => now(), 'ends_at' => now()->addHour()]);
         $session->attendance()->create(['user_id' => $ada->id, 'status' => 'present', 'marked_by' => $lect->id, 'source' => 'staff']);
-        $message = DB::table('direct_messages')->insertGetId(['sender_id' => $ada->id, 'recipient_id' => $lect->id, 'body' => 'Hi', 'created_at' => now(), 'updated_at' => now()]);
-        DB::table('message_attachments')->insert(['direct_message_id' => $message, 'original_name' => 'q.txt', 'storage_path' => "message-attachments/{$message}/q.txt", 'mime_type' => 'text/plain', 'size' => 3, 'created_at' => now(), 'updated_at' => now()]);
-        Storage::disk('s3')->put("message-attachments/{$message}/q.txt", 'q');
         $ben->createToken('api');
         $admin->notify(new AppealFiled(1, 1, 'Essay'));
         activity()->causedBy($lect)->log('grade recorded');
 
-        // Real data that must survive: another course, a real student, their work, and a message between real people.
+        // Real data that must survive: another course, a real student, and their work.
         $real = $this->userWithRole('student', ['name' => 'Real Student']);
         $realTeacher = $this->userWithRole('lecturer');
         $realOffering = $this->offering('R');
@@ -121,7 +118,6 @@ class E2eFixturesTest extends TestCase
         $this->teach($realOffering, $realTeacher);
         $realAssignment = Assignment::create(['course_offering_id' => $realOffering->id, 'title' => 'Real essay', 'due_at' => now()->addDay(), 'max_score' => 10, 'published' => true]);
         $realAssignment->submissions()->create(['user_id' => $real->id, 'body' => 'mine', 'submitted_at' => now()]);
-        DB::table('direct_messages')->insert(['sender_id' => $real->id, 'recipient_id' => $realTeacher->id, 'body' => 'private', 'created_at' => now(), 'updated_at' => now()]);
         activity()->causedBy($realTeacher)->log('real thing');
         Storage::disk('s3')->put("submissions/{$realAssignment->id}/{$real->id}/mine.txt", 'keep');
 
@@ -136,13 +132,10 @@ class E2eFixturesTest extends TestCase
         $this->assertSame(0, DB::table('grade_appeals')->count());
         $this->assertSame(0, DB::table('notifications')->count());
         $this->assertSame(0, DB::table('personal_access_tokens')->count());
-        $this->assertSame(0, DB::table('message_attachments')->count());
-        $this->assertSame(1, DB::table('direct_messages')->count());
         $this->assertSame(0, DB::table('activity_log')->where('description', 'grade recorded')->count());
         $this->assertSame(0, DB::table('academic_terms')->where('name', 'E2E Term')->count());
         Storage::disk('s3')->assertMissing("course-files/{$offering->id}/notes.txt");
         Storage::disk('s3')->assertMissing($submission->storage_path);
-        Storage::disk('s3')->assertMissing("message-attachments/{$message}/q.txt");
 
         // ...and everything real is still there.
         $this->assertSame(2, User::whereKey([$real->id, $realTeacher->id])->count());

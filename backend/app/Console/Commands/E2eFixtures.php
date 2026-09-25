@@ -109,9 +109,8 @@ class E2eFixtures extends Command
         $threads = DB::table('discussion_threads')->whereIn('course_offering_id', $offerings)->pluck('id')->all();
         $sessions = DB::table('class_sessions')->whereIn('course_offering_id', $offerings)->pluck('id')->all();
         $submissions = DB::table('submissions')->where(fn ($q) => $q->whereIn('user_id', $users)->orWhereIn('assignment_id', $assignments))->pluck('id')->all();
-        $messages = DB::table('direct_messages')->where(fn ($q) => $q->whereIn('sender_id', $users)->orWhereIn('recipient_id', $users))->pluck('id')->all();
 
-        DB::transaction(function () use ($users, $offerings, $quizzes, $threads, $sessions, $submissions, $messages) {
+        DB::transaction(function () use ($users, $offerings, $quizzes, $threads, $sessions, $submissions) {
             DB::table('grade_appeals')->where(fn ($q) => $q->whereIn('submission_id', $submissions)->orWhereIn('user_id', $users)->orWhereIn('resolved_by', $users))->delete();
             DB::table('grade_records')->where(fn ($q) => $q->whereIn('submission_id', $submissions)->orWhereIn('graded_by', $users))->delete();
             DB::table('submissions')->whereIn('id', $submissions)->delete();
@@ -124,8 +123,6 @@ class E2eFixtures extends Command
             DB::table('discussion_threads')->where(fn ($q) => $q->whereIn('user_id', $users)->orWhereIn('course_offering_id', $offerings))->delete();
             DB::table('announcements')->where(fn ($q) => $q->whereIn('user_id', $users)->orWhereIn('course_offering_id', $offerings))->delete();
             DB::table('attendance_records')->where(fn ($q) => $q->whereIn('user_id', $users)->orWhereIn('marked_by', $users)->orWhereIn('class_session_id', $sessions))->delete();
-            DB::table('message_attachments')->whereIn('direct_message_id', $messages)->delete();
-            DB::table('direct_messages')->whereIn('id', $messages)->delete();
 
             DB::table('course_offerings')->whereIn('id', $offerings)->delete(); // the rest of the course goes with it
             Course::where('code', 'like', self::COURSE_PATTERN)->delete();
@@ -152,9 +149,6 @@ class E2eFixtures extends Command
             }
             foreach ($assignments as $id) {
                 $disk->deleteDirectory("submissions/{$id}");
-            }
-            foreach ($messages as $id) {
-                $disk->deleteDirectory("message-attachments/{$id}");
             }
         } catch (Throwable $e) {
             $this->warn('Uploaded test files could not be removed from storage: '.$e->getMessage());

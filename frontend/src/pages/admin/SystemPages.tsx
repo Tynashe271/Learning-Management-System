@@ -96,7 +96,6 @@ export function AuditPage() {
       {picking && (
         <Modal title="Filter by person" onClose={() => setPicking(false)}>
           <PersonPicker
-            source="users"
             actionLabel="Filter"
             onPick={(p) => {
               setWho(p)

@@ -30,8 +30,6 @@ class RoleCapabilitiesTest extends TestCase
 
     private User $enrolTarget;
 
-    private User $stranger;
-
     private Submission $submission;
 
     private GradeAppeal $appeal;
@@ -50,7 +48,6 @@ class RoleCapabilitiesTest extends TestCase
         $this->nextTerm = AcademicTerm::create(['name' => 'Next term', 'starts_on' => '2027-01-01', 'ends_on' => '2027-06-01']);
         $this->ada = $this->userWithRole('student', ['name' => 'Ada']);
         $this->enrolTarget = $this->userWithRole('student');
-        $this->stranger = $this->userWithRole('student');
         $this->enrol($this->offering, $this->ada);
         $this->essay = Assignment::create(['course_offering_id' => $this->offering->id, 'title' => 'Essay', 'due_at' => now()->addDay(), 'max_score' => 100, 'published' => true]);
         $this->submission = $this->essay->submissions()->create(['user_id' => $this->ada->id, 'body' => 'x', 'submitted_at' => now()]);
@@ -67,12 +64,12 @@ class RoleCapabilitiesTest extends TestCase
             'lecturer' => ['lecturer', ['build_content', 'post_announcement', 'mark_attendance', 'grade_work', 'decide_appeals']],
             // An assistant manages the courses they are assigned to and grades, but cannot decide appeals.
             'teaching assistant' => ['teaching-assistant', ['build_content', 'post_announcement', 'mark_attendance', 'grade_work']],
-            'registrar' => ['registrar', ['enrol_student', 'message_anyone']],
+            'registrar' => ['registrar', ['enrol_student']],
             // A department admin runs courses and enrolments, but cannot create accounts, import users, or read the audit log.
-            'department admin' => ['department-admin', ['create_term', 'copy_course', 'enrol_student', 'build_content', 'post_announcement', 'mark_attendance', 'decide_appeals', 'message_anyone']],
-            'university admin' => ['university-admin', ['create_term', 'copy_course', 'enrol_student', 'build_content', 'post_announcement', 'mark_attendance', 'decide_appeals', 'message_anyone', 'create_user', 'import_users', 'view_audit_log']],
+            'department admin' => ['department-admin', ['create_term', 'copy_course', 'enrol_student', 'build_content', 'post_announcement', 'mark_attendance', 'decide_appeals']],
+            'university admin' => ['university-admin', ['create_term', 'copy_course', 'enrol_student', 'build_content', 'post_announcement', 'mark_attendance', 'decide_appeals', 'create_user', 'import_users', 'view_audit_log']],
             // A super-admin can do everything except act as an enrolled student.
-            'super admin' => ['super-admin', ['create_term', 'copy_course', 'enrol_student', 'build_content', 'post_announcement', 'mark_attendance', 'decide_appeals', 'message_anyone', 'create_user', 'import_users', 'view_audit_log', 'grade_work']],
+            'super admin' => ['super-admin', ['create_term', 'copy_course', 'enrol_student', 'build_content', 'post_announcement', 'mark_attendance', 'decide_appeals', 'create_user', 'import_users', 'view_audit_log', 'grade_work']],
         ];
     }
 
@@ -96,7 +93,6 @@ class RoleCapabilitiesTest extends TestCase
             'mark_attendance' => fn () => $ok($api()->putJson('/api/sessions/'.$this->session->id.'/attendance', ['records' => [['user_id' => $this->ada->id, 'status' => 'present']]])),
             'copy_course' => fn () => $ok($api()->postJson($o.'/copy', ['academic_term_id' => $this->nextTerm->id, 'section' => 'Z'])),
             'submit_work' => fn () => $ok($api()->postJson('/api/assignments/'.$this->essay->id.'/submissions', ['body' => 'My answer'])),
-            'message_anyone' => fn () => $ok($api()->postJson('/api/messages/'.$this->stranger->id, ['body' => 'Hello'])),
         ];
     }
 

@@ -7,8 +7,7 @@ import type { Assignment, RubricCriterion, Submission } from '../src/api/types'
 import { AttemptPage } from '../src/pages/courses/AttemptPage'
 import { GradeDialog } from '../src/pages/courses/GradeDialog'
 import { RubricEditor } from '../src/pages/courses/Rubric'
-import { MessagesPage } from '../src/pages/Messages'
-import { adminMe, mockApi, renderApp, renderSignedIn, studentMe } from './helpers'
+import { mockApi, renderApp } from './helpers'
 
 beforeEach(() => {
   window.__LMS_CONFIG__ = { apiUrl: 'http://api.test/api' }
@@ -187,59 +186,5 @@ describe('taking a quiz', () => {
     expect(screen.getByText('Correct')).toBeInTheDocument()
     expect(screen.getByText('Incorrect')).toBeInTheDocument()
     expect(screen.getByText('No answer')).toBeInTheDocument()
-  })
-})
-
-describe('private messages', () => {
-  const conversations = { unread_total: 1, conversations: [{ user: { id: 7, name: 'Dr Lena', email: 'l@x.test' }, unread: 1, last_message: { id: 1, sender_id: 7, recipient_id: 4, body: 'See you Monday', read_at: null, created_at: new Date().toISOString(), attachments: [] } }] }
-
-  it('lists conversations with unread counts and opens a thread, oldest message first', async () => {
-    const now = new Date().toISOString()
-    mockApi({
-      'GET /me': () => ({ body: studentMe }),
-      'GET /messages': () => ({ body: conversations }),
-      'GET /messages/7': () => ({
-        body: {
-          data: [
-            { id: 2, sender_id: 4, recipient_id: 7, body: 'Thanks!', read_at: null, created_at: now, attachments: [] },
-            { id: 1, sender_id: 7, recipient_id: 4, body: 'See you Monday', read_at: now, created_at: now, attachments: [{ id: 3, original_name: 'plan.pdf', mime_type: 'application/pdf', size: 2048 }] },
-          ],
-          current_page: 1,
-          last_page: 1,
-          per_page: 50,
-          total: 2,
-        },
-      }),
-    })
-    renderSignedIn(
-      <Routes>
-        <Route path="/messages/:userId" element={<MessagesPage />} />
-      </Routes>,
-      '/messages/7',
-    )
-    expect(await screen.findByText(/plan\.pdf/)).toBeInTheDocument()
-    const bubbles = document.querySelectorAll('.bubble')
-    expect(bubbles[0].textContent).toContain('See you Monday')
-    expect(bubbles[1].textContent).toContain('Thanks!')
-    expect(screen.getByRole('button', { name: 'Download' })).toBeInTheDocument()
-  })
-
-  it('stops a person attaching more than five files or a file over 10 MB, before uploading anything', async () => {
-    mockApi({ 'GET /me': () => ({ body: adminMe }), 'GET /messages': () => ({ body: { unread_total: 0, conversations: [] } }), 'GET /messages/7': () => ({ body: { data: [], current_page: 1, last_page: 1, per_page: 50, total: 0 } }) })
-    const user = userEvent.setup()
-    renderSignedIn(
-      <Routes>
-        <Route path="/messages/:userId" element={<MessagesPage />} />
-      </Routes>,
-      '/messages/7',
-    )
-    const input = (await screen.findByLabelText(/Attach files/)) as HTMLInputElement
-    await user.upload(input, Array.from({ length: 6 }, (_, i) => new File(['x'], `f${i}.txt`)))
-    expect(await screen.findByText('You can attach up to 5 files.')).toBeInTheDocument()
-    const big = new File(['x'], 'big.bin')
-    Object.defineProperty(big, 'size', { value: 11 * 1024 * 1024 })
-    await user.upload(input, big)
-    expect(await screen.findByText(/big.bin” is larger than/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
   })
 })

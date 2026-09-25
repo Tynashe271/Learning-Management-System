@@ -1,6 +1,6 @@
 # University LMS
 
-Laravel 13 JSON API for a university learning management system: accounts and roles with single sign-on, the academic catalogue, course content, assignments with rubrics (including level descriptions), quizzes, grading, a gradebook, progress tracking, attendance with self check-in and online-meeting links, announcements, discussions, private messages with attachments, grade appeals, summary emails, virus scanning, similarity screening, bulk imports, course copying, notifications, and an audit trail. The backend is in `backend/` and the web frontend, which uses every endpoint, is in `frontend/`.
+Laravel 13 JSON API for a university learning management system: accounts and roles with single sign-on, the academic catalogue, course content, assignments with rubrics (including level descriptions), quizzes, grading, a gradebook, progress tracking, attendance with self check-in and online-meeting links, announcements, discussions, grade appeals, summary emails, virus scanning, similarity screening, bulk imports, course copying, notifications, and an audit trail. The backend is in `backend/` and the web frontend, which uses every endpoint, is in `frontend/`.
 
 ## Local setup with Podman
 
@@ -21,7 +21,7 @@ Do not expose this local HTTP setup on a public network. Configure TLS, producti
 
 | Area | Screens |
 |---|---|
-| Everyone | Sign in (password or single sign-on), forgot and reset password, dashboard ("needs your attention", notifications, courses), notifications, profile (name, password, summary-email preference and preview), private messages with attachments, footer links to the privacy policy and terms |
+| Everyone | Sign in (password or single sign-on), forgot and reset password, dashboard ("needs your attention", notifications, courses), notifications, profile (name, password, summary-email preference and preview), footer links to the privacy policy and terms |
 | Students | Course content with progress ticks and downloads, assignments with submission, rubric, grade breakdown and appeals, quizzes with a timer and results, announcements, discussions, classes with meeting links and check-in by code, attendance, own grades, my appeals |
 | Lecturers and assistants | Modules, items and files; assignments and rubrics with levels; grading (rubric, drafts, reasons for changes); similarity check; quizzes and all four question types; announcements; discussions and moderation; classes, check-in codes and the roll; gradebook with CSV download; progress; appeals |
 | Students (registration) | Register for courses that allow it while the term's registration window is open, see the places left, and drop before the add/drop deadline |
@@ -49,7 +49,7 @@ This is a university system, not a school one: terms and academic years, departm
 | 1 | User management | **People** and each person's page: create, search, import a CSV with a dry run, change name, email and role, activate or deactivate, unlock, email a reset link, sign out everywhere, delete (only if the account never produced anything), export all their data, anonymise. `/users`, `/users/{id}/…` | `manage-users` (anonymise: `manage-system`) |
 | 2 | Role and permission management | **Roles and permissions**: a matrix of the seven roles, edit one role's permissions, or put it back to the starting set. The super administrator role is locked so the system can never lock out its own administrators. Every change is audited and security-logged. `/roles` | view: `manage-users`; edit: `manage-system` |
 | 3 | Course management | **Terms and courses**: departments, courses with department, level and credits, offerings with capacity and self-registration, publish, archive a course, an offering or a whole term (read-only history, restorable), assign lecturers (a course's People tab), copy a course into another term. `/departments`, `/courses`, `/offerings`, `/terms/{id}/archive` | `manage-courses` |
-| 4 | System configuration | **Settings**: institution name, support contacts, time zone and date format, grade appeal window, late-check-in minutes, upload size and allowed file types, message attachment limits, password rules, lockout, session length, notification defaults, backups, maintenance. Saved in the database over the server configuration; "Use the default" goes back. `/settings`, `/auth/config` | `manage-settings` |
+| 4 | System configuration | **Settings**: institution name, support contacts, time zone and date format, grade appeal window, late-check-in minutes, upload size and allowed file types, password rules, lockout, session length, notification defaults, backups, maintenance. Saved in the database over the server configuration; "Use the default" goes back. `/settings`, `/auth/config` | `manage-settings` |
 | 5 | Security management | **Settings > Security** (password length, upper and lower case, number, symbol, lockout, session length), **Security** (sign-ins, failures, lockouts, refused requests, busiest failing addresses; searchable), single sign-on (server configuration), roles. `/security/events`, `/security/summary` | `manage-users` / `manage-settings` |
 | 6 | Database management | **System and jobs** shows the database's size, speed, record counts and whether any update (migration) is waiting, and **Housekeeping** removes expired records. Changing the structure is done at the server (`php artisan migrate`), deliberately: the app's database account can read and write rows but cannot alter tables. There is no SQL console. | `manage-system` |
 | 7 | Backup and recovery | **Backups**: back up now (with or without uploaded files), automatic nightly backup, list, check against checksums, download, delete. Restore is a server command (see below). `/backups` | `manage-system` |
@@ -89,11 +89,11 @@ All routes are under `/api`. `POST /login` returns a Sanctum bearer token; send 
 
 | Role | Can do |
 |---|---|
-| `student` | In courses they are actively enrolled in: read published material, submit assignments, take quizzes, see their own grades, appeal a published grade, check in to class, discuss, and message people they share a course with. Nothing else. |
+| `student` | In courses they are actively enrolled in: read published material, submit assignments, take quizzes, see their own grades, appeal a published grade, check in to class, and discuss. Nothing else. |
 | `lecturer` | In the courses they are assigned to: build content, set assignments and quizzes, grade with rubrics, post announcements, take attendance, and decide grade appeals. |
 | `teaching-assistant` | Manage and grade the courses they are assigned to, like a lecturer, except they **cannot decide grade appeals**. |
-| `registrar` | Enrol students (one at a time or from a file), look up users and offerings, and message anyone. They do not touch course content. |
-| `department-admin` | Run the catalogue and every course: create terms and courses, assign teachers, copy courses, enrol students, edit any course's content, take attendance, decide appeals, and message anyone. They **cannot create accounts, import users, or read the audit log**, and they do not grade. |
+| `registrar` | Enrol students (one at a time or from a file), and look up users and offerings. They do not touch course content. |
+| `department-admin` | Run the catalogue and every course: create terms and courses, assign teachers, copy courses, enrol students, edit any course's content, take attendance, decide appeals. They **cannot create accounts, import users, or read the audit log**, and they do not grade. |
 | `university-admin` | Everything a department admin can do, plus create and deactivate accounts, import users from a file, and read the audit log. They do not grade. |
 | `super-admin` | Everything, including grading. The one thing a super-admin cannot do is act as a student: submitting work or taking a quiz still needs an active enrolment. |
 
@@ -105,7 +105,6 @@ Course-level powers (content, announcements, attendance, grading) apply only to 
 | `POST /login` | anyone | Email and password for a token. Rate limited; deactivated accounts cannot sign in. |
 | `POST /logout` | signed in | Revoke the current token. |
 | `GET /me`, `PATCH /me` | signed in | Show the profile, roles and the permissions those roles grant (so a frontend can show the right screens); change your own name. |
-| `GET /contacts` (`?q=`) | signed in | The people you may start a private message with: teachers and classmates of your courses (names only), or anyone active for staff who manage users or enrolments. |
 | `POST /me/password` | signed in | Change password (needs `current_password`, `password`, `password_confirmation`; the rules are in `GET /auth/config` under `password_policy`, at least 12 characters). Signs out other devices. |
 | `GET`/`PATCH /me/preferences` | signed in | Read or change how often you get the summary email: `digest_frequency` is `off` (the default unless the institution changes it), `daily`, or `weekly`. |
 | `GET /me/digest-preview` | signed in | What your next summary email would say right now. Nothing is sent. |
@@ -126,7 +125,7 @@ Course-level powers (content, announcements, attendance, grading) apply only to 
 | `POST /users/{id}/unlock`, `/reset-link`, `/sessions/revoke` | user admins | Clear a lockout; email a password reset link; sign the person out everywhere. |
 | `GET /users/{id}/export` | user admins | Everything held about one person, as JSON. |
 | `DELETE /users/{id}` | user admins | Delete an account that never produced anything; otherwise refused with the reason. |
-| `POST /users/{id}/anonymise` | system admins | Replace name and email, block sign-in, empty their messages, keep grades and submissions. Needs `confirm_email`. Cannot be undone. |
+| `POST /users/{id}/anonymise` | system admins | Replace name and email, block sign-in, keep grades and submissions. Needs `confirm_email`. Cannot be undone. |
 | `GET /roles`, `PUT /roles/{role}/permissions`, `POST /roles/{role}/reset` | view: user admins; change: system admins | The permission catalogue and each role's permissions; set exactly which permissions a role holds; put it back to the starting set. The super-admin role cannot be edited. |
 | `GET /settings`, `PUT /settings` | settings admins | Every setting with its value, default and whether it was changed; save some (`settings`) and/or reset others (`reset`). Nothing is saved unless every value is valid. |
 | `GET /audit-log` (`?q=`, `?causer_id=`, `?from=`, `?to=`, `?subject_type=`, `?format=csv`) | user admins | Who changed what: grades, deadlines, enrolments, accounts, settings, roles, backups, deletions. CSV holds up to 20,000 entries. |
@@ -166,9 +165,6 @@ Course-level powers (content, announcements, attendance, grading) apply only to 
 | `POST`/`DELETE /items/{id}/complete` | enrolled students | Mark material done or not done. |
 | `GET /offerings/{id}/progress` | viewers | A student gets their own completion; managers get every student's. |
 | `GET`/`POST /offerings/{id}/announcements`, `DELETE /announcements/{id}` | view / managers | Announcements; posting notifies actively enrolled students. |
-| `GET /messages`, `GET`/`POST /messages/{user}` | signed in | Private one-to-one messages: up to 5000 characters of text, files, or both. The inbox lists conversations with unread counts; opening a thread marks it read. You can write to people you share a course with (as teacher or actively enrolled student), to anyone who has already written to you, and, for administrators, to anyone. Rate limited. Nobody, including administrators, can read other people's conversations through the API. |
-| `POST /messages/{user}` with files | signed in | Send as `multipart/form-data` with `body` and/or `attachments[]` (up to 5 files, 10 MB each, the same allowed types as course files, virus-scanned when scanning is on). The recipient is checked before anything is scanned or stored. |
-| `GET /message-attachments/{id}/download` | sender and recipient only | Downloads as an attachment under the original file name. Nobody else, including administrators, can fetch it. |
 | `GET`/`POST /offerings/{id}/sessions`, `PATCH`/`DELETE /sessions/{id}` | view / managers | Scheduled class meetings with a start and end, an optional room, and an optional `join_url` (http/https only) for an online meeting on Zoom, Teams, Meet, or any other service. Students also see their own attendance status on each session. |
 | `GET`/`PUT /sessions/{id}/attendance` | managers | The roll of actively enrolled students, and marking or correcting attendance (`present`, `late`, `absent`, `excused`, with an optional note) for one or many students at once. |
 | `GET /offerings/{id}/attendance` | viewers | A student gets their own totals; managers get every student's. Late counts as attended; excused sessions are left out of the percentage. |
@@ -210,7 +206,7 @@ Question types: `single_choice`, `multiple_choice` (all correct options required
 
 ### Uploads
 
-Course files and submissions are limited to 25 MB and to the extensions in `LMS_UPLOAD_MIMES` (documents, spreadsheets, slides, text/CSV/Markdown, ZIP, common images, MP3/MP4). The check looks at the file's real content, so a renamed executable is rejected. Files live in a private S3 bucket and are only served through authorized API routes. Message attachments are limited to 5 files of 10 MB each. PHP and nginx are set up for these sizes in `infra/php/lms.ini` and `infra/nginx/default.conf` (mounted by `compose.yaml`); PHP's built-in defaults (2 MB per file) would reject them, so apply the same values if you deploy without Compose.
+Course files and submissions are limited to 25 MB and to the extensions in `LMS_UPLOAD_MIMES` (documents, spreadsheets, slides, text/CSV/Markdown, ZIP, common images, MP3/MP4). The check looks at the file's real content, so a renamed executable is rejected. Files live in a private S3 bucket and are only served through authorized API routes. PHP and nginx are set up for these sizes in `infra/php/lms.ini` and `infra/nginx/default.conf` (mounted by `compose.yaml`); PHP's built-in defaults (2 MB per file) would reject them, so apply the same values if you deploy without Compose.
 
 **Virus scanning** is built in but off by default, because it needs the ClamAV service. To turn it on, run `podman compose --profile scan up -d` (about 1 GB of RAM; the first start downloads the signature database and takes a few minutes), then set `LMS_VIRUS_SCAN=true` in `backend/.env`. Every upload is streamed to ClamAV before it is stored, and infected files are rejected with a 422. If the scanner cannot be reached, uploads are refused (the safe default); set `LMS_VIRUS_SCAN_FAIL_OPEN=true` to accept them with a logged warning instead. Uploads up to 25 MB are scanned. Tested against a real ClamAV with the standard EICAR test file.
 
@@ -234,7 +230,7 @@ The frontend calls `GET /auth/sso`, sends the browser to the returned `url`, and
 
 ### Scheduled jobs
 
-Every night (in the institution's time zone) the scheduler makes a backup at 02:30 (`LMS_BACKUPS`, keeping the newest `LMS_BACKUPS_KEEP`) and removes expired records at 03:15. It also writes a heartbeat every minute, which the health check and the System screen read. The scheduler queues email and database reminders at 08:00 UTC for assignments due the next calendar day. At 07:00 UTC it also sends summary emails (daily, and weekly on Mondays) to people who chose that setting: what they missed while unread, unsubmitted work due within a week, how many messages are waiting, and, for teaching staff, work waiting for a published grade and open appeals. Summaries contain counts and titles only, never marks or message text, and nothing is sent when there is nothing to say. New accounts start on `LMS_DIGEST_DEFAULT` (`off`, `daily`, or `weekly`; default `off`). Run one by hand with `podman compose exec app php artisan lms:send-digests daily`.
+Every night (in the institution's time zone) the scheduler makes a backup at 02:30 (`LMS_BACKUPS`, keeping the newest `LMS_BACKUPS_KEEP`) and removes expired records at 03:15. It also writes a heartbeat every minute, which the health check and the System screen read. The scheduler queues email and database reminders at 08:00 UTC for assignments due the next calendar day. At 07:00 UTC it also sends summary emails (daily, and weekly on Mondays) to people who chose that setting: what they missed while unread, unsubmitted work due within a week, and, for teaching staff, work waiting for a published grade and open appeals. Summaries contain counts and titles only, never marks, and nothing is sent when there is nothing to say. New accounts start on `LMS_DIGEST_DEFAULT` (`off`, `daily`, or `weekly`; default `off`). Run one by hand with `podman compose exec app php artisan lms:send-digests daily`.
 
 ## What is and is not integrated
 
@@ -248,7 +244,7 @@ Some things a university expects are tied to its own systems, so they are provid
 | Video meetings | A meeting link on each class session, and attendance | Creating meetings automatically in Zoom, Teams, or Meet. |
 | Virus scanning | ClamAV, opt-in (see Uploads) | Scanning files already stored before it was switched on. |
 
-Still not built: second-marker moderation of whole cohorts, message deletion, location-checked attendance, and per-message email alerts. Quiz attempts that expire while a student is offline are closed the next time the attempt is read or started, not by a background job. Run behind TLS with production secrets and tested backups before a pilot (see Security and operations). The Composer lock is resolved for PHP 8.3, including `spatie/laravel-activitylog` 4.x, which supports Laravel 13 and PHP 8.3.
+Still not built: second-marker moderation of whole cohorts and location-checked attendance. Quiz attempts that expire while a student is offline are closed the next time the attempt is read or started, not by a background job. Run behind TLS with production secrets and tested backups before a pilot (see Security and operations). The Composer lock is resolved for PHP 8.3, including `spatie/laravel-activitylog` 4.x, which supports Laravel 13 and PHP 8.3.
 ## Security and operations
 
 Every item below is enforced by code and covered by tests (`SecurityHardeningTest`, `ReliabilityTest`, `PerformanceTest`, `PreflightAndEmptyStatesTest`), and was also checked against the running stack. `php artisan lms:preflight --production` prints a PASS/WARN/FAIL checklist of the settings that must be right before launch and exits non-zero on any FAIL. Run it in the deployed environment.
@@ -257,7 +253,7 @@ Every item below is enforced by code and covered by tests (`SecurityHardeningTes
 
 | Concern | What is done |
 |---|---|
-| Rate limiting | Per user: 120 requests/minute for the API. Sign-in: 5/minute per address and email. Stricter limits for password reset, submissions, messages, check-in and SSO. Expensive endpoints (gradebook, reports, audit log, imports, course copy, similarity): 10/minute. Public endpoints: 60/minute per address. Limited requests get `429` with `Retry-After`. |
+| Rate limiting | Per user: 120 requests/minute for the API. Sign-in: 5/minute per address and email. Stricter limits for password reset, submissions, check-in and SSO. Expensive endpoints (gradebook, reports, audit log, imports, course copy, similarity): 10/minute. Public endpoints: 60/minute per address. Limited requests get `429` with `Retry-After`. |
 | Spending caps | The system has no paid third-party API, but the resources that cost money are capped: 25 MB per file, 200 MB of uploads per user per day (`LMS_DAILY_UPLOAD_MB`), 512 KB per JSON body (`LMS_JSON_BODY_KB`), 55 MB per request at nginx, and at most 200 rows per page. Also set billing alerts with your cloud storage and email provider. |
 | Upload safety | Extension allow-list checked against the file's real content, size limits, optional ClamAV scan, private bucket. |
 | Request size | Oversized JSON gets `413`; nginx and PHP limits are aligned (`infra/`). |

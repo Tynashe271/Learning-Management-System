@@ -218,11 +218,6 @@ export function DiscussionPage() {
               <strong>{p.author?.name}</strong>
               <span className="muted small block">{formatDateTime(p.created_at)}</span>
             </span>
-            {p.user_id !== me.id && (
-              <Link className="btn btn-ghost btn-small" to={`/messages/${p.user_id}`} state={{ name: p.author?.name }}>
-                Message
-              </Link>
-            )}
             {canRemove(p.user_id) && (
               <Button
                 small

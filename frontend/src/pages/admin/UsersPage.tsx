@@ -12,7 +12,7 @@ import { bool, fieldError, useApiMutation, useTitle } from '../../lib/hooks'
 
 export function UsersPage() {
   useTitle('People')
-  const { can, user: me } = useAuth()
+  const { can } = useAuth()
   const admin = can('manage-users')
   const [page, setPage] = useState(1)
   const [role, setRole] = useState<'' | RoleName>('')
@@ -74,11 +74,6 @@ export function UsersPage() {
                       <td>{u.is_active === false ? <Badge tone="bad">Deactivated</Badge> : <Badge tone="good">Active</Badge>}</td>
                       <td className="muted small">{u.last_login_at ? relativeTime(u.last_login_at) : 'never'}</td>
                       <td className="actions">
-                        {u.id !== me?.id && (
-                          <Link className="btn btn-ghost btn-small" to={`/messages/${u.id}`} state={{ name: u.name }}>
-                            Message
-                          </Link>
-                        )}
                         {admin && (
                           <Link className="btn btn-secondary btn-small" to={`/admin/users/${u.id}`}>
                             Manage

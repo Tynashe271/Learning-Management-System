@@ -5,19 +5,14 @@ import type { Page, Person, RoleName } from '../api/types'
 import { ROLE_LABELS } from '../api/types'
 import { Avatar, ErrorState, Loading, useDebounced } from './ui'
 
-/**
- * Search for a person by name and choose one. `source="users"` searches every account (administrators and registrars);
- * `source="contacts"` searches only the people the signed-in user is allowed to message.
- */
+/** Search for a person by name and choose one. Searches every account (administrators and registrars only). */
 export function PersonPicker({
-  source,
   role,
   onPick,
   exclude = [],
   actionLabel = 'Choose',
   placeholder = 'Search by name or email',
 }: {
-  source: 'users' | 'contacts'
   role?: RoleName
   onPick: (person: Person) => void
   exclude?: number[]
@@ -27,8 +22,8 @@ export function PersonPicker({
   const [text, setText] = useState('')
   const q = useDebounced(text.trim())
   const query = useQuery({
-    queryKey: ['picker', source, role ?? '', q],
-    queryFn: () => api.get<Page<Person>>(source === 'users' ? '/users' : '/contacts', { q: q || undefined, role }),
+    queryKey: ['picker', role ?? '', q],
+    queryFn: () => api.get<Page<Person>>('/users', { q: q || undefined, role }),
     staleTime: 15_000,
   })
 

@@ -196,7 +196,7 @@ function EnrolDialog({ offeringId, enrolledIds, onClose }: { offeringId: number;
   const enrol = useApiMutation((person: Person) => api.post(`/offerings/${offeringId}/enrolments`, { user_id: person.id, status: 'active' }), { invalidate: [['roster', offeringId]], success: 'Student enrolled.', toastError: true })
   return (
     <Modal title="Enrol a student" onClose={onClose}>
-      <PersonPicker source="users" role="student" exclude={enrolledIds} actionLabel="Enrol" onPick={(p) => enrol.mutate(p)} />
+      <PersonPicker role="student" exclude={enrolledIds} actionLabel="Enrol" onPick={(p) => enrol.mutate(p)} />
     </Modal>
   )
 }
@@ -210,7 +210,7 @@ function AssignDialog({ offeringId, teacherIds, onClose }: { offeringId: number;
         <option value="lecturer">Lecturer</option>
         <option value="teaching-assistant">Teaching assistant</option>
       </SelectField>
-      <PersonPicker key={role} source="users" role={role} exclude={teacherIds} actionLabel="Assign" onPick={(p) => assign.mutate(p)} />
+      <PersonPicker key={role} role={role} exclude={teacherIds} actionLabel="Assign" onPick={(p) => assign.mutate(p)} />
     </Modal>
   )
 }
