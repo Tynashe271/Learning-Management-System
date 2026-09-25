@@ -2,6 +2,8 @@
 
 Laravel 13 JSON API for a university learning management system: accounts and roles with single sign-on, the academic catalogue, course content, assignments with rubrics (including level descriptions), quizzes, grading, a gradebook, progress tracking, attendance with self check-in and online-meeting links, announcements, discussions, grade appeals, summary emails, virus scanning, similarity screening, bulk imports, course copying, notifications, and an audit trail. The backend is in `backend/` and the web frontend, which uses every endpoint, is in `frontend/`.
 
+This document describes what is built and running. For a longer-term product vision (adaptive learning, a practical skills passport, offline learning, an AI tutor, and more), see `ROADMAP.md` — none of it is implemented yet.
+
 ## Local setup with Podman
 
 1. Copy `backend/.env.example` to `backend/.env`. Set `LMS_ADMIN_EMAIL` and `LMS_ADMIN_PASSWORD` in that file before seeding. Use a unique password. The app connects to the database as a restricted role, `lms_app` (see Security and operations): set `LMS_APP_DB_PASSWORD` in a root `.env` file next to `compose.yaml` before the first `compose up`, and use the same value as `DB_PASSWORD` in `backend/.env`. If changing the owner password or the MinIO credentials, change the matching defaults in `compose.yaml` or provide root Compose variables too.
