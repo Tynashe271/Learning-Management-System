@@ -21,11 +21,10 @@ import { Dashboard } from './pages/Dashboard'
 import { NotificationsPage, ProfilePage } from './pages/account'
 import { AppealPage, AppealsTab, MyAppealsPage } from './pages/courses/Appeals'
 import { AssignmentPage } from './pages/courses/AssignmentPage'
-import { AssignmentsTab } from './pages/courses/AssignmentsTab'
 import { AttemptPage } from './pages/courses/AttemptPage'
 import { AttendanceTab, ClassesTab } from './pages/courses/ClassesTab'
 import { AnnouncementsTab, DiscussionPage, DiscussionsTab } from './pages/courses/CommunicationTabs'
-import { ContentTab } from './pages/courses/ContentTab'
+import { ClassworkTab } from './pages/courses/ClassworkTab'
 import { useOffering } from './pages/courses/context'
 import { CoursesPage } from './pages/courses/CoursesPage'
 import { RegisterPage } from './pages/courses/RegisterPage'
@@ -33,8 +32,8 @@ import { GradesTab, ProgressTab } from './pages/courses/GradesTab'
 import { OfferingLayout } from './pages/courses/OfferingLayout'
 import { OverviewTab, PeopleTab } from './pages/courses/PeopleTab'
 import { QuizPage } from './pages/courses/QuizPage'
-import { QuizzesTab } from './pages/courses/QuizzesTab'
 import { SettingsTab } from './pages/courses/SettingsTab'
+import { StreamTab } from './pages/courses/StreamTab'
 
 function RequireAuth() {
   const { user, loading, checkError, retryCheck, logout } = useAuth()
@@ -61,7 +60,7 @@ function RequireAuth() {
 function CourseIndex() {
   const { enrolmentOnly } = useOffering()
   const location = useLocation()
-  return <Navigate to={enrolmentOnly ? 'people' : 'content'} replace state={location.state} />
+  return <Navigate to={enrolmentOnly ? 'people' : 'stream'} replace state={location.state} />
 }
 
 /** A tab only some people may open; anyone else is sent to the course's front page. */
@@ -117,9 +116,8 @@ export function App() {
         <Route path="courses" element={<CoursesPage />} />
         <Route path="courses/:id" element={<OfferingLayout />}>
           <Route index element={<CourseIndex />} />
-          <Route path="content" element={<NotEnrolmentOnly><ContentTab /></NotEnrolmentOnly>} />
-          <Route path="assignments" element={<NotEnrolmentOnly><AssignmentsTab /></NotEnrolmentOnly>} />
-          <Route path="quizzes" element={<NotEnrolmentOnly><QuizzesTab /></NotEnrolmentOnly>} />
+          <Route path="stream" element={<NotEnrolmentOnly><StreamTab /></NotEnrolmentOnly>} />
+          <Route path="classwork" element={<NotEnrolmentOnly><ClassworkTab /></NotEnrolmentOnly>} />
           <Route path="announcements" element={<NotEnrolmentOnly><AnnouncementsTab /></NotEnrolmentOnly>} />
           <Route path="discussions" element={<NotEnrolmentOnly><DiscussionsTab /></NotEnrolmentOnly>} />
           <Route path="classes" element={<NotEnrolmentOnly><ClassesTab /></NotEnrolmentOnly>} />

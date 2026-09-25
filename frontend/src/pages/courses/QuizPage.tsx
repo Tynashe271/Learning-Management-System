@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { AttemptInProgress, AttemptSummary, Offering, Page, QuestionType, Quiz, QuizQuestion, StaffAttempt } from '../../api/types'
+import type { AttemptInProgress, AttemptSummary, Module, Offering, Page, QuestionType, Quiz, QuizQuestion, StaffAttempt } from '../../api/types'
 import { QUESTION_TYPE_LABELS } from '../../api/types'
 import { Alert, Badge, Button, Card, EmptyState, ErrorState, FormError, Loading, Modal, PageHeader, Pager, PublishedBadge, QueryView, SelectField, Table, TextArea, TextField, pagerFromPage, useConfirm } from '../../components/ui'
 import { formatDateTime, formatScore, isPast, plural } from '../../lib/format'
@@ -28,12 +28,12 @@ export function QuizPage() {
   return (
     <>
       <p className="crumbs">
-        <Link to={`/courses/${quiz.data.course_offering_id}/quizzes`}>
+        <Link to={`/courses/${quiz.data.course_offering_id}/classwork`}>
           {course ? `${course.code} ${course.title}` : 'Course'}
         </Link>{' '}
-        / Quizzes
+        / Classwork
       </p>
-      {manage ? <ManagerView quiz={quiz.data} /> : <StudentView quiz={quiz.data} />}
+      {manage ? <ManagerView quiz={quiz.data} modules={offering.data?.modules ?? []} /> : <StudentView quiz={quiz.data} />}
     </>
   )
 }
@@ -121,7 +121,7 @@ function StudentView({ quiz }: { quiz: Quiz }) {
 }
 
 // ---- manager ---------------------------------------------------------------------------------------------------
-function ManagerView({ quiz }: { quiz: Quiz }) {
+function ManagerView({ quiz, modules }: { quiz: Quiz; modules: Module[] }) {
   const navigate = useNavigate()
   const confirm = useConfirm()
   const [editing, setEditing] = useState(false)
@@ -131,7 +131,7 @@ function ManagerView({ quiz }: { quiz: Quiz }) {
   const totalPoints = questions.reduce((sum, q) => sum + q.points, 0)
 
   const attempts = useQuery({ queryKey: ['quiz', quiz.id, 'attempts', page], queryFn: () => api.get<Page<StaffAttempt>>(`/quizzes/${quiz.id}/attempts`, { page }), placeholderData: (previous) => previous })
-  const remove = useApiMutation(() => api.delete(`/quizzes/${quiz.id}`), { invalidate: [['offering', quiz.course_offering_id]], success: 'Quiz deleted.', onSuccess: () => navigate(`/courses/${quiz.course_offering_id}/quizzes`), toastError: true })
+  const remove = useApiMutation(() => api.delete(`/quizzes/${quiz.id}`), { invalidate: [['offering', quiz.course_offering_id]], success: 'Quiz deleted.', onSuccess: () => navigate(`/courses/${quiz.course_offering_id}/classwork`), toastError: true })
   const removeQuestion = useApiMutation((qid: number) => api.delete(`/questions/${qid}`), { invalidate: [['quiz', quiz.id]], success: 'Question deleted.', toastError: true })
   const hasAttempts = (attempts.data?.total ?? 0) > 0
 
@@ -256,7 +256,7 @@ function ManagerView({ quiz }: { quiz: Quiz }) {
         </QueryView>
       </Card>
 
-      {editing && <QuizDialog offeringId={quiz.course_offering_id} quiz={quiz} onClose={() => setEditing(false)} />}
+      {editing && <QuizDialog offeringId={quiz.course_offering_id} modules={modules} quiz={quiz} onClose={() => setEditing(false)} />}
       {question && <QuestionDialog quiz={quiz} question={question === 'new' ? null : question} onClose={() => setQuestion(null)} />}
     </>
   )

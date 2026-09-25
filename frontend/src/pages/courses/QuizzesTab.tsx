@@ -1,72 +1,23 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
-import type { Quiz } from '../../api/types'
-import { Badge, Button, Card, CheckField, EmptyState, FormError, Modal, PublishedBadge, Table, TextArea, TextField } from '../../components/ui'
-import { formatDateTime, fromLocalInput, isPast, toLocalInput } from '../../lib/format'
+import type { Module, Quiz } from '../../api/types'
+import { Button, CheckField, FormError, Modal, SelectField, TextArea, TextField } from '../../components/ui'
+import { fromLocalInput, toLocalInput } from '../../lib/format'
 import { fieldError, useApiMutation } from '../../lib/hooks'
-import { useOffering } from './context'
 
-export function QuizzesTab() {
-  const { offering, id, manage } = useOffering()
-  const [creating, setCreating] = useState(false)
-  const quizzes = [...(offering.quizzes ?? [])].sort((a, b) => a.due_at.localeCompare(b.due_at))
-
-  return (
-    <>
-      {manage && (
-        <p>
-          <Button variant="primary" onClick={() => setCreating(true)}>
-            New quiz
-          </Button>
-        </p>
-      )}
-      <Card>
-        {quizzes.length === 0 ? (
-          <EmptyState title="No quizzes yet">{manage ? 'Create a quiz, add questions, then publish it.' : 'Quizzes will appear here when your teacher publishes them.'}</EmptyState>
-        ) : (
-          <Table caption="Quizzes">
-            <thead>
-              <tr>
-                <th>Quiz</th>
-                <th>Opens</th>
-                <th>Due</th>
-                <th>Time limit</th>
-                <th>Attempts</th>
-                <th>Questions</th>
-                {manage && <th>Status</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {quizzes.map((q) => (
-                <tr key={q.id}>
-                  <td>
-                    <Link to={`/quizzes/${q.id}`}>{q.title}</Link>
-                  </td>
-                  <td>{q.opens_at ? formatDateTime(q.opens_at) : 'Open now'}</td>
-                  <td>
-                    {formatDateTime(q.due_at)} {isPast(q.due_at) && <Badge>Closed</Badge>}
-                  </td>
-                  <td>{q.time_limit_minutes ? `${q.time_limit_minutes} min` : 'None'}</td>
-                  <td>{q.max_attempts}</td>
-                  <td>{q.questions_count ?? 0}</td>
-                  {manage && (
-                    <td>
-                      <PublishedBadge published={!!q.published} />
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        )}
-      </Card>
-      {creating && <QuizDialog offeringId={id} quiz={null} onClose={() => setCreating(false)} />}
-    </>
-  )
-}
-
-export function QuizDialog({ offeringId, quiz, onClose }: { offeringId: number; quiz: Quiz | null; onClose: () => void }) {
+export function QuizDialog({
+  offeringId,
+  modules = [],
+  defaultModuleId = null,
+  quiz,
+  onClose,
+}: {
+  offeringId: number
+  modules?: Module[]
+  defaultModuleId?: number | null
+  quiz: Quiz | null
+  onClose: () => void
+}) {
   const editing = quiz !== null
   const [title, setTitle] = useState(quiz?.title ?? '')
   const [instructions, setInstructions] = useState(quiz?.instructions ?? '')
@@ -75,6 +26,7 @@ export function QuizDialog({ offeringId, quiz, onClose }: { offeringId: number; 
   const [limit, setLimit] = useState(quiz?.time_limit_minutes ? String(quiz.time_limit_minutes) : '')
   const [attempts, setAttempts] = useState(String(quiz?.max_attempts ?? 1))
   const [published, setPublished] = useState(quiz?.published ?? false)
+  const [topicId, setTopicId] = useState(String(quiz ? (quiz.course_module_id ?? '') : (defaultModuleId ?? '')))
   const [reason, setReason] = useState('')
 
   const dueChanged = editing && dueAt !== toLocalInput(quiz.due_at)
@@ -87,6 +39,7 @@ export function QuizDialog({ offeringId, quiz, onClose }: { offeringId: number; 
         time_limit_minutes: limit ? Number(limit) : null,
         max_attempts: Number(attempts) || 1,
         published,
+        course_module_id: topicId ? Number(topicId) : null,
       }
       if (!editing || dueChanged) body.due_at = fromLocalInput(dueAt)
       if (dueChanged) body.change_reason = reason.trim()
@@ -94,7 +47,7 @@ export function QuizDialog({ offeringId, quiz, onClose }: { offeringId: number; 
     },
     { invalidate: [['offering', offeringId], ['quiz']], success: editing ? 'Quiz saved.' : 'Quiz created.', onSuccess: onClose },
   )
-  const known = ['title', 'instructions', 'opens_at', 'due_at', 'time_limit_minutes', 'max_attempts', 'change_reason']
+  const known = ['title', 'instructions', 'opens_at', 'due_at', 'time_limit_minutes', 'max_attempts', 'change_reason', 'course_module_id']
 
   return (
     <Modal title={editing ? 'Edit quiz' : 'New quiz'} onClose={onClose} wide>
@@ -106,6 +59,18 @@ export function QuizDialog({ offeringId, quiz, onClose }: { offeringId: number; 
       >
         <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} error={fieldError(save.error, 'title')} maxLength={255} autoFocus required />
         <TextArea label="Instructions" optional rows={4} value={instructions} onChange={(e) => setInstructions(e.target.value)} error={fieldError(save.error, 'instructions')} />
+        {modules.length > 0 && (
+          <SelectField label="Topic" optional value={topicId} onChange={(e) => setTopicId(e.target.value)} error={fieldError(save.error, 'course_module_id')} hint="Groups this quiz with a topic on the Classwork tab.">
+            <option value="">No topic</option>
+            {[...modules]
+              .sort((a, b) => a.position - b.position)
+              .map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.title}
+                </option>
+              ))}
+          </SelectField>
+        )}
         <div className="row">
           <TextField label="Opens" optional type="datetime-local" value={opensAt} onChange={(e) => setOpensAt(e.target.value)} error={fieldError(save.error, 'opens_at')} hint="Leave empty to open as soon as it is published." />
           <TextField label="Due" type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} error={fieldError(save.error, 'due_at')} hint="Must be in the future." required />

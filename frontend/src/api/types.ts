@@ -242,11 +242,13 @@ export interface Progress {
 export interface Assignment {
   id: number
   course_offering_id: number
+  course_module_id?: number | null
   title: string
   instructions: string | null
   due_at: string
   max_score: number
   published: boolean
+  created_at?: string
 }
 
 export interface RubricLevel {
@@ -393,6 +395,7 @@ export interface QuizQuestion {
 export interface Quiz {
   id: number
   course_offering_id: number
+  course_module_id?: number | null
   title: string
   instructions: string | null
   opens_at: string | null
@@ -400,6 +403,7 @@ export interface Quiz {
   time_limit_minutes: number | null
   max_attempts: number
   published?: boolean
+  created_at?: string
   questions?: QuizQuestion[]
   questions_count?: number
   total_points?: number

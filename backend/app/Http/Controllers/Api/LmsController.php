@@ -123,7 +123,7 @@ class LmsController extends Controller
             'q' => ['sometimes', 'string', 'max:100'], 'status' => ['sometimes', Rule::in(['published', 'draft'])],
         ]);
         $staff = $user->can('manage-courses') || $user->can('manage-enrolments');
-        $query = CourseOffering::with(['course.department:id,code,name', 'term'])->orderBy('id');
+        $query = CourseOffering::with(['course.department:id,code,name', 'term', 'teachers.user:id,name'])->orderBy('id');
         if (! $staff) {
             $query->where(function ($q) use ($user) {
                 $q->whereHas('teachers', fn ($t) => $t->where('user_id', $user->id))
@@ -281,7 +281,7 @@ class LmsController extends Controller
     public function assignment(Request $request, CourseOffering $offering): JsonResponse
     {
         $this->authorize('manage', $offering);
-        $data = $request->validate(['title' => ['required', 'string', 'max:255'], 'instructions' => ['nullable', 'string'], 'due_at' => ['required', 'date', 'after:now'], 'max_score' => ['required', 'integer', 'min:1'], 'published' => ['sometimes', 'boolean']]);
+        $data = $request->validate(['title' => ['required', 'string', 'max:255'], 'instructions' => ['nullable', 'string'], 'due_at' => ['required', 'date', 'after:now'], 'max_score' => ['required', 'integer', 'min:1'], 'published' => ['sometimes', 'boolean'], 'course_module_id' => ['nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $offering->id)]]);
 
         return response()->json($offering->assignments()->create($data), 201);
     }
@@ -289,7 +289,7 @@ class LmsController extends Controller
     public function updateAssignment(Request $request, Assignment $assignment): JsonResponse
     {
         $this->authorize('manage', $assignment->offering);
-        $data = $request->validate(['title' => ['sometimes', 'string', 'max:255'], 'instructions' => ['sometimes', 'nullable', 'string'], 'due_at' => ['sometimes', 'date', 'after:now'], 'published' => ['sometimes', 'boolean'], 'change_reason' => ['sometimes', 'string', 'max:1000']]);
+        $data = $request->validate(['title' => ['sometimes', 'string', 'max:255'], 'instructions' => ['sometimes', 'nullable', 'string'], 'due_at' => ['sometimes', 'date', 'after:now'], 'published' => ['sometimes', 'boolean'], 'change_reason' => ['sometimes', 'string', 'max:1000'], 'course_module_id' => ['sometimes', 'nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $assignment->course_offering_id)]]);
         if (isset($data['due_at']) && empty($data['change_reason'])) {
             throw ValidationException::withMessages(['change_reason' => 'A reason is required for deadline changes.']);
         }
@@ -332,7 +332,7 @@ class LmsController extends Controller
     {
         $this->authorize('view', $assignment);
         $user = $request->user();
-        $assignment->load('offering.course:id,code,title', 'offering.term:id,name');
+        $assignment->load('offering.course:id,code,title', 'offering.term:id,name', 'offering.modules:id,course_offering_id,title,position');
 
         return response()->json($assignment->toArray() + ['abilities' => [
             'manage' => $user->can('manage', $assignment->offering),

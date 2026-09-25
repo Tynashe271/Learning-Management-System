@@ -108,9 +108,8 @@ function OfferingBody({ offering, enrolmentOnly, ctx, manage = false }: { offeri
   const tabs = enrolmentOnly
     ? [{ to: `${base}/people`, label: 'People' }]
     : [
-        { to: `${base}/content`, label: 'Content' },
-        { to: `${base}/assignments`, label: 'Assignments' },
-        { to: `${base}/quizzes`, label: 'Quizzes' },
+        { to: `${base}/stream`, label: 'Stream' },
+        { to: `${base}/classwork`, label: 'Classwork' },
         { to: `${base}/announcements`, label: 'Announcements' },
         { to: `${base}/discussions`, label: 'Discussions' },
         { to: `${base}/classes`, label: 'Classes' },

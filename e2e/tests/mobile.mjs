@@ -49,17 +49,21 @@ export async function run({ browser, password, ids, artifacts }) {
   await shot('courses')
 
   await page.getByRole('link', { name: /Testing Foundations/ }).click()
-  await page.waitForURL(/\/content/)
-  await page.waitForSelector('.item')
-  await overflow('course content')
-  await shot('content')
+  await page.waitForURL(/\/stream/)
+  await overflow('course stream')
+  await shot('stream')
   check('the course tabs scroll inside their own strip', await page.evaluate(() => document.querySelector('.tabs').scrollWidth > document.querySelector('.tabs').clientWidth))
 
-  for (const [tab, selector] of [['assignments', 'table'], ['quizzes', 'table'], ['announcements', '.card'], ['discussions', '.threads'], ['classes', 'table'], ['attendance', '.stats'], ['grades', 'table']]) {
+  await page.goto(`${BASE}/courses/${o}/classwork`)
+  await page.waitForSelector('.item')
+  await overflow('course classwork')
+  await shot('classwork')
+
+  for (const [tab, selector] of [['announcements', '.card'], ['discussions', '.threads'], ['classes', 'table'], ['attendance', '.stats'], ['grades', 'table']]) {
     await page.goto(`${BASE}/courses/${o}/${tab}`)
     await page.waitForSelector(selector, { timeout: 10000 })
     await overflow(`course ${tab}`)
-    if (['assignments', 'classes', 'grades'].includes(tab)) await shot(tab)
+    if (['classes', 'grades'].includes(tab)) await shot(tab)
   }
 
   await page.goto(`${BASE}/assignments/${a}`)

@@ -496,7 +496,8 @@ pre.code {
 .shell.student-mode {
   --primary: #3f7d5c;
   --primary-hover: #336a4c;
-  --radius: 14px;
+  --radius: 16px;
+  --shadow: 0 1px 2px rgba(20, 30, 50, 0.08);
 }
 @media (prefers-color-scheme: dark) {
   .shell.student-mode {
@@ -504,6 +505,13 @@ pre.code {
     --primary-hover: #97dbae;
     --primary-text: #08111f;
   }
+}
+.student-mode .section-title {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.student-mode .tab-active {
+  border-bottom-width: 4px;
 }
 .student-mode .hero {
   background: linear-gradient(155deg, var(--surface) 0%, var(--surface-2) 130%);
@@ -579,8 +587,50 @@ pre.code {
   transform: translateY(-2px);
   border-color: var(--primary);
 }
-.course-card-accent {
-  height: 6px;
+.course-card-banner {
+  position: relative;
+  height: 100px;
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #fff;
+  background-image: radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.16), transparent 55%);
+}
+.course-card-banner-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-right: 2.75rem;
+}
+.course-card-code {
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+.course-card-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.92;
+  font-size: 0.9rem;
+}
+.course-card-teacher {
+  font-size: 0.82rem;
+  opacity: 0.9;
+}
+.course-card-avatar {
+  position: absolute;
+  top: 1rem;
+  right: 1.1rem;
+}
+.course-card-avatar .avatar {
+  width: 40px;
+  height: 40px;
+  font-size: 0.95rem;
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.5);
 }
 .course-card-body {
   display: flex;
@@ -1115,6 +1165,33 @@ td .field > label {
   align-items: center;
   gap: 0.6rem;
   margin-bottom: 0.5rem;
+}
+
+/* ---- stream ---- */
+.stream-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+.stream-icon {
+  font-size: 1.3rem;
+  line-height: 1.4;
+}
+.stream-composer-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.25rem 0;
+  background: none;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.stream-composer-trigger:hover .muted {
+  color: var(--text);
 }
 
 /* ---- content, rubric, quiz ---- */

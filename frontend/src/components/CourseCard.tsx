@@ -3,20 +3,28 @@ import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import type { Offering, Progress } from '../api/types'
 import { formatPercent } from '../lib/format'
-import { Badge } from './ui'
+import { Avatar, Badge } from './ui'
 
-/** A visual course tile with the student's own progress, used by the student dashboard and the student courses view. */
+/** A Classroom-style tile with a colored banner, the teacher's name, and the student's own progress. */
 export function CourseCard({ offering }: { offering: Offering }) {
   const progress = useQuery({ queryKey: ['progress', offering.id, 'me'], queryFn: () => api.get<Progress>(`/offerings/${offering.id}/progress`) })
   const percent = progress.data?.percent ?? 0
   const hasItems = (progress.data?.items_total ?? 0) > 0
+  const teacherName = offering.teachers?.[0]?.user?.name
 
   return (
     <Link to={`/courses/${offering.id}`} state={{ offering }} className="course-card">
-      <div className="course-card-accent" style={{ background: accentFor(offering.course?.code ?? '') }} />
+      <div className="course-card-banner" style={{ background: accentFor(offering.course?.code ?? '') }}>
+        <div className="course-card-banner-text">
+          <strong className="course-card-code">{offering.course?.code}</strong>
+          <span className="course-card-title">{offering.course?.title}</span>
+        </div>
+        {teacherName && <span className="course-card-teacher">{teacherName}</span>}
+        <span className="course-card-avatar">
+          <Avatar name={teacherName ?? offering.course?.code ?? ''} />
+        </span>
+      </div>
       <div className="course-card-body">
-        <strong>{offering.course?.code}</strong>
-        <span>{offering.course?.title}</span>
         <span className="muted small">
           {offering.term?.name} · Section {offering.section}
         </span>

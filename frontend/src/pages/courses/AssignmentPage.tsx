@@ -25,7 +25,7 @@ export function AssignmentPage() {
   const remove = useApiMutation(() => api.delete(`/assignments/${assignmentId}`), {
     invalidate: [['offering']],
     success: 'Assignment deleted.',
-    onSuccess: () => navigate(`/courses/${query.data?.course_offering_id}/assignments`),
+    onSuccess: () => navigate(`/courses/${query.data?.course_offering_id}/classwork`),
     toastError: true,
   })
   useTitle(query.data?.title ?? 'Assignment')
@@ -41,10 +41,10 @@ export function AssignmentPage() {
   return (
     <>
       <p className="crumbs">
-        <Link to={`/courses/${a.course_offering_id}/assignments`}>
+        <Link to={`/courses/${a.course_offering_id}/classwork`}>
           {course?.code} {course?.title}
         </Link>{' '}
-        / Assignments
+        / Classwork
       </p>
       <PageHeader
         title={a.title}
@@ -92,7 +92,7 @@ export function AssignmentPage() {
 
       {a.abilities.grade || a.abilities.manage ? <StaffSection assignment={a} rubric={rubric.data ?? []} /> : <StudentSection assignment={a} />}
 
-      {editing && <AssignmentDialog offeringId={a.course_offering_id} assignment={a} onClose={() => setEditing(false)} />}
+      {editing && <AssignmentDialog offeringId={a.course_offering_id} modules={a.offering.modules ?? []} assignment={a} onClose={() => setEditing(false)} />}
       {editingRubric && <RubricEditor assignmentId={a.id} maxScore={a.max_score} criteria={rubric.data ?? []} onClose={() => setEditingRubric(false)} />}
     </>
   )

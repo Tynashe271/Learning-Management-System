@@ -26,6 +26,7 @@ class QuizController extends Controller
             'time_limit_minutes' => ['nullable', 'integer', 'min:1', 'max:600'],
             'max_attempts' => ['sometimes', 'integer', 'min:1', 'max:20'],
             'published' => ['sometimes', 'boolean'],
+            'course_module_id' => ['nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $offering->id)],
         ]);
         $this->assertWindow($data['opens_at'] ?? null, $data['due_at']);
 
@@ -59,6 +60,7 @@ class QuizController extends Controller
             'max_attempts' => ['sometimes', 'integer', 'min:1', 'max:20'],
             'published' => ['sometimes', 'boolean'],
             'change_reason' => ['sometimes', 'string', 'max:1000'],
+            'course_module_id' => ['sometimes', 'nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $quiz->course_offering_id)],
         ]);
         if (isset($data['due_at']) && empty($data['change_reason'])) {
             throw ValidationException::withMessages(['change_reason' => 'A reason is required for deadline changes.']);

@@ -1,21 +1,33 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
-import type { LearningItem, Module, Offering, Progress } from '../../api/types'
+import type { Assignment, LearningItem, Module, Offering, Progress, Quiz } from '../../api/types'
 import { Badge, Button, Card, CheckField, EmptyState, FileField, FormError, Modal, ProgressRing, PublishedBadge, TextArea, TextField, useConfirm } from '../../components/ui'
 import { DownloadButton, bool, fieldError, useApiMutation } from '../../lib/hooks'
-import { formatPercent } from '../../lib/format'
+import { formatDateTime, formatPercent, isPast } from '../../lib/format'
+import { AssignmentDialog } from './AssignmentsTab'
 import { useOffering } from './context'
+import { QuizDialog } from './QuizzesTab'
 
-export function ContentTab() {
+type NewFor = { moduleId: number | null; kind: 'assignment' | 'quiz' }
+
+export function ClassworkTab() {
   const { offering, id, manage, student } = useOffering()
   const modules = offering.modules ?? []
+  const assignments = offering.assignments ?? []
+  const quizzes = offering.quizzes ?? []
   const [moduleDialog, setModuleDialog] = useState<Module | 'new' | null>(null)
+  const [creating, setCreating] = useState<NewFor | null>(null)
 
   const progress = useQuery({ queryKey: ['progress', id, 'me'], queryFn: () => api.get<Progress>(`/offerings/${id}/progress`), enabled: student })
   const done = new Set(progress.data?.completed_item_ids ?? [])
   // The first not-yet-completed item, in module/item order, is the one worth pointing a student at next.
   const nextItemId = student ? modules.flatMap((m) => m.items ?? []).find((item) => !done.has(item.id))?.id : undefined
+
+  const ungroupedAssignments = assignments.filter((a) => !a.course_module_id)
+  const ungroupedQuizzes = quizzes.filter((q) => !q.course_module_id)
+  const isEmpty = modules.length === 0 && ungroupedAssignments.length === 0 && ungroupedQuizzes.length === 0
 
   return (
     <>
@@ -35,33 +47,79 @@ export function ContentTab() {
       {manage && (
         <p>
           <Button variant="primary" onClick={() => setModuleDialog('new')}>
-            Add a module
+            Add a topic
           </Button>
         </p>
       )}
-      {modules.length === 0 && (
+      {isEmpty && (
         <Card>
-          <EmptyState title="No content yet" icon="📚" action={manage ? <Button variant="primary" onClick={() => setModuleDialog('new')}>Add the first module</Button> : undefined}>
-            {manage ? 'Modules group your readings, links and files. Students see a module once you publish it.' : 'Your teacher has not published any material yet.'}
+          <EmptyState title="No classwork yet" icon="📚" action={manage ? <Button variant="primary" onClick={() => setModuleDialog('new')}>Add the first topic</Button> : undefined}>
+            {manage ? 'Topics group your readings, links, files, assignments and quizzes. Students see a topic once you publish its contents.' : 'Your teacher has not published any classwork yet.'}
           </EmptyState>
         </Card>
       )}
       {modules.map((module) => (
-        <ModuleCard key={module.id} module={module} offeringId={id} manage={manage} student={student} done={done} nextItemId={nextItemId} onEdit={() => setModuleDialog(module)} />
+        <TopicCard
+          key={module.id}
+          module={module}
+          offeringId={id}
+          manage={manage}
+          student={student}
+          done={done}
+          nextItemId={nextItemId}
+          assignments={assignments.filter((a) => a.course_module_id === module.id)}
+          quizzes={quizzes.filter((q) => q.course_module_id === module.id)}
+          onEdit={() => setModuleDialog(module)}
+          onNew={(kind) => setCreating({ moduleId: module.id, kind })}
+        />
       ))}
+      {(ungroupedAssignments.length > 0 || ungroupedQuizzes.length > 0 || manage) && (
+        <Card
+          title="Other coursework"
+          actions={
+            manage && (
+              <>
+                <Button small onClick={() => setCreating({ moduleId: null, kind: 'assignment' })}>
+                  Add assignment
+                </Button>
+                <Button small onClick={() => setCreating({ moduleId: null, kind: 'quiz' })}>
+                  Add quiz
+                </Button>
+              </>
+            )
+          }
+        >
+          {ungroupedAssignments.length === 0 && ungroupedQuizzes.length === 0 && <p className="muted">Nothing without a topic.</p>}
+          <ul className="items">
+            {ungroupedAssignments.map((a) => (
+              <AssignmentRow key={`a${a.id}`} assignment={a} manage={manage} />
+            ))}
+            {ungroupedQuizzes.map((q) => (
+              <QuizRow key={`q${q.id}`} quiz={q} manage={manage} />
+            ))}
+          </ul>
+        </Card>
+      )}
       {moduleDialog && <ModuleDialog offering={offering} module={moduleDialog === 'new' ? null : moduleDialog} onClose={() => setModuleDialog(null)} />}
+      {creating?.kind === 'assignment' && (
+        <AssignmentDialog offeringId={id} modules={offering.modules ?? []} defaultModuleId={creating.moduleId} assignment={null} onClose={() => setCreating(null)} />
+      )}
+      {creating?.kind === 'quiz' && <QuizDialog offeringId={id} modules={offering.modules ?? []} defaultModuleId={creating.moduleId} quiz={null} onClose={() => setCreating(null)} />}
     </>
   )
 }
 
-function ModuleCard({
+function TopicCard({
   module,
   offeringId,
   manage,
   student,
   done,
   nextItemId,
+  assignments,
+  quizzes,
   onEdit,
+  onNew,
 }: {
   module: Module
   offeringId: number
@@ -69,14 +127,18 @@ function ModuleCard({
   student: boolean
   done: Set<number>
   nextItemId?: number
+  assignments: Assignment[]
+  quizzes: Quiz[]
   onEdit: () => void
+  onNew: (kind: 'assignment' | 'quiz') => void
 }) {
   const confirm = useConfirm()
   const [itemDialog, setItemDialog] = useState<LearningItem | 'new' | null>(null)
   const refresh = [['offering', offeringId]]
-  const remove = useApiMutation(() => api.delete(`/modules/${module.id}`), { invalidate: refresh, success: 'Module deleted.', toastError: true })
+  const remove = useApiMutation(() => api.delete(`/modules/${module.id}`), { invalidate: refresh, success: 'Topic deleted.', toastError: true })
   const toggle = useApiMutation((published: boolean) => api.patch(`/modules/${module.id}`, { published }), { invalidate: refresh, toastError: true })
   const items = module.items ?? []
+  const trackable = items.length + assignments.length + quizzes.length
   const doneInModule = items.filter((item) => done.has(item.id)).length
 
   return (
@@ -95,7 +157,13 @@ function ModuleCard({
         manage && (
           <>
             <Button small onClick={() => setItemDialog('new')}>
-              Add item
+              Add material
+            </Button>
+            <Button small onClick={() => onNew('assignment')}>
+              Add assignment
+            </Button>
+            <Button small onClick={() => onNew('quiz')}>
+              Add quiz
             </Button>
             <Button small onClick={() => toggle.mutate(!module.published)} loading={toggle.isPending}>
               {module.published ? 'Unpublish' : 'Publish'}
@@ -107,7 +175,7 @@ function ModuleCard({
               small
               variant="danger"
               onClick={async () => {
-                if (await confirm({ title: 'Delete this module?', message: `“${module.title}” and all of its items (and their files) will be removed. This cannot be undone.`, confirmLabel: 'Delete module', danger: true })) remove.mutate()
+                if (await confirm({ title: 'Delete this topic?', message: `“${module.title}” and all of its materials (and their files) will be removed. Any assignments or quizzes under it keep their work but lose the topic. This cannot be undone.`, confirmLabel: 'Delete topic', danger: true })) remove.mutate()
               }}
             >
               Delete
@@ -116,10 +184,16 @@ function ModuleCard({
         )
       }
     >
-      {items.length === 0 && <p className="muted">{manage ? 'This module has no items yet.' : 'Nothing here yet.'}</p>}
+      {trackable === 0 && <p className="muted">{manage ? 'Nothing under this topic yet.' : 'Nothing here yet.'}</p>}
       <ul className="items">
         {items.map((item) => (
-          <ItemRow key={item.id} item={item} manage={manage} student={student} done={done.has(item.id)} isNext={item.id === nextItemId} offeringId={offeringId} onEdit={() => setItemDialog(item)} />
+          <ItemRow key={`i${item.id}`} item={item} manage={manage} student={student} done={done.has(item.id)} isNext={item.id === nextItemId} offeringId={offeringId} onEdit={() => setItemDialog(item)} />
+        ))}
+        {assignments.map((a) => (
+          <AssignmentRow key={`a${a.id}`} assignment={a} manage={manage} />
+        ))}
+        {quizzes.map((q) => (
+          <QuizRow key={`q${q.id}`} quiz={q} manage={manage} />
         ))}
       </ul>
       {itemDialog && <ItemDialog module={module} item={itemDialog === 'new' ? null : itemDialog} offeringId={offeringId} onClose={() => setItemDialog(null)} />}
@@ -207,6 +281,44 @@ function ItemRow({
   )
 }
 
+function AssignmentRow({ assignment, manage }: { assignment: Assignment; manage: boolean }) {
+  return (
+    <li className="item">
+      <div className="item-main">
+        <span aria-hidden="true">📝</span>
+        <div className="grow">
+          <Link to={`/assignments/${assignment.id}`}>
+            <strong>{assignment.title}</strong>
+          </Link>{' '}
+          {manage && <PublishedBadge published={assignment.published} />}
+          <div className="muted small">
+            Due {formatDateTime(assignment.due_at)} · Out of {assignment.max_score} {isPast(assignment.due_at) && <Badge tone="neutral">Closed</Badge>}
+          </div>
+        </div>
+      </div>
+    </li>
+  )
+}
+
+function QuizRow({ quiz, manage }: { quiz: Quiz; manage: boolean }) {
+  return (
+    <li className="item">
+      <div className="item-main">
+        <span aria-hidden="true">❓</span>
+        <div className="grow">
+          <Link to={`/quizzes/${quiz.id}`}>
+            <strong>{quiz.title}</strong>
+          </Link>{' '}
+          {manage && <PublishedBadge published={!!quiz.published} />}
+          <div className="muted small">
+            {quiz.opens_at ? `Opens ${formatDateTime(quiz.opens_at)} · ` : ''}Due {formatDateTime(quiz.due_at)} {isPast(quiz.due_at) && <Badge tone="neutral">Closed</Badge>}
+          </div>
+        </div>
+      </div>
+    </li>
+  )
+}
+
 function ModuleDialog({ offering, module, onClose }: { offering: Offering; module: Module | null; onClose: () => void }) {
   const [title, setTitle] = useState(module?.title ?? '')
   const [position, setPosition] = useState(String(module?.position ?? (offering.modules?.length ?? 0)))
@@ -216,10 +328,10 @@ function ModuleDialog({ offering, module, onClose }: { offering: Offering; modul
       const body = { title: title.trim(), position: Number(position) || 0, published }
       return module ? api.patch(`/modules/${module.id}`, body) : api.post(`/offerings/${offering.id}/modules`, body)
     },
-    { invalidate: [['offering', offering.id]], success: module ? 'Module saved.' : 'Module added.', onSuccess: onClose },
+    { invalidate: [['offering', offering.id]], success: module ? 'Topic saved.' : 'Topic added.', onSuccess: onClose },
   )
   return (
-    <Modal title={module ? 'Edit module' : 'Add a module'} onClose={onClose}>
+    <Modal title={module ? 'Edit topic' : 'Add a topic'} onClose={onClose}>
       <form
         onSubmit={(event) => {
           event.preventDefault()
@@ -227,8 +339,8 @@ function ModuleDialog({ offering, module, onClose }: { offering: Offering; modul
         }}
       >
         <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} error={fieldError(save.error, 'title')} maxLength={255} autoFocus required />
-        <TextField label="Position" type="number" min={0} value={position} onChange={(e) => setPosition(e.target.value)} hint="Modules are shown in ascending order." error={fieldError(save.error, 'position')} />
-        <CheckField label="Published" hint="Students can see published modules." checked={published} onChange={(e) => setPublished(e.target.checked)} />
+        <TextField label="Position" type="number" min={0} value={position} onChange={(e) => setPosition(e.target.value)} hint="Topics are shown in ascending order." error={fieldError(save.error, 'position')} />
+        <CheckField label="Published" hint="Students can see published topics." checked={published} onChange={(e) => setPublished(e.target.checked)} />
         {save.error && !fieldError(save.error, 'title') && !fieldError(save.error, 'position') && <FormError error={save.error} />}
         <div className="form-actions">
           <Button onClick={onClose}>Cancel</Button>
@@ -272,7 +384,7 @@ function ItemDialog({ module, item, offeringId, onClose }: { module: Module; ite
   )
 
   return (
-    <Modal title={editing ? 'Edit item' : `Add an item to “${module.title}”`} onClose={onClose}>
+    <Modal title={editing ? 'Edit material' : `Add material to “${module.title}”`} onClose={onClose}>
       <form
         onSubmit={(event) => {
           event.preventDefault()
@@ -300,7 +412,7 @@ function ItemDialog({ module, item, offeringId, onClose }: { module: Module; ite
         )}
         {editing && item.type === 'file' && <p className="muted small">The file cannot be replaced. Add a new item to upload a different one.</p>}
         <TextField label="Position" type="number" min={0} value={position} onChange={(e) => setPosition(e.target.value)} error={fieldError(save.error, 'position')} />
-        <CheckField label="Published" hint="Students can see published items in published modules." checked={published} onChange={(e) => setPublished(e.target.checked)} />
+        <CheckField label="Published" hint="Students can see published materials in published topics." checked={published} onChange={(e) => setPublished(e.target.checked)} />
         {save.error && !fieldError(save.error, 'title') && !fieldError(save.error, 'body') && !fieldError(save.error, 'file') && <FormError error={save.error} />}
         <div className="form-actions">
           <Button onClick={onClose}>Cancel</Button>
@@ -312,4 +424,3 @@ function ItemDialog({ module, item, offeringId, onClose }: { module: Module; ite
     </Modal>
   )
 }
-
