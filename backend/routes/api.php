@@ -177,6 +177,7 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::patch('/modules/{module}', [LmsController::class, 'updateModule']);
     Route::delete('/modules/{module}', [ManagementController::class, 'deleteModule']);
     Route::post('/modules/{module}/items', [LmsController::class, 'item']);
+    Route::get('/modules/{module}/download', [LmsController::class, 'downloadModule'])->middleware('throttle:heavy');
     Route::patch('/items/{item}', [LmsController::class, 'updateItem']);
     Route::delete('/items/{item}', [ManagementController::class, 'deleteItem']);
     Route::get('/items/{item}/download', [LmsController::class, 'downloadItem']);

@@ -26,8 +26,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use ZipArchive;
 
 class LmsController extends Controller
 {
@@ -286,6 +288,46 @@ class LmsController extends Controller
         }
 
         return false;
+    }
+
+    /** A topic's readings, a list of its links, and its files, bundled into one zip for offline reading. */
+    public function downloadModule(Request $request, CourseModule $module)
+    {
+        $offering = CourseOffering::findOrFail($module->course_offering_id);
+        $this->authorize('view', $offering);
+        $manage = $request->user()->can('manage', $offering);
+        abort_unless($manage || $module->published, 403);
+
+        $items = $module->items()->when(! $manage, fn ($q) => $q->where('published', true))->orderBy('position')->get();
+
+        $zipPath = tempnam(sys_get_temp_dir(), 'topic').'.zip';
+        $zip = new ZipArchive;
+        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+        $index = [$module->title, str_repeat('=', mb_strlen($module->title)), ''];
+        foreach ($items as $i => $item) {
+            $n = str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT);
+            $slug = Str::slug($item->title) ?: 'untitled';
+            if ($item->type === 'link') {
+                $index[] = "{$n}. {$item->title} (link): {$item->body}";
+            } elseif ($item->type === 'text') {
+                $filename = "{$n}-{$slug}.txt";
+                $index[] = "{$n}. {$item->title} (reading) -- see {$filename}";
+                $zip->addFromString($filename, $item->title."\n\n".($item->body ?? ''));
+            } elseif ($item->type === 'file' && $item->storage_path) {
+                $extension = pathinfo($item->storage_path, PATHINFO_EXTENSION);
+                $filename = "{$n}-{$slug}".($extension ? ".{$extension}" : '');
+                $index[] = "{$n}. {$item->title} (file): {$filename}";
+                $zip->addFromString($filename, Storage::disk('s3')->get($item->storage_path));
+            }
+        }
+        if (count($index) === 3) {
+            $index[] = 'Nothing published under this topic yet.';
+        }
+        $zip->addFromString('index.txt', implode("\n", $index)."\n");
+        $zip->close();
+
+        return response()->download($zipPath, Str::slug($module->title).'.zip')->deleteFileAfterSend(true);
     }
 
     public function item(Request $request, CourseModule $module): JsonResponse

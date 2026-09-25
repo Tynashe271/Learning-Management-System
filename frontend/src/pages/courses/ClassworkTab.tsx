@@ -194,34 +194,41 @@ function TopicCard({
         </>
       }
       actions={
-        manage && (
-          <>
-            <Button small onClick={() => setItemDialog('new')}>
-              Add material
-            </Button>
-            <Button small onClick={() => onNew('assignment')}>
-              Add assignment
-            </Button>
-            <Button small onClick={() => onNew('quiz')}>
-              Add quiz
-            </Button>
-            <Button small onClick={() => toggle.mutate(!module.published)} loading={toggle.isPending}>
-              {module.published ? 'Unpublish' : 'Publish'}
-            </Button>
-            <Button small onClick={onEdit}>
-              Edit
-            </Button>
-            <Button
-              small
-              variant="danger"
-              onClick={async () => {
-                if (await confirm({ title: 'Delete this topic?', message: `“${module.title}” and all of its materials (and their files) will be removed. Any assignments or quizzes under it keep their work but lose the topic. This cannot be undone.`, confirmLabel: 'Delete topic', danger: true })) remove.mutate()
-              }}
-            >
-              Delete
-            </Button>
-          </>
-        )
+        <>
+          {items.length > 0 && (
+            <DownloadButton path={`/modules/${module.id}/download`} filename={`${module.title}.zip`}>
+              Download for offline
+            </DownloadButton>
+          )}
+          {manage && (
+            <>
+              <Button small onClick={() => setItemDialog('new')}>
+                Add material
+              </Button>
+              <Button small onClick={() => onNew('assignment')}>
+                Add assignment
+              </Button>
+              <Button small onClick={() => onNew('quiz')}>
+                Add quiz
+              </Button>
+              <Button small onClick={() => toggle.mutate(!module.published)} loading={toggle.isPending}>
+                {module.published ? 'Unpublish' : 'Publish'}
+              </Button>
+              <Button small onClick={onEdit}>
+                Edit
+              </Button>
+              <Button
+                small
+                variant="danger"
+                onClick={async () => {
+                  if (await confirm({ title: 'Delete this topic?', message: `“${module.title}” and all of its materials (and their files) will be removed. Any assignments or quizzes under it keep their work but lose the topic. This cannot be undone.`, confirmLabel: 'Delete topic', danger: true })) remove.mutate()
+                }}
+              >
+                Delete
+              </Button>
+            </>
+          )}
+        </>
       }
     >
       {trackable === 0 && <p className="muted">{manage ? 'Nothing under this topic yet.' : 'Nothing here yet.'}</p>}
