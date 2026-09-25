@@ -126,7 +126,31 @@ class DashboardTest extends TestCase
 
         $insights = $this->actingAs($student)->getJson('/api/me/insights')->assertOk();
 
-        $insights->assertJsonCount(1, 'weak_topics')->assertJsonPath('weak_topics.0.title', 'Loops')->assertJsonPath('weak_topics.0.percent', 40);
+        $insights->assertJsonCount(1, 'weak_topics')->assertJsonPath('weak_topics.0.title', 'Loops')->assertJsonPath('weak_topics.0.percent', 40)->assertJsonCount(0, 'weak_topics.0.practice_quiz_ids');
+    }
+
+    public function test_a_weak_topics_practice_quizzes_are_linked_but_a_strong_topics_are_not(): void
+    {
+        $offering = $this->offering();
+        $teacher = $this->userWithRole('lecturer');
+        $student = $this->userWithRole('student');
+        $this->teach($offering, $teacher);
+        $this->enrol($offering, $student);
+        $weakTopic = $offering->modules()->create(['title' => 'Loops', 'position' => 0, 'published' => true]);
+        $strongTopic = $offering->modules()->create(['title' => 'Variables', 'position' => 1, 'published' => true]);
+        $weakAssignment = $offering->assignments()->create(['title' => 'Loop drill', 'course_module_id' => $weakTopic->id, 'due_at' => now()->addDay(), 'max_score' => 10, 'published' => true]);
+        $weakSubmission = $weakAssignment->submissions()->create(['user_id' => $student->id, 'body' => 'x', 'submitted_at' => now()]);
+        $weakSubmission->gradeRecords()->create(['graded_by' => $teacher->id, 'score' => 3, 'status' => 'published']); // 30%
+        $strongAssignment = $offering->assignments()->create(['title' => 'Variable drill', 'course_module_id' => $strongTopic->id, 'due_at' => now()->addDay(), 'max_score' => 10, 'published' => true]);
+        $strongSubmission = $strongAssignment->submissions()->create(['user_id' => $student->id, 'body' => 'x', 'submitted_at' => now()]);
+        $strongSubmission->gradeRecords()->create(['graded_by' => $teacher->id, 'score' => 9, 'status' => 'published']); // 90%
+
+        $practiceForWeak = $offering->quizzes()->create(['title' => 'Loop practice', 'course_module_id' => $weakTopic->id, 'due_at' => now()->addDay(), 'max_attempts' => 999, 'published' => true, 'is_practice' => true]);
+        $offering->quizzes()->create(['title' => 'Variable practice', 'course_module_id' => $strongTopic->id, 'due_at' => now()->addDay(), 'max_attempts' => 999, 'published' => true, 'is_practice' => true]);
+
+        $insights = $this->actingAs($student)->getJson('/api/me/insights')->assertOk();
+
+        $insights->assertJsonCount(1, 'weak_topics')->assertJsonPath('weak_topics.0.title', 'Loops')->assertJsonPath('weak_topics.0.practice_quiz_ids', [$practiceForWeak->id]);
     }
 
     public function test_weak_topics_counts_a_quizs_best_submitted_attempt(): void

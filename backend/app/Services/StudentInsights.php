@@ -65,7 +65,7 @@ class StudentInsights
             }
         }
 
-        $quizzes = Quiz::whereIn('course_offering_id', $offerings)->where('published', true)->whereNotNull('course_module_id')->withSum('questions as total_points', 'points')->get(['id', 'course_module_id']);
+        $quizzes = Quiz::whereIn('course_offering_id', $offerings)->where('published', true)->where('is_practice', false)->whereNotNull('course_module_id')->withSum('questions as total_points', 'points')->get(['id', 'course_module_id']);
         if ($quizzes->isNotEmpty()) {
             $best = QuizAttempt::whereIn('quiz_id', $quizzes->pluck('id'))->where('user_id', $user->id)->whereNotNull('submitted_at')
                 ->selectRaw('quiz_id, max(score) as best_score')->groupBy('quiz_id')->pluck('best_score', 'quiz_id');
@@ -82,11 +82,19 @@ class StudentInsights
             return [];
         }
         $modules = CourseModule::whereIn('id', array_keys($percentsByModule))->get(['id', 'course_offering_id', 'title']);
+        $practiceQuizzes = Quiz::whereIn('course_module_id', $modules->pluck('id'))->where('published', true)->where('is_practice', true)
+            ->get(['id', 'course_module_id'])->groupBy('course_module_id');
 
-        return $modules->map(function (CourseModule $module) use ($percentsByModule) {
+        return $modules->map(function (CourseModule $module) use ($percentsByModule, $practiceQuizzes) {
             $percents = $percentsByModule[$module->id];
 
-            return ['offering_id' => $module->course_offering_id, 'module_id' => $module->id, 'title' => $module->title, 'percent' => round(array_sum($percents) / count($percents) * 100, 1)];
+            return [
+                'offering_id' => $module->course_offering_id,
+                'module_id' => $module->id,
+                'title' => $module->title,
+                'percent' => round(array_sum($percents) / count($percents) * 100, 1),
+                'practice_quiz_ids' => $practiceQuizzes->get($module->id, collect())->pluck('id')->values()->all(),
+            ];
         })->filter(fn ($t) => $t['percent'] < self::WEAK_TOPIC_THRESHOLD * 100)->sortBy('percent')->values()->all();
     }
 }

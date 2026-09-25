@@ -310,4 +310,33 @@ class QuizTest extends TestCase
         $this->actingAs($this->lecturer)->patchJson('/api/quizzes/'.$quiz->id, ['due_at' => $later, 'change_reason' => 'Public holiday'])->assertOk();
         $this->assertDatabaseHas('activity_log', ['description' => 'quiz changed']);
     }
+
+    public function test_a_practice_quiz_allows_far_more_attempts_than_a_graded_one(): void
+    {
+        $this->actingAs($this->lecturer)->postJson('/api/offerings/'.$this->offering->id.'/quizzes', [
+            'title' => 'Graded', 'due_at' => now()->addWeek()->toIso8601String(), 'max_attempts' => 21,
+        ])->assertJsonValidationErrors('max_attempts');
+
+        $id = $this->actingAs($this->lecturer)->postJson('/api/offerings/'.$this->offering->id.'/quizzes', [
+            'title' => 'Practice round', 'due_at' => now()->addWeek()->toIso8601String(), 'max_attempts' => 500, 'is_practice' => true, 'published' => true,
+        ])->assertCreated()->assertJsonPath('is_practice', true)->assertJsonPath('max_attempts', 500)->json('id');
+
+        $this->actingAs($this->lecturer)->patchJson('/api/quizzes/'.$id, ['max_attempts' => 1000])->assertJsonValidationErrors('max_attempts');
+        $this->actingAs($this->lecturer)->patchJson('/api/quizzes/'.$id, ['max_attempts' => 999])->assertOk();
+
+        // A student sees that it is a practice quiz, but never the questions, before starting an attempt.
+        $shown = $this->actingAs($this->student)->getJson('/api/quizzes/'.$id)->assertOk();
+        $shown->assertJsonPath('is_practice', true);
+        $this->assertArrayNotHasKey('questions', $shown->json());
+    }
+
+    public function test_practice_quizzes_are_excluded_from_the_gradebook(): void
+    {
+        $this->makeQuiz(); // a normal, graded quiz
+        $this->offering->quizzes()->create(['title' => 'Practice', 'due_at' => now()->addDay(), 'max_attempts' => 10, 'published' => true, 'is_practice' => true]);
+
+        $book = $this->actingAs($this->lecturer)->getJson('/api/offerings/'.$this->offering->id.'/gradebook')->assertOk();
+
+        $this->assertCount(1, collect($book->json('columns'))->where('type', 'quiz'));
+    }
 }

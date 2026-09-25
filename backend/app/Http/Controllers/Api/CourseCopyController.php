@@ -79,7 +79,7 @@ class CourseCopyController extends Controller
                     }
                 }
                 foreach ($offering->quizzes as $quiz) {
-                    $newQuiz = $copy->quizzes()->create($quiz->only(['title', 'instructions', 'time_limit_minutes', 'max_attempts']) + [
+                    $newQuiz = $copy->quizzes()->create($quiz->only(['title', 'instructions', 'time_limit_minutes', 'max_attempts', 'is_practice']) + [
                         'opens_at' => $quiz->opens_at?->addDays($days), 'due_at' => $quiz->due_at->addDays($days), 'published' => false,
                     ]);
                     $counts['quizzes']++;

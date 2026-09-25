@@ -24,8 +24,9 @@ class QuizController extends Controller
             'opens_at' => ['nullable', 'date'],
             'due_at' => ['required', 'date', 'after:now'],
             'time_limit_minutes' => ['nullable', 'integer', 'min:1', 'max:600'],
-            'max_attempts' => ['sometimes', 'integer', 'min:1', 'max:20'],
+            'max_attempts' => ['sometimes', 'integer', 'min:1', $this->maxAttemptsCap($request->boolean('is_practice'))],
             'published' => ['sometimes', 'boolean'],
+            'is_practice' => ['sometimes', 'boolean'],
             'course_module_id' => ['nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $offering->id)],
         ]);
         $this->assertWindow($data['opens_at'] ?? null, $data['due_at']);
@@ -41,7 +42,7 @@ class QuizController extends Controller
         }
 
         // Students never receive questions here; they arrive with an attempt.
-        return response()->json($quiz->only(['id', 'course_offering_id', 'title', 'instructions', 'opens_at', 'due_at', 'time_limit_minutes', 'max_attempts']) + [
+        return response()->json($quiz->only(['id', 'course_offering_id', 'title', 'instructions', 'opens_at', 'due_at', 'time_limit_minutes', 'max_attempts', 'is_practice']) + [
             'questions_count' => $quiz->questions()->count(),
             'total_points' => $quiz->totalPoints(),
             'attempts_used' => $quiz->attempts()->where('user_id', $request->user()->id)->count(),
@@ -51,14 +52,16 @@ class QuizController extends Controller
     public function update(Request $request, Quiz $quiz): JsonResponse
     {
         $this->authorize('manage', $quiz->offering);
+        $isPractice = $request->has('is_practice') ? $request->boolean('is_practice') : $quiz->is_practice;
         $data = $request->validate([
             'title' => ['sometimes', 'string', 'max:255'],
             'instructions' => ['sometimes', 'nullable', 'string'],
             'opens_at' => ['sometimes', 'nullable', 'date'],
             'due_at' => ['sometimes', 'date', 'after:now'],
             'time_limit_minutes' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:600'],
-            'max_attempts' => ['sometimes', 'integer', 'min:1', 'max:20'],
+            'max_attempts' => ['sometimes', 'integer', 'min:1', $this->maxAttemptsCap($isPractice)],
             'published' => ['sometimes', 'boolean'],
+            'is_practice' => ['sometimes', 'boolean'],
             'change_reason' => ['sometimes', 'string', 'max:1000'],
             'course_module_id' => ['sometimes', 'nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $quiz->course_offering_id)],
         ]);
@@ -143,6 +146,12 @@ class QuizController extends Controller
         if ($opensAt && Carbon::parse($opensAt)->greaterThanOrEqualTo(Carbon::parse($dueAt))) {
             throw ValidationException::withMessages(['opens_at' => 'The quiz must open before it is due.']);
         }
+    }
+
+    /** A practice quiz is meant to be retaken freely, so its attempts ceiling is far higher than a graded quiz's. */
+    private function maxAttemptsCap(bool $isPractice): string
+    {
+        return 'max:'.($isPractice ? 999 : 20);
     }
 
     /** @return array{0: array<string, mixed>, 1: list<array<string, mixed>>} question fields and normalised options */

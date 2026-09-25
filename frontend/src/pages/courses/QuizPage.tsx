@@ -60,7 +60,7 @@ function StudentView({ quiz }: { quiz: Quiz }) {
 
   return (
     <>
-      <PageHeader title={quiz.title} subtitle={w.text} />
+      <PageHeader title={<>{quiz.title} {quiz.is_practice && <Badge tone="info">Practice</Badge>}</>} subtitle={quiz.is_practice ? 'Ungraded — take it as many times as you like.' : w.text} />
       <Card>
         {quiz.instructions && <div className="reading pre">{quiz.instructions}</div>}
         <dl className="details">

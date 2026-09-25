@@ -404,6 +404,7 @@ export interface Quiz {
   time_limit_minutes: number | null
   max_attempts: number
   published?: boolean
+  is_practice?: boolean
   created_at?: string
   questions?: QuizQuestion[]
   questions_count?: number
@@ -602,6 +603,7 @@ export interface WeakTopic {
   module_id: number
   title: string
   percent: number
+  practice_quiz_ids: number[]
 }
 
 export interface Insights {

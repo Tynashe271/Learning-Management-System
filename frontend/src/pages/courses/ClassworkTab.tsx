@@ -319,9 +319,16 @@ function QuizRow({ quiz, manage }: { quiz: Quiz; manage: boolean }) {
           <Link to={`/quizzes/${quiz.id}`}>
             <strong>{quiz.title}</strong>
           </Link>{' '}
+          {quiz.is_practice && <Badge tone="info">Practice</Badge>}
           {manage && <PublishedBadge published={!!quiz.published} />}
           <div className="muted small">
-            {quiz.opens_at ? `Opens ${formatDateTime(quiz.opens_at)} · ` : ''}Due {formatDateTime(quiz.due_at)} {isPast(quiz.due_at) && <Badge tone="neutral">Closed</Badge>}
+            {quiz.is_practice ? (
+              'Open for practice · unlimited retakes'
+            ) : (
+              <>
+                {quiz.opens_at ? `Opens ${formatDateTime(quiz.opens_at)} · ` : ''}Due {formatDateTime(quiz.due_at)} {isPast(quiz.due_at) && <Badge tone="neutral">Closed</Badge>}
+              </>
+            )}
           </div>
         </div>
       </div>

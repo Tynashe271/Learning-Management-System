@@ -135,6 +135,16 @@ export function StudentDashboard() {
                       <strong>{t.title}</strong>
                     </Link>
                     <span className="muted small block">Averaging {t.percent}% — worth a second look</span>
+                    {t.practice_quiz_ids.length > 0 && (
+                      <span className="small block">
+                        {t.practice_quiz_ids.map((qid, i) => (
+                          <span key={qid}>
+                            {i > 0 && ', '}
+                            <Link to={`/quizzes/${qid}`}>Practice quiz</Link>
+                          </span>
+                        ))}
+                      </span>
+                    )}
                   </span>
                 </li>
               ))}

@@ -51,7 +51,7 @@ class GradebookController extends Controller
     private function build(CourseOffering $offering, Collection $students): array
     {
         $assignments = $offering->assignments()->where('published', true)->orderBy('due_at')->orderBy('id')->get();
-        $quizzes = $offering->quizzes()->where('published', true)->withSum('questions as total_points', 'points')->orderBy('due_at')->orderBy('id')->get();
+        $quizzes = $offering->quizzes()->where('published', true)->where('is_practice', false)->withSum('questions as total_points', 'points')->orderBy('due_at')->orderBy('id')->get();
 
         $columns = $assignments->map(fn ($a) => ['key' => 'assignment:'.$a->id, 'type' => 'assignment', 'id' => $a->id, 'title' => $a->title, 'max' => (float) $a->max_score])
             ->concat($quizzes->map(fn ($q) => ['key' => 'quiz:'.$q->id, 'type' => 'quiz', 'id' => $q->id, 'title' => $q->title, 'max' => (float) $q->total_points]))
