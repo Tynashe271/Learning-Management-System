@@ -33,6 +33,11 @@ class ClassSession extends Model
         return $this->hasMany(AttendanceRecord::class);
     }
 
+    public function handRaises(): HasMany
+    {
+        return $this->hasMany(HandRaise::class);
+    }
+
     public function checkinIsOpen(): bool
     {
         return $this->checkin_code !== null && $this->checkin_opens_at !== null && $this->checkin_closes_at !== null

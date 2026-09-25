@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\DigestController;
 use App\Http\Controllers\Api\DiscussionController;
 use App\Http\Controllers\Api\GradebookController;
+use App\Http\Controllers\Api\HandRaiseController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\IntegrationController;
@@ -160,6 +161,10 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::post('/sessions/{session}/checkin/open', [CheckinController::class, 'open']);
     Route::post('/sessions/{session}/checkin/close', [CheckinController::class, 'close']);
     Route::post('/sessions/{session}/checkin', [CheckinController::class, 'checkin'])->middleware('throttle:checkin');
+    Route::post('/sessions/{session}/hand-raises', [HandRaiseController::class, 'raise']);
+    Route::delete('/sessions/{session}/hand-raises', [HandRaiseController::class, 'lower']);
+    Route::get('/sessions/{session}/hand-raises', [HandRaiseController::class, 'index']);
+    Route::delete('/sessions/{session}/hand-raises/{user}', [HandRaiseController::class, 'clear']);
 
     // Communication
     Route::get('/offerings/{offering}/announcements', [AnnouncementController::class, 'index']);

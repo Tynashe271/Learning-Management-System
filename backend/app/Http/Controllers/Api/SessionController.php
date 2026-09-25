@@ -7,6 +7,7 @@ use App\Models\AttendanceRecord;
 use App\Models\ClassSession;
 use App\Models\CourseOffering;
 use App\Models\Enrolment;
+use App\Models\HandRaise;
 use App\Support\Paging;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -26,8 +27,13 @@ class SessionController extends Controller
             return response()->json($sessions);
         }
         $mine = AttendanceRecord::where('user_id', $request->user()->id)->whereIn('class_session_id', $sessions->pluck('id'))->pluck('status', 'class_session_id');
+        $myHands = HandRaise::where('user_id', $request->user()->id)->whereIn('class_session_id', $sessions->pluck('id'))->pluck('raised_at', 'class_session_id');
 
-        return response()->json($sessions->map(fn ($s) => $s->toArray() + ['my_status' => $mine[$s->id] ?? null, 'checkin_open' => $s->checkinIsOpen()])->values());
+        return response()->json($sessions->map(fn ($s) => $s->toArray() + [
+            'my_status' => $mine[$s->id] ?? null,
+            'checkin_open' => $s->checkinIsOpen(),
+            'my_hand_raised_at' => $myHands[$s->id] ?? null,
+        ])->values());
     }
 
     public function store(Request $request, CourseOffering $offering): JsonResponse

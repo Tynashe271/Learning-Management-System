@@ -467,6 +467,12 @@ export interface ClassSession {
   checkin_closes_at?: string | null
   my_status?: AttendanceStatus | null
   checkin_open?: boolean
+  my_hand_raised_at?: string | null
+}
+
+export interface HandRaise {
+  user: { id: number; name: string }
+  raised_at: string
 }
 
 export interface RollEntry {

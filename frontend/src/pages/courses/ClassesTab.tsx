@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
-import type { AttendanceStatus, AttendanceSummary, CheckinStatus, ClassSession, RollEntry } from '../../api/types'
+import type { AttendanceStatus, AttendanceSummary, CheckinStatus, ClassSession, HandRaise, RollEntry } from '../../api/types'
 import { ATTENDANCE_STATUSES } from '../../api/types'
 import { Alert, Badge, Button, Card, EmptyState, FormError, Modal, Pager, QueryView, SelectField, Stat, Table, TextField, pagerFromMeta, useConfirm, useToast } from '../../components/ui'
 import { formatDateTime, formatPercent, formatTime, fromLocalInput, isPast, toLocalInput } from '../../lib/format'
@@ -10,6 +10,7 @@ import { useOffering } from './context'
 
 const STATUS_TONE: Record<AttendanceStatus, 'good' | 'warn' | 'bad' | 'info'> = { present: 'good', late: 'warn', absent: 'bad', excused: 'info' }
 export const statusLabel = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+const isLive = (s: ClassSession) => new Date(s.starts_at) <= new Date() && new Date() <= new Date(s.ends_at)
 
 export function ClassesTab() {
   const { id, manage, student } = useOffering()
@@ -76,6 +77,7 @@ export function ClassesTab() {
                           Check in
                         </Button>
                       )}
+                      {student && isLive(s) && <HandRaiseButton session={s} offeringId={id} />}
                     </td>
                   </tr>
                 ))}
@@ -180,14 +182,56 @@ function CheckinDialog({ session, offeringId, onClose }: { session: ClassSession
   )
 }
 
-/** The teacher's tools for one class: the check-in code, and the roll. */
+/** A student's own raise/lower toggle, reflecting the state already carried on their row in the sessions list. */
+function HandRaiseButton({ session, offeringId }: { session: ClassSession; offeringId: number }) {
+  const raised = !!session.my_hand_raised_at
+  const toggle = useApiMutation(() => (raised ? api.delete(`/sessions/${session.id}/hand-raises`) : api.post(`/sessions/${session.id}/hand-raises`)), {
+    invalidate: [['sessions', offeringId]],
+    toastError: true,
+  })
+  return (
+    <Button small variant={raised ? 'danger' : 'primary'} loading={toggle.isPending} onClick={() => toggle.mutate()}>
+      {raised ? 'Lower hand' : '✋ Raise hand'}
+    </Button>
+  )
+}
+
+/** The teacher's tools for one class: the check-in code, who has a hand raised, and the roll. */
 function AttendanceDialog({ session, offeringId, onClose }: { session: ClassSession; offeringId: number; onClose: () => void }) {
   return (
     <Modal title={`Attendance: ${session.title}`} onClose={onClose} wide>
       <p className="muted">{formatDateTime(session.starts_at)}</p>
       <CheckinPanel session={session} />
+      <HandRaisePanel session={session} />
       <Roll session={session} offeringId={offeringId} onDone={onClose} />
     </Modal>
+  )
+}
+
+function HandRaisePanel({ session }: { session: ClassSession }) {
+  const hands = useQuery({ queryKey: ['hand-raises', session.id], queryFn: () => api.get<HandRaise[]>(`/sessions/${session.id}/hand-raises`), refetchInterval: 5_000 })
+  const clear = useApiMutation((userId: number) => api.delete(`/sessions/${session.id}/hand-raises/${userId}`), { invalidate: [['hand-raises', session.id]], toastError: true })
+
+  return (
+    <Card title="Raised hands">
+      {hands.isPending && <p className="muted">Loading…</p>}
+      {hands.isError && <Alert>Could not load raised hands.</Alert>}
+      {hands.data && hands.data.length === 0 && <p className="muted small">No hands raised right now.</p>}
+      {hands.data && hands.data.length > 0 && (
+        <ul className="list">
+          {hands.data.map((h) => (
+            <li key={h.user.id}>
+              <span className="grow">
+                ✋ {h.user.name} <span className="muted small">{formatTime(h.raised_at)}</span>
+              </span>
+              <Button small loading={clear.isPending && clear.variables === h.user.id} onClick={() => clear.mutate(h.user.id)}>
+                Lower
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   )
 }
 
