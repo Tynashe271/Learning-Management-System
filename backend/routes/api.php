@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\RubricController;
 use App\Http\Controllers\Api\SecurityEventController;
 use App\Http\Controllers\Api\SessionController;
+use App\Http\Controllers\Api\SessionQuestionController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SimilarityController;
 use App\Http\Controllers\Api\SsoController;
@@ -165,6 +166,10 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::delete('/sessions/{session}/hand-raises', [HandRaiseController::class, 'lower']);
     Route::get('/sessions/{session}/hand-raises', [HandRaiseController::class, 'index']);
     Route::delete('/sessions/{session}/hand-raises/{user}', [HandRaiseController::class, 'clear']);
+    Route::post('/sessions/{session}/questions', [SessionQuestionController::class, 'store']);
+    Route::get('/sessions/{session}/questions', [SessionQuestionController::class, 'index']);
+    Route::patch('/session-questions/{question}', [SessionQuestionController::class, 'markAnswered']);
+    Route::delete('/session-questions/{question}', [SessionQuestionController::class, 'destroy']);
 
     // Communication
     Route::get('/offerings/{offering}/announcements', [AnnouncementController::class, 'index']);

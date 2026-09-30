@@ -475,6 +475,13 @@ export interface HandRaise {
   raised_at: string
 }
 
+export interface SessionQuestion {
+  id: number
+  body: string
+  answered_at: string | null
+  user: { id: number; name: string }
+}
+
 export interface RollEntry {
   user: { id: number; name: string; email: string }
   status: AttendanceStatus | null

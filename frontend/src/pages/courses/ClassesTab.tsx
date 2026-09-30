@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
-import type { AttendanceStatus, AttendanceSummary, CheckinStatus, ClassSession, HandRaise, RollEntry } from '../../api/types'
+import type { AttendanceStatus, AttendanceSummary, CheckinStatus, ClassSession, HandRaise, RollEntry, SessionQuestion } from '../../api/types'
 import { ATTENDANCE_STATUSES } from '../../api/types'
-import { Alert, Badge, Button, Card, EmptyState, FormError, Modal, Pager, QueryView, SelectField, Stat, Table, TextField, pagerFromMeta, useConfirm, useToast } from '../../components/ui'
+import { Alert, Badge, Button, Card, EmptyState, FormError, Modal, Pager, QueryView, SelectField, Stat, Table, TextArea, TextField, pagerFromMeta, useConfirm, useToast } from '../../components/ui'
+import { useAuth } from '../../auth/AuthContext'
 import { formatDateTime, formatPercent, formatTime, fromLocalInput, isPast, toLocalInput } from '../../lib/format'
 import { fieldError, useApiMutation } from '../../lib/hooks'
 import { useOffering } from './context'
@@ -17,6 +18,7 @@ export function ClassesTab() {
   const [editing, setEditing] = useState<ClassSession | 'new' | null>(null)
   const [running, setRunning] = useState<ClassSession | null>(null)
   const [checkingIn, setCheckingIn] = useState<ClassSession | null>(null)
+  const [asking, setAsking] = useState<ClassSession | null>(null)
   const query = useQuery({ queryKey: ['sessions', id], queryFn: () => api.get<ClassSession[]>(`/offerings/${id}/sessions`), refetchInterval: student ? 30_000 : false })
 
   return (
@@ -78,6 +80,11 @@ export function ClassesTab() {
                         </Button>
                       )}
                       {student && isLive(s) && <HandRaiseButton session={s} offeringId={id} />}
+                      {student && isLive(s) && (
+                        <Button small onClick={() => setAsking(s)}>
+                          Questions
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -89,6 +96,7 @@ export function ClassesTab() {
       {editing && <SessionDialog offeringId={id} session={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
       {running && <AttendanceDialog session={running} offeringId={id} onClose={() => setRunning(null)} />}
       {checkingIn && <CheckinDialog session={checkingIn} offeringId={id} onClose={() => setCheckingIn(null)} />}
+      {asking && <QuestionsDialog session={asking} onClose={() => setAsking(null)} />}
     </>
   )
 }
@@ -196,15 +204,123 @@ function HandRaiseButton({ session, offeringId }: { session: ClassSession; offer
   )
 }
 
-/** The teacher's tools for one class: the check-in code, who has a hand raised, and the roll. */
+/** The teacher's tools for one class: the check-in code, who has a hand raised, the question queue, and the roll. */
 function AttendanceDialog({ session, offeringId, onClose }: { session: ClassSession; offeringId: number; onClose: () => void }) {
   return (
     <Modal title={`Attendance: ${session.title}`} onClose={onClose} wide>
       <p className="muted">{formatDateTime(session.starts_at)}</p>
       <CheckinPanel session={session} />
       <HandRaisePanel session={session} />
+      <QuestionsPanel session={session} />
       <Roll session={session} offeringId={offeringId} onDone={onClose} />
     </Modal>
+  )
+}
+
+/** A live, shared question queue: a student asks and can delete their own; the teacher marks one answered. */
+function QuestionsDialog({ session, onClose }: { session: ClassSession; onClose: () => void }) {
+  const { user } = useAuth()
+  const [body, setBody] = useState('')
+  const questions = useQuery({ queryKey: ['session-questions', session.id], queryFn: () => api.get<SessionQuestion[]>(`/sessions/${session.id}/questions`), refetchInterval: 5_000 })
+  const ask = useApiMutation(() => api.post<SessionQuestion>(`/sessions/${session.id}/questions`, { body: body.trim() }), {
+    invalidate: [['session-questions', session.id]],
+    onSuccess: () => setBody(''),
+  })
+  const remove = useApiMutation((id: number) => api.delete(`/session-questions/${id}`), { invalidate: [['session-questions', session.id]], toastError: true })
+
+  return (
+    <Modal title={`Questions: ${session.title}`} onClose={onClose}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          ask.mutate()
+        }}
+      >
+        <TextArea label="Ask a question" value={body} onChange={(e) => setBody(e.target.value)} error={fieldError(ask.error, 'body')} maxLength={500} placeholder="Everyone in this class sees your question." autoFocus required />
+        {ask.error && !fieldError(ask.error, 'body') && <FormError error={ask.error} />}
+        <div className="form-actions">
+          <Button onClick={onClose}>Close</Button>
+          <Button type="submit" variant="primary" loading={ask.isPending} disabled={!body.trim()}>
+            Ask
+          </Button>
+        </div>
+      </form>
+      {questions.isPending && <p className="muted">Loading…</p>}
+      {questions.isError && <Alert>Could not load questions.</Alert>}
+      {questions.data && questions.data.length === 0 && <p className="muted small">No questions yet.</p>}
+      {questions.data && questions.data.length > 0 && (
+        <Table caption="Questions">
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Asked by</th>
+              <th>Status</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {questions.data.map((q) => (
+              <tr key={q.id}>
+                <td>{q.body}</td>
+                <td>{q.user.name}</td>
+                <td>{q.answered_at ? <Badge tone="good">Answered</Badge> : <span className="muted">—</span>}</td>
+                <td className="actions">
+                  {q.user.id === user?.id && (
+                    <Button small loading={remove.isPending && remove.variables === q.id} onClick={() => remove.mutate(q.id)}>
+                      Delete
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+    </Modal>
+  )
+}
+
+/** The teacher's live view of the question queue: mark one answered (or undo), or remove it. */
+function QuestionsPanel({ session }: { session: ClassSession }) {
+  const questions = useQuery({ queryKey: ['session-questions', session.id], queryFn: () => api.get<SessionQuestion[]>(`/sessions/${session.id}/questions`), refetchInterval: 5_000 })
+  const toggle = useApiMutation((id: number) => api.patch(`/session-questions/${id}`), { invalidate: [['session-questions', session.id]], toastError: true })
+  const remove = useApiMutation((id: number) => api.delete(`/session-questions/${id}`), { invalidate: [['session-questions', session.id]], toastError: true })
+
+  return (
+    <Card title="Questions">
+      {questions.isPending && <p className="muted">Loading…</p>}
+      {questions.isError && <Alert>Could not load questions.</Alert>}
+      {questions.data && questions.data.length === 0 && <p className="muted small">No questions yet.</p>}
+      {questions.data && questions.data.length > 0 && (
+        <Table caption="Questions">
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Asked by</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {questions.data.map((q) => (
+              <tr key={q.id}>
+                <td>
+                  {q.answered_at && <Badge tone="good">Answered</Badge>} {q.body}
+                </td>
+                <td>{q.user.name}</td>
+                <td className="actions">
+                  <Button small variant={q.answered_at ? undefined : 'primary'} loading={toggle.isPending && toggle.variables === q.id} onClick={() => toggle.mutate(q.id)}>
+                    {q.answered_at ? 'Mark unanswered' : 'Mark answered'}
+                  </Button>
+                  <Button small loading={remove.isPending && remove.variables === q.id} onClick={() => remove.mutate(q.id)}>
+                    Delete
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+    </Card>
   )
 }
 
