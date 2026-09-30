@@ -84,7 +84,8 @@ class QuizTest extends TestCase
         $lecturer->postJson($url, ['type' => 'multiple_choice', 'prompt' => 'Q', 'options' => [['text' => 'a'], ['text' => 'b']]])->assertJsonValidationErrors('options');
         $lecturer->postJson($url, ['type' => 'true_false', 'prompt' => 'Q'])->assertJsonValidationErrors('correct');
         $lecturer->postJson($url, ['type' => 'short_answer', 'prompt' => 'Q'])->assertJsonValidationErrors('options');
-        $lecturer->postJson($url, ['type' => 'essay', 'prompt' => 'Q'])->assertJsonValidationErrors('type');
+        $lecturer->postJson($url, ['type' => 'essay', 'prompt' => 'Q', 'options' => [['text' => 'a']]])->assertJsonValidationErrors('options');
+        $lecturer->postJson($url, ['type' => 'matching', 'prompt' => 'Q'])->assertJsonValidationErrors('type');
         $this->assertSame(4, $quiz->questions()->count());
     }
 

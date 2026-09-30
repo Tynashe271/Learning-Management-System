@@ -203,7 +203,7 @@ Percent is calculated over the items a student has a mark for, so work not yet g
 
 ### Quizzes
 
-Question types: `single_choice`, `multiple_choice` (all correct options required, no partial credit), `true_false` (send `"correct": true|false`), and `short_answer` (each option is an accepted answer; matching ignores case and extra spaces). All are graded automatically on submission.
+Question types: `single_choice`, `multiple_choice` (all correct options required, no partial credit), `true_false` (send `"correct": true|false`), `short_answer` (each option is an accepted answer; matching ignores case and extra spaces), and `essay` (no options; marked by hand). All but `essay` are graded automatically on submission; an essay answer is scored 0 and flagged until a grader marks it with `PATCH /quiz-answers/{id}/grade` (`{points}`, up to the question's points), which recalculates the attempt's score. `GET /attempts/{id}` and the submit response both carry `awaiting_manual_grading` (attempt-level) and `needs_manual_grading` (per answer).
 
 | Route | Who | Purpose |
 |---|---|---|

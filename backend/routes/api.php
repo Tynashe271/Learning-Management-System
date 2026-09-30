@@ -243,4 +243,5 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/quizzes/{quiz}/my-attempts', [QuizAttemptController::class, 'mine']);
     Route::get('/attempts/{attempt}', [QuizAttemptController::class, 'show']);
     Route::post('/attempts/{attempt}/submit', [QuizAttemptController::class, 'submit'])->middleware('throttle:submissions');
+    Route::patch('/quiz-answers/{answer}/grade', [QuizAttemptController::class, 'gradeAnswer']);
 });

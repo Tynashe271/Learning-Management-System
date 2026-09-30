@@ -179,11 +179,12 @@ class QuizController extends Controller
     private function questionPayload(Request $request, string $type): array
     {
         $isTrueFalse = $type === 'true_false';
+        $isEssay = $type === 'essay';
         $data = $request->validate([
             'prompt' => ['required', 'string'],
             'points' => ['sometimes', 'integer', 'min:1', 'max:1000'],
             'position' => ['sometimes', 'integer', 'min:0'],
-            'options' => [$isTrueFalse ? 'prohibited' : 'required', 'array', 'max:10'],
+            'options' => [$isTrueFalse || $isEssay ? 'prohibited' : 'required', 'array', 'max:10'],
             'options.*.text' => ['required', 'string', 'max:500'],
             'options.*.is_correct' => ['sometimes', 'boolean'],
             'correct' => [$isTrueFalse ? 'required' : 'prohibited', 'boolean'],
@@ -192,6 +193,8 @@ class QuizController extends Controller
         if ($isTrueFalse) {
             $correct = $request->boolean('correct');
             $options = [['text' => 'True', 'is_correct' => $correct], ['text' => 'False', 'is_correct' => ! $correct]];
+        } elseif ($isEssay) {
+            $options = [];
         } else {
             $options = array_map(fn ($o) => ['text' => $o['text'], 'is_correct' => filter_var($o['is_correct'] ?? false, FILTER_VALIDATE_BOOLEAN)], $data['options']);
         }

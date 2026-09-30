@@ -3,9 +3,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { AttemptInProgress, AttemptResult, Quiz } from '../../api/types'
-import { Alert, Badge, Button, Card, ErrorState, FormError, Loading, PageHeader, Table, useConfirm } from '../../components/ui'
+import { Alert, Badge, Button, Card, ErrorState, FormError, Loading, PageHeader, Table, TextArea, TextField, useConfirm } from '../../components/ui'
 import { formatDateTime, formatScore } from '../../lib/format'
-import { useApiMutation, useTitle } from '../../lib/hooks'
+import { fieldError, useApiMutation, useTitle } from '../../lib/hooks'
 
 type Attempt = AttemptInProgress | AttemptResult
 
@@ -85,7 +85,7 @@ function Taking({ attempt }: { attempt: AttemptInProgress }) {
     () =>
       attempt.questions.map((q) => {
         const a = answers[q.id]
-        return q.type === 'short_answer' ? { question_id: q.id, text: a?.text ?? '' } : { question_id: q.id, option_ids: a?.option_ids ?? [] }
+        return q.type === 'short_answer' || q.type === 'essay' ? { question_id: q.id, text: a?.text ?? '' } : { question_id: q.id, option_ids: a?.option_ids ?? [] }
       }),
     [attempt.questions, answers],
   )
@@ -114,7 +114,7 @@ function Taking({ attempt }: { attempt: AttemptInProgress }) {
       const next = single ? [optionId] : checked ? [...previous, optionId] : previous.filter((id) => id !== optionId)
       return { ...current, [qid]: { option_ids: next, text: current[qid]?.text ?? '' } }
     })
-  const unanswered = attempt.questions.filter((q) => (q.type === 'short_answer' ? !(answers[q.id]?.text ?? '').trim() : !(answers[q.id]?.option_ids ?? []).length)).length
+  const unanswered = attempt.questions.filter((q) => (q.type === 'short_answer' || q.type === 'essay' ? !(answers[q.id]?.text ?? '').trim() : !(answers[q.id]?.option_ids ?? []).length)).length
 
   return (
     <>
@@ -140,6 +140,8 @@ function Taking({ attempt }: { attempt: AttemptInProgress }) {
               </legend>
               {q.type === 'short_answer' ? (
                 <input type="text" aria-label={`Answer to question ${index + 1}`} maxLength={500} value={answers[q.id]?.text ?? ''} onChange={(e) => setAnswers((c) => ({ ...c, [q.id]: { option_ids: [], text: e.target.value } }))} />
+              ) : q.type === 'essay' ? (
+                <TextArea label={`Answer to question ${index + 1}`} rows={8} maxLength={10000} value={answers[q.id]?.text ?? ''} onChange={(e) => setAnswers((c) => ({ ...c, [q.id]: { option_ids: [], text: e.target.value } }))} />
               ) : (
                 q.options.map((o) => {
                   const single = q.type !== 'multiple_choice'
@@ -178,6 +180,7 @@ function Result({ attempt, quiz }: { attempt: AttemptResult; quiz?: Quiz }) {
         <p className="big-score">
           {formatScore(attempt.score)} <span className="muted">/ {formatScore(attempt.max_score)}</span> <span className="muted">({percent}%)</span>
         </p>
+        {attempt.awaiting_manual_grading && <Alert tone="info">One or more essay answers are still waiting to be marked by hand; the score above will rise once they are.</Alert>}
       </Card>
       <Card title="Your answers">
         <Table caption="Answers">
@@ -198,7 +201,11 @@ function Result({ attempt, quiz }: { attempt: AttemptResult; quiz?: Quiz }) {
                   <td className="pre">{a.prompt}</td>
                   <td>{a.response.text !== undefined ? a.response.text || <span className="muted">No answer</span> : chosen && chosen.length ? shown : <span className="muted">No answer</span>}</td>
                   <td>
-                    {a.is_correct ? <Badge tone="good">Correct</Badge> : <Badge tone="bad">Incorrect</Badge>} <span className="muted small">{formatScore(a.points)} pt</span>
+                    {a.needs_manual_grading ? <Badge tone="warn">Awaiting grading</Badge> : a.is_correct ? <Badge tone="good">Correct</Badge> : <Badge tone="bad">Incorrect</Badge>}{' '}
+                    <span className="muted small">
+                      {formatScore(a.points)} / {formatScore(a.max_points)} pt
+                    </span>
+                    {a.needs_manual_grading && quiz && <EssayGradeForm attemptId={attempt.id} answerId={a.id} maxPoints={a.max_points} />}
                   </td>
                 </tr>
               )
@@ -207,5 +214,28 @@ function Result({ attempt, quiz }: { attempt: AttemptResult; quiz?: Quiz }) {
         </Table>
       </Card>
     </>
+  )
+}
+
+/** A grader's inline form to mark one essay answer; the attempt's overall score updates once saved. */
+function EssayGradeForm({ attemptId, answerId, maxPoints }: { attemptId: number; answerId: number; maxPoints: number }) {
+  const [points, setPoints] = useState('')
+  const grade = useApiMutation(() => api.patch(`/quiz-answers/${answerId}/grade`, { points: Number(points) }), {
+    invalidate: [['attempt', attemptId]],
+    success: 'Marked.',
+  })
+  return (
+    <form
+      className="inline-form"
+      onSubmit={(event) => {
+        event.preventDefault()
+        grade.mutate()
+      }}
+    >
+      <TextField label={`Points (out of ${maxPoints})`} type="number" min={0} max={maxPoints} step="0.01" value={points} onChange={(e) => setPoints(e.target.value)} error={fieldError(grade.error, 'points')} />
+      <Button small type="submit" variant="primary" loading={grade.isPending} disabled={points === ''}>
+        Mark
+      </Button>
+    </form>
   )
 }

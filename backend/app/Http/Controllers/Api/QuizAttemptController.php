@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Quiz;
+use App\Models\QuizAnswer;
 use App\Models\QuizAttempt;
 use App\Models\QuizQuestion;
 use Illuminate\Http\JsonResponse;
@@ -60,7 +61,7 @@ class QuizAttemptController extends Controller
             'answers.*.question_id' => ['required', 'integer'],
             'answers.*.option_ids' => ['sometimes', 'array', 'max:10'],
             'answers.*.option_ids.*' => ['integer'],
-            'answers.*.text' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'answers.*.text' => ['sometimes', 'nullable', 'string', 'max:10000'],
         ]);
 
         $graded = DB::transaction(function () use ($attempt, $data) {
@@ -82,6 +83,12 @@ class QuizAttemptController extends Controller
             }
             $score = 0;
             foreach ($questions as $question) {
+                if ($question->type === 'essay') {
+                    $text = trim((string) ($given->get($question->id)['text'] ?? ''));
+                    $locked->answers()->create(['quiz_question_id' => $question->id, 'response' => ['text' => $text], 'is_correct' => false, 'points' => 0, 'needs_manual_grading' => true]);
+
+                    continue;
+                }
                 [$response, $correct] = $this->grade($question, $given->get($question->id));
                 $points = $correct ? $question->points : 0;
                 $score += $points;
@@ -138,7 +145,7 @@ class QuizAttemptController extends Controller
                 'type' => $q->type,
                 'prompt' => $q->prompt,
                 'points' => $q->points,
-                'options' => $q->type === 'short_answer' ? [] : $q->options->map(fn ($o) => ['id' => $o->id, 'text' => $o->text])->values(),
+                'options' => in_array($q->type, ['short_answer', 'essay'], true) ? [] : $q->options->map(fn ($o) => ['id' => $o->id, 'text' => $o->text])->values(),
             ])->values(),
         ];
     }
@@ -146,6 +153,7 @@ class QuizAttemptController extends Controller
     private function result(QuizAttempt $attempt): array
     {
         $questions = $attempt->quiz->questions()->ordered()->get()->keyBy('id');
+        $answers = $attempt->answers()->orderBy('id')->get();
 
         return [
             'id' => $attempt->id,
@@ -154,14 +162,31 @@ class QuizAttemptController extends Controller
             'submitted_at' => $attempt->submitted_at,
             'score' => $attempt->score,
             'max_score' => $attempt->max_score,
-            'answers' => $attempt->answers()->orderBy('id')->get()->map(fn ($a) => [
+            'awaiting_manual_grading' => $answers->contains('needs_manual_grading', true),
+            'answers' => $answers->map(fn ($a) => [
+                'id' => $a->id,
                 'question_id' => $a->quiz_question_id,
                 'prompt' => $questions->get($a->quiz_question_id)?->prompt,
+                'max_points' => $questions->get($a->quiz_question_id)?->points,
                 'response' => $a->response,
                 'is_correct' => $a->is_correct,
                 'points' => $a->points,
+                'needs_manual_grading' => $a->needs_manual_grading,
             ])->values(),
         ];
+    }
+
+    /** A grader marks one essay answer; the attempt's score is recalculated from every answer's points. */
+    public function gradeAnswer(Request $request, QuizAnswer $answer): JsonResponse
+    {
+        $attempt = $answer->attempt()->with('quiz')->firstOrFail();
+        $this->authorize('manage', $attempt->quiz->offering);
+        $question = $answer->question;
+        $data = $request->validate(['points' => ['required', 'numeric', 'min:0', 'max:'.$question->points]]);
+        $answer->update(['points' => $data['points'], 'is_correct' => $data['points'] >= $question->points, 'needs_manual_grading' => false]);
+        $attempt->update(['score' => $attempt->answers()->sum('points')]);
+
+        return response()->json($this->result($attempt->setRelation('quiz', $attempt->quiz)));
     }
 
     /** @return array{0: array<string, mixed>, 1: bool} the stored response and whether it is fully correct */

@@ -290,7 +290,7 @@ function QuestionDialog({ quiz, question, onClose }: { quiz: Quiz; question: Qui
     () => {
       const base: Record<string, unknown> = { prompt: prompt.trim(), points: Number(points) || 1 }
       if (type === 'true_false') base.correct = correct
-      else base.options = options.map((o) => ({ text: o.text.trim(), is_correct: type === 'short_answer' ? true : o.is_correct }))
+      else if (type !== 'essay') base.options = options.map((o) => ({ text: o.text.trim(), is_correct: type === 'short_answer' ? true : o.is_correct }))
       return editing ? api.patch(`/questions/${question.id}`, base) : api.post(`/quizzes/${quiz.id}/questions`, { ...base, type })
     },
     { invalidate: [['quiz', quiz.id]], success: editing ? 'Question saved.' : 'Question added.', onSuccess: onClose },
@@ -300,6 +300,7 @@ function QuestionDialog({ quiz, question, onClose }: { quiz: Quiz; question: Qui
   const valid =
     prompt.trim() !== '' &&
     (type === 'true_false' ||
+      type === 'essay' ||
       (type === 'short_answer' ? options.length >= 1 && filled : options.length >= 2 && filled && (type === 'single_choice' ? options.filter((o) => o.is_correct).length === 1 : options.some((o) => o.is_correct))))
 
   return (
@@ -334,7 +335,7 @@ function QuestionDialog({ quiz, question, onClose }: { quiz: Quiz; question: Qui
             </div>
           </fieldset>
         )}
-        {type !== 'true_false' && (
+        {type !== 'true_false' && type !== 'essay' && (
           <fieldset className="field">
             <legend>{type === 'short_answer' ? 'Accepted answers (case and extra spaces are ignored)' : type === 'single_choice' ? 'Options: pick the one correct answer' : 'Options: tick every correct answer'}</legend>
             {options.map((o, i) => (

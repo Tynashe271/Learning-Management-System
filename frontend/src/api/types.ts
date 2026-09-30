@@ -415,13 +415,14 @@ export interface MyGrades {
 }
 
 // ---- quizzes ---------------------------------------------------------------------------------------------------
-export type QuestionType = 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer'
+export type QuestionType = 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer' | 'essay'
 
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   single_choice: 'Single choice',
   multiple_choice: 'Multiple choice',
   true_false: 'True / false',
   short_answer: 'Short answer',
+  essay: 'Essay (marked by hand)',
 }
 
 export interface QuizOption {
@@ -485,7 +486,8 @@ export interface AttemptResult {
   submitted_at: string
   score: number
   max_score: number
-  answers: { question_id: number; prompt: string | null; response: { option_ids?: number[]; text?: string }; is_correct: boolean; points: number }[]
+  awaiting_manual_grading: boolean
+  answers: { id: number; question_id: number; prompt: string | null; max_points: number; response: { option_ids?: number[]; text?: string }; is_correct: boolean; points: number; needs_manual_grading: boolean }[]
 }
 
 export interface StaffAttempt extends AttemptSummary {
