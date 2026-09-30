@@ -8,9 +8,10 @@ use App\Models\AssignmentGroup;
 use App\Models\Course;
 use App\Models\CourseModule;
 use App\Models\CourseOffering;
+use App\Models\GradeRecord;
 use App\Models\LearningItem;
-use App\Models\RubricCriterion;
 use App\Models\PeerReview;
+use App\Models\RubricCriterion;
 use App\Models\Submission;
 use App\Models\SubmissionVersion;
 use App\Models\TeachingAssignment;
@@ -642,12 +643,26 @@ class LmsController extends Controller
         return Storage::disk('s3')->download($submission->storage_path);
     }
 
+    public function downloadGradeRecording(Request $request, GradeRecord $grade)
+    {
+        $submission = $grade->submission;
+        abort_unless($submission->user_id === $request->user()->id || $request->user()->can('grade', $submission->assignment), 403);
+        abort_unless($grade->feedback_recording_path, 404);
+
+        return Storage::disk('s3')->download($grade->feedback_recording_path);
+    }
+
     public function grade(Request $request, Submission $submission): JsonResponse
     {
         $assignment = $submission->assignment;
         $this->authorize('grade', $assignment);
         $rubric = $assignment->rubricCriteria()->with('levels')->orderBy('position')->orderBy('id')->get();
-        $rules = ['status' => ['required', Rule::in(['draft', 'published'])], 'feedback' => ['nullable', 'string'], 'change_reason' => ['nullable', 'string']];
+        $rules = [
+            'status' => ['required', Rule::in(['draft', 'published'])],
+            'feedback' => ['nullable', 'string'],
+            'feedback_recording' => ['bail', 'nullable', 'file', 'max:'.(int) config('lms.limits.upload_mb') * 1024, 'mimes:mp3,mp4,wav,m4a,webm,ogg', new CleanFile],
+            'change_reason' => ['nullable', 'string'],
+        ];
         if ($rubric->isEmpty()) {
             $rules += ['score' => ['required', 'numeric', 'min:0', 'max:'.$assignment->max_score], 'criteria' => ['prohibited']];
         } else {
@@ -669,6 +684,10 @@ class LmsController extends Controller
         if ($submission->gradeRecords()->exists() && empty($data['change_reason'])) {
             throw ValidationException::withMessages(['change_reason' => 'A reason is required for grade changes.']);
         }
+        if ($request->hasFile('feedback_recording')) {
+            $data['feedback_recording_path'] = $request->file('feedback_recording')->store('grade-feedback/'.$submission->id, 's3');
+        }
+        unset($data['feedback_recording']);
         $grade = $submission->gradeRecords()->create($data + ['graded_by' => $request->user()->id]);
         activity()->causedBy($request->user())->performedOn($submission)->withProperties(['grade_record_id' => $grade->id, 'status' => $grade->status])->log('grade recorded');
         if ($grade->status === 'published') {

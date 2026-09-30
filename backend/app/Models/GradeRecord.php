@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class GradeRecord extends Model
 {
-    protected $fillable = ['submission_id', 'graded_by', 'score', 'status', 'feedback', 'change_reason', 'criteria_scores'];
+    protected $fillable = ['submission_id', 'graded_by', 'score', 'status', 'feedback', 'feedback_recording_path', 'change_reason', 'criteria_scores'];
 
     protected function casts(): array
     {

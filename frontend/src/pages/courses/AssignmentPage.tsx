@@ -308,6 +308,13 @@ function SubmittedView({ assignment, mine }: { assignment: AssignmentDetail; min
                 <div className="reading pre">{grade.feedback}</div>
               </>
             )}
+            {grade.feedback_recording_path && (
+              <p>
+                <DownloadButton path={`/grades/${grade.id}/recording`} filename={`feedback-${grade.id}`}>
+                  Play/download voice or video feedback
+                </DownloadButton>
+              </p>
+            )}
           </>
         )}
       </Card>

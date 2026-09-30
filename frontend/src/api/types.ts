@@ -295,6 +295,7 @@ export interface GradeRecord {
   score: number | string
   status: 'draft' | 'published'
   feedback: string | null
+  feedback_recording_path: string | null
   change_reason: string | null
   criteria_scores: CriterionMark[] | null
   created_at: string

@@ -69,7 +69,7 @@ describe('grading', () => {
   })
 
   it('needs a reason before an existing grade can be changed, and can save a draft instead of publishing', async () => {
-    const graded: Submission = { ...submission, grade_records: [{ id: 3, submission_id: 9, graded_by: 2, score: 10, status: 'published', feedback: null, change_reason: null, criteria_scores: null, created_at: '2026-01-02T00:00:00Z' }] }
+    const graded: Submission = { ...submission, grade_records: [{ id: 3, submission_id: 9, graded_by: 2, score: 10, status: 'published', feedback: null, feedback_recording_path: null, change_reason: null, criteria_scores: null, created_at: '2026-01-02T00:00:00Z' }] }
     const { calls } = mockApi({ 'POST /submissions/9/grades': () => ({ status: 201, body: { id: 4 } }) })
     const user = userEvent.setup()
     renderApp(<GradeDialog assignment={assignment} submission={graded} rubric={[]} studentName="Ada" onClose={() => undefined} />)

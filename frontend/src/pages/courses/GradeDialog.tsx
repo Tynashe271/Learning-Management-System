@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api } from '../../api/client'
 import type { Assignment, GradeRecord, RubricCriterion, Submission } from '../../api/types'
-import { Alert, Badge, Button, CheckField, FormError, Modal, SelectField, TextArea, TextField } from '../../components/ui'
+import { Alert, Badge, Button, CheckField, FileField, FormError, Modal, SelectField, TextArea, TextField } from '../../components/ui'
 import { formatDateTime, formatScore } from '../../lib/format'
 import { DownloadButton, fieldError, useApiMutation } from '../../lib/hooks'
 
@@ -32,6 +32,7 @@ export function GradeDialog({ assignment, submission, rubric, studentName, onClo
   const [feedback, setFeedback] = useState(previous?.feedback ?? '')
   const [status, setStatus] = useState<'draft' | 'published'>('published')
   const [reason, setReason] = useState('')
+  const [recording, setRecording] = useState<File | null>(null)
   const [marks, setMarks] = useState<Record<number, Mark>>(() =>
     Object.fromEntries(
       rubric.map((c) => {
@@ -61,7 +62,20 @@ export function GradeDialog({ assignment, submission, rubric, studentName, onClo
           return { criterion_id: c.id, ...(m.levelId ? { level_id: Number(m.levelId) } : { points: Number(m.points) }), comment: m.comment.trim() || null }
         })
       }
-      return api.post(`/submissions/${submission.id}/grades`, body)
+      if (!recording) return api.post(`/submissions/${submission.id}/grades`, body)
+      const form = new FormData()
+      form.append('status', status)
+      if (feedback.trim()) form.append('feedback', feedback.trim())
+      if (hasHistory) form.append('change_reason', reason.trim())
+      if (rubric.length === 0) form.append('score', String(Number(score)))
+      else
+        (body.criteria as Record<string, unknown>[]).forEach((c, i) => {
+          Object.entries(c).forEach(([key, value]) => {
+            if (value !== null && value !== undefined) form.append(`criteria[${i}][${key}]`, String(value))
+          })
+        })
+      form.append('feedback_recording', recording)
+      return api.upload(`/submissions/${submission.id}/grades`, form)
     },
     { invalidate: [['submissions', assignment.id], ['appeals']], success: status === 'published' ? 'Grade published. The student has been notified.' : 'Draft saved.', onSuccess: onClose },
   )
@@ -99,6 +113,11 @@ export function GradeDialog({ assignment, submission, rubric, studentName, onClo
                   {formatDateTime(h.created_at)}
                   {h.change_reason ? ` · Reason: ${h.change_reason}` : ''}
                 </span>
+                {h.feedback_recording_path && (
+                  <DownloadButton path={`/grades/${h.id}/recording`} filename={`feedback-${h.id}`}>
+                    Play/download voice or video feedback
+                  </DownloadButton>
+                )}
               </li>
             ))}
           </ul>
@@ -147,9 +166,10 @@ export function GradeDialog({ assignment, submission, rubric, studentName, onClo
           </>
         )}
         <TextArea label="Feedback for the student" optional rows={4} value={feedback} onChange={(e) => setFeedback(e.target.value)} error={fieldError(save.error, 'feedback')} />
+        <FileField label="Voice or video feedback" optional onChange={(e) => setRecording(e.target.files?.[0] ?? null)} error={fieldError(save.error, 'feedback_recording')} hint="An audio or video file (mp3, mp4, wav, m4a, webm or ogg), up to 25 MB." />
         {hasHistory && <TextArea label="Reason for changing the grade" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} error={fieldError(save.error, 'change_reason')} hint="Recorded in the audit log and shown with the earlier marks." required />}
         <CheckField label="Publish now" hint="Untick to save a draft that only staff can see. Publishing notifies the student." checked={status === 'published'} onChange={(e) => setStatus(e.target.checked ? 'published' : 'draft')} />
-        {save.error && !['score', 'feedback', 'change_reason', 'criteria'].some((f) => fieldError(save.error, f)) && <FormError error={save.error} />}
+        {save.error && !['score', 'feedback', 'feedback_recording', 'change_reason', 'criteria'].some((f) => fieldError(save.error, f)) && <FormError error={save.error} />}
         <div className="form-actions">
           <Button onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="primary" loading={save.isPending} disabled={!valid}>
