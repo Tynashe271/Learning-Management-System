@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { Appeal, Assignment, MyGrade, Offering, Page, RubricCriterion, SimilarityReport, Submission, SubmissionFeedback, SubmissionVersion } from '../../api/types'
-import { Alert, Badge, Button, Card, EmptyState, ErrorState, FileField, FormError, Loading, Modal, PageHeader, Pager, PublishedBadge, QueryView, Table, TextArea, TextField, pagerFromPage, useConfirm } from '../../components/ui'
+import type { Appeal, Assignment, AssignmentGroup, MyGrade, Offering, Page, Roster, RubricCriterion, SimilarityReport, Submission, SubmissionFeedback, SubmissionVersion } from '../../api/types'
+import { Alert, Badge, Button, Card, EmptyState, ErrorState, FileField, FormError, Loading, Modal, PageHeader, Pager, PublishedBadge, QueryView, SelectField, Table, TextArea, TextField, pagerFromPage, useConfirm } from '../../components/ui'
 import { formatDateTime, formatScore, isPast, plural } from '../../lib/format'
 import { DownloadButton, fieldError, useApiMutation, useTitle } from '../../lib/hooks'
 import { AssignmentDialog } from './AssignmentsTab'
@@ -105,12 +105,40 @@ function StudentSection({ assignment }: { assignment: AssignmentDetail }) {
     queryFn: () => api.get<MyGrade>(`/assignments/${assignment.id}/my-grade`),
     retry: false,
   })
+  const myGroup = useQuery({ queryKey: ['my-group', assignment.id], queryFn: () => api.get<AssignmentGroup | null>(`/assignments/${assignment.id}/my-group`), enabled: assignment.is_group_assignment })
   const notSubmitted = mine.error instanceof ApiError && mine.error.status === 404
 
-  if (mine.isPending) return <Loading />
+  if (mine.isPending || (assignment.is_group_assignment && myGroup.isPending)) return <Loading />
   if (mine.isError && !notSubmitted) return <ErrorState error={mine.error} onRetry={() => void mine.refetch()} />
-  if (notSubmitted) return assignment.abilities.submit ? <SubmitForm assignment={assignment} /> : <Card title="Your submission"><Alert tone="warn">{isPast(assignment.due_at) ? 'The deadline has passed and no work was submitted.' : 'You cannot submit to this assignment right now.'}</Alert></Card>
-  return <SubmittedView assignment={assignment} mine={mine.data!} />
+  if (assignment.is_group_assignment && !myGroup.data) {
+    return (
+      <Card title="Your submission">
+        <Alert tone="warn">You haven't been added to a group for this assignment yet. Ask your teacher to add you to one.</Alert>
+      </Card>
+    )
+  }
+  const groupCard = assignment.is_group_assignment && myGroup.data && (
+    <Card title="Your group">
+      <p>
+        <strong>{myGroup.data.name}</strong>: {myGroup.data.members.map((m) => m.name).join(', ')}
+      </p>
+    </Card>
+  )
+  if (notSubmitted) {
+    return (
+      <>
+        {groupCard}
+        {assignment.abilities.submit ? <SubmitForm assignment={assignment} /> : <Card title="Your submission"><Alert tone="warn">{isPast(assignment.due_at) ? 'The deadline has passed and no work was submitted.' : 'You cannot submit to this assignment right now.'}</Alert></Card>}
+      </>
+    )
+  }
+
+  return (
+    <>
+      {groupCard}
+      <SubmittedView assignment={assignment} mine={mine.data!} />
+    </>
+  )
 }
 
 function SubmitForm({ assignment, resubmission, onDone }: { assignment: AssignmentDetail; resubmission?: boolean; onDone?: () => void }) {
@@ -367,6 +395,7 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
   const [grading, setGrading] = useState<Submission | null>(null)
   const [givingFeedback, setGivingFeedback] = useState<Submission | null>(null)
   const [similarity, setSimilarity] = useState(false)
+  const [managingGroups, setManagingGroups] = useState(false)
   const canGrade = assignment.abilities.grade
   const query = useQuery({ queryKey: ['submissions', assignment.id, page], queryFn: () => api.get<Page<Submission & { user?: { id: number; name: string; email: string } }>>(`/assignments/${assignment.id}/submissions`, { page }), enabled: canGrade, placeholderData: (previous) => previous })
 
@@ -377,6 +406,11 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
         actions={
           canGrade && (
             <>
+              {assignment.is_group_assignment && (
+                <Button small onClick={() => setManagingGroups(true)}>
+                  Groups
+                </Button>
+              )}
               <Link className="btn btn-secondary btn-small" to={`/courses/${assignment.course_offering_id}/appeals`}>
                 Grade appeals
               </Link>
@@ -396,6 +430,7 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
                   <thead>
                     <tr>
                       <th>Student</th>
+                      {assignment.is_group_assignment && <th>Group</th>}
                       <th>Submitted</th>
                       <th>Grade</th>
                       <th />
@@ -411,6 +446,7 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
                             {s.user?.name ?? `Student #${s.user_id}`}
                             <span className="muted small block">{s.user?.email}</span>
                           </td>
+                          {assignment.is_group_assignment && <td>{s.group?.name ?? <span className="muted">—</span>}</td>}
                           <td>
                             {formatDateTime(s.submitted_at)} {s.late && <Badge tone="bad">Late</Badge>} {s.version > 1 && <Badge tone="info">Version {s.version}</Badge>}
                             {s.late && s.late_explanation && <span className="muted small block">{s.late_explanation}</span>}
@@ -453,6 +489,7 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
         </Modal>
       )}
       {similarity && <SimilarityDialog assignmentId={assignment.id} onClose={() => setSimilarity(false)} />}
+      {managingGroups && <GroupsDialog assignment={assignment} onClose={() => setManagingGroups(false)} />}
     </>
   )
 }
@@ -509,6 +546,96 @@ function SimilarityDialog({ assignmentId, onClose }: { assignmentId: number; onC
           <p className="muted small">{report.note}</p>
         </>
       )}
+    </Modal>
+  )
+}
+
+/** Places enrolled students into groups for a group assignment; one member's submission and grade cover the whole group. */
+function GroupsDialog({ assignment, onClose }: { assignment: AssignmentDetail; onClose: () => void }) {
+  const confirm = useConfirm()
+  const [name, setName] = useState('')
+  const [memberIds, setMemberIds] = useState<number[]>([])
+  const groups = useQuery({ queryKey: ['assignment-groups', assignment.id], queryFn: () => api.get<AssignmentGroup[]>(`/assignments/${assignment.id}/groups`) })
+  const roster = useQuery({ queryKey: ['roster', assignment.course_offering_id, 1], queryFn: () => api.get<Roster>(`/offerings/${assignment.course_offering_id}/roster`) })
+  const create = useApiMutation(() => api.post<AssignmentGroup>(`/assignments/${assignment.id}/groups`, { name: name.trim(), user_ids: memberIds }), {
+    invalidate: [['assignment-groups', assignment.id]],
+    onSuccess: () => {
+      setName('')
+      setMemberIds([])
+    },
+  })
+  const remove = useApiMutation((id: number) => api.delete(`/assignment-groups/${id}`), { invalidate: [['assignment-groups', assignment.id]], toastError: true })
+
+  const students = (roster.data?.enrolments ?? []).filter((e) => e.status === 'active' && e.user)
+  const groupedIds = new Set((groups.data ?? []).flatMap((g) => g.members.map((m) => m.id)))
+  const ungrouped = students.filter((s) => !groupedIds.has(s.user_id))
+
+  return (
+    <Modal title={`Groups: ${assignment.title}`} onClose={onClose} wide>
+      {groups.isPending && <p className="muted">Loading…</p>}
+      {groups.data && groups.data.length === 0 && <p className="muted small">No groups yet.</p>}
+      {groups.data && groups.data.length > 0 && (
+        <Table caption="Groups">
+          <thead>
+            <tr>
+              <th>Group</th>
+              <th>Members</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {groups.data.map((g) => (
+              <tr key={g.id}>
+                <td>{g.name}</td>
+                <td>{g.members.map((m) => m.name).join(', ')}</td>
+                <td className="actions">
+                  <Button
+                    small
+                    variant="danger"
+                    loading={remove.isPending && remove.variables === g.id}
+                    onClick={async () => {
+                      if (await confirm({ title: `Delete ${g.name}?`, message: 'Submissions already made by its members are kept, just no longer linked to a group.', confirmLabel: 'Delete group', danger: true })) remove.mutate(g.id)
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+      <h3>New group</h3>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          create.mutate()
+        }}
+      >
+        <TextField label="Group name" value={name} onChange={(e) => setName(e.target.value)} error={fieldError(create.error, 'name')} maxLength={255} required />
+        <SelectField
+          label="Members"
+          multiple
+          size={6}
+          value={memberIds.map(String)}
+          onChange={(e) => setMemberIds(Array.from(e.target.selectedOptions, (o) => Number(o.value)))}
+          error={fieldError(create.error, 'user_ids')}
+          hint={ungrouped.length === 0 ? 'Every enrolled student already has a group.' : 'Ctrl/Cmd-click to select several. Only students not already in a group are listed.'}
+        >
+          {ungrouped.map((s) => (
+            <option key={s.user_id} value={s.user_id}>
+              {s.user?.name}
+            </option>
+          ))}
+        </SelectField>
+        {create.error && !fieldError(create.error, 'name') && !fieldError(create.error, 'user_ids') && <FormError error={create.error} />}
+        <div className="form-actions">
+          <Button onClick={onClose}>Close</Button>
+          <Button type="submit" variant="primary" loading={create.isPending} disabled={!name.trim() || memberIds.length === 0}>
+            Add group
+          </Button>
+        </div>
+      </form>
     </Modal>
   )
 }

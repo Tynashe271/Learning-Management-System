@@ -254,6 +254,7 @@ export interface Assignment {
   published: boolean
   allow_late_submissions: boolean
   allow_resubmission: boolean
+  is_group_assignment: boolean
   created_at?: string
   /** present only in the manage view; absent means visible to the whole class */
   target_user_ids?: number[]
@@ -308,8 +309,15 @@ export interface Submission {
   late: boolean
   late_explanation: string | null
   version: number
+  group?: { id: number; name: string } | null
   grade_records?: GradeRecord[]
   gradeRecords?: GradeRecord[]
+}
+
+export interface AssignmentGroup {
+  id: number
+  name: string
+  members: { id: number; name: string }[]
 }
 
 export interface SubmissionVersion {

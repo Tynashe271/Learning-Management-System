@@ -68,7 +68,7 @@ class CourseCopyController extends Controller
                     }
                 }
                 foreach ($offering->assignments as $assignment) {
-                    $newAssignment = $copy->assignments()->create($assignment->only(['title', 'instructions', 'max_score', 'allow_late_submissions']) + ['due_at' => $assignment->due_at->addDays($days), 'published' => false]);
+                    $newAssignment = $copy->assignments()->create($assignment->only(['title', 'instructions', 'max_score', 'allow_late_submissions', 'allow_resubmission', 'is_group_assignment']) + ['due_at' => $assignment->due_at->addDays($days), 'published' => false]);
                     $counts['assignments']++;
                     foreach ($assignment->rubricCriteria as $criterion) {
                         $newCriterion = $newAssignment->rubricCriteria()->create($criterion->only(['title', 'description', 'max_points', 'position']));

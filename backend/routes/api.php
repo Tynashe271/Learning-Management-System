@@ -203,6 +203,10 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::put('/assignments/{assignment}/rubric', [RubricController::class, 'replace']);
     Route::delete('/assignments/{assignment}/rubric', [RubricController::class, 'destroy']);
     Route::get('/assignments/{assignment}/similarity', [SimilarityController::class, 'show'])->middleware('throttle:heavy');
+    Route::get('/assignments/{assignment}/groups', [LmsController::class, 'assignmentGroups']);
+    Route::post('/assignments/{assignment}/groups', [LmsController::class, 'storeAssignmentGroup']);
+    Route::patch('/assignment-groups/{group}', [LmsController::class, 'updateAssignmentGroup']);
+    Route::delete('/assignment-groups/{group}', [LmsController::class, 'destroyAssignmentGroup']);
 
     // Grade appeals
     Route::post('/submissions/{submission}/appeal', [AppealController::class, 'store']);
@@ -214,6 +218,7 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::post('/assignments/{assignment}/submissions', [LmsController::class, 'submit'])->middleware('throttle:submissions');
     Route::get('/assignments/{assignment}/submissions', [LmsController::class, 'submissions']);
     Route::get('/assignments/{assignment}/my-grade', [LmsController::class, 'myGrade']);
+    Route::get('/assignments/{assignment}/my-group', [LmsController::class, 'myGroup']);
     Route::post('/submissions/{submission}/grades', [LmsController::class, 'grade']);
     Route::get('/submissions/{submission}/download', [LmsController::class, 'downloadSubmission']);
     Route::get('/submissions/{submission}/versions', [LmsController::class, 'submissionVersions']);

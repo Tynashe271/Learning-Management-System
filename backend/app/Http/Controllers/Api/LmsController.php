@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Assignment;
+use App\Models\AssignmentGroup;
 use App\Models\Course;
 use App\Models\CourseModule;
 use App\Models\CourseOffering;
@@ -25,6 +26,7 @@ use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -384,6 +386,7 @@ class LmsController extends Controller
             'published' => ['sometimes', 'boolean'],
             'allow_late_submissions' => ['sometimes', 'boolean'],
             'allow_resubmission' => ['sometimes', 'boolean'],
+            'is_group_assignment' => ['sometimes', 'boolean'],
             'course_module_id' => ['nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $offering->id)],
             'target_user_ids' => ['sometimes', 'array'],
             'target_user_ids.*' => ['integer', Rule::exists('enrolments', 'user_id')->where('course_offering_id', $offering->id)->where('status', 'active')],
@@ -410,6 +413,7 @@ class LmsController extends Controller
             'published' => ['sometimes', 'boolean'],
             'allow_late_submissions' => ['sometimes', 'boolean'],
             'allow_resubmission' => ['sometimes', 'boolean'],
+            'is_group_assignment' => ['sometimes', 'boolean'],
             'change_reason' => ['sometimes', 'string', 'max:1000'],
             'course_module_id' => ['sometimes', 'nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $assignment->course_offering_id)],
             'target_user_ids' => ['sometimes', 'array'],
@@ -432,6 +436,68 @@ class LmsController extends Controller
         return response()->json($assignment);
     }
 
+    /** The groups for a group assignment, with their members, so a manager can see who is (and isn't) placed. */
+    public function assignmentGroups(Request $request, Assignment $assignment): JsonResponse
+    {
+        $this->authorize('manage', $assignment->offering);
+
+        return response()->json($assignment->groups()->with('members:id,name,email')->orderBy('id')->get());
+    }
+
+    public function storeAssignmentGroup(Request $request, Assignment $assignment): JsonResponse
+    {
+        $this->authorize('manage', $assignment->offering);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'user_ids' => ['required', 'array', 'min:1'],
+            'user_ids.*' => ['integer', Rule::exists('enrolments', 'user_id')->where('course_offering_id', $assignment->course_offering_id)->where('status', 'active')],
+        ]);
+        $this->assertNotAlreadyGrouped($assignment, $data['user_ids']);
+        $group = $assignment->groups()->create(['name' => $data['name']]);
+        $group->members()->sync($data['user_ids']);
+
+        return response()->json($group->load('members:id,name,email'), 201);
+    }
+
+    public function updateAssignmentGroup(Request $request, AssignmentGroup $group): JsonResponse
+    {
+        $this->authorize('manage', $group->assignment->offering);
+        $data = $request->validate([
+            'name' => ['sometimes', 'string', 'max:255'],
+            'user_ids' => ['sometimes', 'array', 'min:1'],
+            'user_ids.*' => ['integer', Rule::exists('enrolments', 'user_id')->where('course_offering_id', $group->assignment->course_offering_id)->where('status', 'active')],
+        ]);
+        if (isset($data['user_ids'])) {
+            $this->assertNotAlreadyGrouped($group->assignment, $data['user_ids'], excludingGroupId: $group->id);
+            $group->members()->sync($data['user_ids']);
+        }
+        if (isset($data['name'])) {
+            $group->update(['name' => $data['name']]);
+        }
+
+        return response()->json($group->load('members:id,name,email'));
+    }
+
+    public function destroyAssignmentGroup(Request $request, AssignmentGroup $group): JsonResponse
+    {
+        $this->authorize('manage', $group->assignment->offering);
+        $group->delete();
+
+        return response()->json(['message' => 'Group deleted.']);
+    }
+
+    /** @param  list<int>  $userIds */
+    private function assertNotAlreadyGrouped(Assignment $assignment, array $userIds, ?int $excludingGroupId = null): void
+    {
+        $taken = $assignment->groups()
+            ->when($excludingGroupId, fn ($q) => $q->where('id', '!=', $excludingGroupId))
+            ->whereHas('members', fn ($q) => $q->whereIn('users.id', $userIds))
+            ->exists();
+        if ($taken) {
+            throw ValidationException::withMessages(['user_ids' => 'One of these students is already in another group for this assignment.']);
+        }
+    }
+
     public function submit(Request $request, Assignment $assignment): JsonResponse
     {
         $this->authorize('submit', $assignment);
@@ -444,45 +510,57 @@ class LmsController extends Controller
         if (empty($data['body']) && ! $request->hasFile('file')) {
             throw ValidationException::withMessages(['body' => 'Provide text or a file.']);
         }
+
+        $group = null;
+        if ($assignment->is_group_assignment) {
+            $group = $assignment->groups()->whereHas('members', fn ($q) => $q->where('users.id', $request->user()->id))->first();
+            abort_unless($group, 422, 'You are not in a group for this assignment yet. Ask your teacher to add you to one.');
+        }
+
         $alreadySubmitted = ValidationException::withMessages(['assignment' => 'Already submitted.']);
-        $existing = Submission::where('assignment_id', $assignment->id)->where('user_id', $request->user()->id)->first();
-        if ($existing && ! $assignment->allow_resubmission) {
+        $groupRows = $group ? Submission::where('assignment_id', $assignment->id)->where('assignment_group_id', $group->id)->get() : collect();
+        $anyExisting = $group ? $groupRows->isNotEmpty() : Submission::where('assignment_id', $assignment->id)->where('user_id', $request->user()->id)->exists();
+        $alreadyGraded = $group
+            ? $groupRows->contains(fn (Submission $s) => $s->gradeRecords()->where('status', 'published')->exists())
+            : ($anyExisting && Submission::where('assignment_id', $assignment->id)->where('user_id', $request->user()->id)->first()->gradeRecords()->where('status', 'published')->exists());
+
+        if ($anyExisting && ! $assignment->allow_resubmission) {
             throw $alreadySubmitted;
         }
-        if ($existing && $existing->gradeRecords()->where('status', 'published')->exists()) {
+        if ($alreadyGraded) {
             throw ValidationException::withMessages(['assignment' => 'This assignment has already been graded and can no longer be resubmitted.']);
         }
-        $path = $request->hasFile('file') ? $request->file('file')->store('submissions/'.$assignment->id.'/'.$request->user()->id, 's3') : null;
-        if ($existing) {
-            SubmissionVersion::create([
-                'submission_id' => $existing->id,
-                'version' => $existing->version,
-                'body' => $existing->body,
-                'storage_path' => $existing->storage_path,
-                'submitted_at' => $existing->submitted_at,
-            ]);
-            $existing->update([
-                'body' => $data['body'] ?? null,
-                'storage_path' => $path,
-                'submitted_at' => now(),
-                'late' => $late,
-                'late_explanation' => $late ? $data['late_explanation'] : null,
-                'version' => $existing->version + 1,
-            ]);
-            activity()->causedBy($request->user())->performedOn($existing)->log('assignment resubmitted');
 
-            return response()->json($existing, 200);
-        }
+        $path = $request->hasFile('file') ? $request->file('file')->store('submissions/'.$assignment->id.'/'.$request->user()->id, 's3') : null;
+        $memberIds = $group ? $group->members()->pluck('users.id')->all() : [$request->user()->id];
+
         try {
-            $submission = Submission::create([
-                'assignment_id' => $assignment->id,
-                'user_id' => $request->user()->id,
-                'body' => $data['body'] ?? null,
-                'storage_path' => $path,
-                'submitted_at' => now(),
-                'late' => $late,
-                'late_explanation' => $late ? $data['late_explanation'] : null,
-            ]);
+            $mine = DB::transaction(function () use ($assignment, $group, $groupRows, $memberIds, $data, $path, $late, $request) {
+                $mine = null;
+                foreach ($memberIds as $memberId) {
+                    $row = $group ? $groupRows->firstWhere('user_id', $memberId) : Submission::where('assignment_id', $assignment->id)->where('user_id', $memberId)->first();
+                    if ($row) {
+                        SubmissionVersion::create(['submission_id' => $row->id, 'version' => $row->version, 'body' => $row->body, 'storage_path' => $row->storage_path, 'submitted_at' => $row->submitted_at]);
+                        $row->update(['body' => $data['body'] ?? null, 'storage_path' => $path, 'submitted_at' => now(), 'late' => $late, 'late_explanation' => $late ? $data['late_explanation'] : null, 'version' => $row->version + 1]);
+                    } else {
+                        $row = Submission::create([
+                            'assignment_id' => $assignment->id,
+                            'user_id' => $memberId,
+                            'assignment_group_id' => $group?->id,
+                            'body' => $data['body'] ?? null,
+                            'storage_path' => $path,
+                            'submitted_at' => now(),
+                            'late' => $late,
+                            'late_explanation' => $late ? $data['late_explanation'] : null,
+                        ]);
+                    }
+                    if ($memberId === $request->user()->id) {
+                        $mine = $row;
+                    }
+                }
+
+                return $mine;
+            });
         } catch (UniqueConstraintViolationException) {
             // A concurrent request won the race; drop the file we just stored.
             if ($path) {
@@ -490,9 +568,9 @@ class LmsController extends Controller
             }
             throw $alreadySubmitted;
         }
-        activity()->causedBy($request->user())->performedOn($submission)->log('assignment submitted');
+        activity()->causedBy($request->user())->performedOn($mine)->log($anyExisting ? 'assignment resubmitted' : 'assignment submitted');
 
-        return response()->json($submission, 201);
+        return response()->json($mine, $anyExisting ? 200 : 201);
     }
 
     /** The prior versions of a submission, oldest first, each a snapshot taken just before a resubmission. */
@@ -548,7 +626,7 @@ class LmsController extends Controller
     {
         $this->authorize('grade', $assignment);
 
-        return response()->json(Submission::where('assignment_id', $assignment->id)->with('gradeRecords', 'user:id,name,email')->orderBy('id')->paginate(20));
+        return response()->json(Submission::where('assignment_id', $assignment->id)->with('gradeRecords', 'user:id,name,email', 'group:id,name')->orderBy('id')->paginate(20));
     }
 
     public function downloadSubmission(Request $request, Submission $submission)
@@ -594,6 +672,16 @@ class LmsController extends Controller
         activity()->causedBy($request->user())->performedOn($submission)->withProperties(['grade_record_id' => $grade->id, 'status' => $grade->status])->log('grade recorded');
         if ($grade->status === 'published') {
             $submission->user->notify(GradePublished::for($submission, $assignment));
+        }
+        // A group submission's grade applies to every member: give each sibling row the same mark.
+        if ($submission->assignment_group_id) {
+            $siblings = Submission::where('assignment_group_id', $submission->assignment_group_id)->where('id', '!=', $submission->id)->get();
+            foreach ($siblings as $sibling) {
+                $siblingGrade = $sibling->gradeRecords()->create($data + ['graded_by' => $request->user()->id]);
+                if ($siblingGrade->status === 'published') {
+                    $sibling->user->notify(GradePublished::for($sibling, $assignment));
+                }
+            }
         }
 
         return response()->json($grade, 201);
@@ -644,5 +732,14 @@ class LmsController extends Controller
         $submission = Submission::where('assignment_id', $assignment->id)->where('user_id', $request->user()->id)->firstOrFail();
 
         return response()->json(['submission' => $submission, 'grade' => $submission->gradeRecords()->where('status', 'published')->latest('id')->first()]);
+    }
+
+    /** The caller's own group and teammates for a group assignment, or null if not placed in one yet. */
+    public function myGroup(Request $request, Assignment $assignment): JsonResponse
+    {
+        $this->authorize('view', $assignment);
+        $group = $assignment->groups()->whereHas('members', fn ($q) => $q->where('users.id', $request->user()->id))->with('members:id,name')->first();
+
+        return response()->json($group);
     }
 }

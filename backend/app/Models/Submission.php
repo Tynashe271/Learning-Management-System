@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Submission extends Model
 {
-    protected $fillable = ['assignment_id', 'user_id', 'body', 'storage_path', 'submitted_at', 'late', 'late_explanation', 'version'];
+    protected $fillable = ['assignment_id', 'user_id', 'assignment_group_id', 'body', 'storage_path', 'submitted_at', 'late', 'late_explanation', 'version'];
 
     protected function casts(): array
     {
@@ -39,5 +39,10 @@ class Submission extends Model
     public function feedback(): HasMany
     {
         return $this->hasMany(SubmissionFeedback::class);
+    }
+
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(AssignmentGroup::class, 'assignment_group_id');
     }
 }
