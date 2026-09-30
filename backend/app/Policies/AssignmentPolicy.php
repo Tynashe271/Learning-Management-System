@@ -24,7 +24,7 @@ class AssignmentPolicy
             && $assignment->offering->archived_at === null
             && $assignment->offering->enrolments()->where('user_id', $user->id)->where('status', 'active')->exists()
             && $assignment->isVisibleTo($user)
-            && now()->lessThanOrEqualTo($assignment->due_at);
+            && (now()->lessThanOrEqualTo($assignment->due_at) || $assignment->allow_late_submissions);
     }
 
     public function grade(User $user, Assignment $assignment): bool

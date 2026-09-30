@@ -252,6 +252,7 @@ export interface Assignment {
   due_at: string
   max_score: number
   published: boolean
+  allow_late_submissions: boolean
   created_at?: string
   /** present only in the manage view; absent means visible to the whole class */
   target_user_ids?: number[]
@@ -303,6 +304,8 @@ export interface Submission {
   body: string | null
   storage_path: string | null
   submitted_at: string
+  late: boolean
+  late_explanation: string | null
   grade_records?: GradeRecord[]
   gradeRecords?: GradeRecord[]
 }

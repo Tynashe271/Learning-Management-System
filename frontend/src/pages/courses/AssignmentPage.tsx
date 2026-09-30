@@ -116,12 +116,15 @@ function StudentSection({ assignment }: { assignment: AssignmentDetail }) {
 function SubmitForm({ assignment }: { assignment: AssignmentDetail }) {
   const [body, setBody] = useState('')
   const [file, setFile] = useState<File | null>(null)
+  const [lateExplanation, setLateExplanation] = useState('')
   const confirm = useConfirm()
+  const late = isPast(assignment.due_at)
   const submit = useApiMutation(
     () => {
       const form = new FormData()
       if (body.trim()) form.append('body', body)
       if (file) form.append('file', file)
+      if (late) form.append('late_explanation', lateExplanation.trim())
       return api.upload(`/assignments/${assignment.id}/submissions`, form)
     },
     { invalidate: [['my-grade', assignment.id]], success: 'Submitted. Good luck!' },
@@ -129,6 +132,7 @@ function SubmitForm({ assignment }: { assignment: AssignmentDetail }) {
   return (
     <Card title="Your submission">
       <p className="muted">Write your answer, attach a file, or both. You can submit once, so check it before you send.</p>
+      {late && <Alert tone="warn">The deadline has passed. Your teacher allows late submissions, but you must explain why.</Alert>}
       <form
         onSubmit={async (event) => {
           event.preventDefault()
@@ -137,8 +141,9 @@ function SubmitForm({ assignment }: { assignment: AssignmentDetail }) {
       >
         <TextArea label="Your answer" optional rows={8} value={body} onChange={(e) => setBody(e.target.value)} error={fieldError(submit.error, 'body')} />
         <FileField label="Attach a file" optional onChange={(e) => setFile(e.target.files?.[0] ?? null)} error={fieldError(submit.error, 'file')} hint="Up to 25 MB. Documents, slides, spreadsheets, images, ZIP files and similar are accepted." />
-        {submit.error && !fieldError(submit.error, 'body') && !fieldError(submit.error, 'file') && <FormError error={submit.error} />}
-        <Button type="submit" variant="primary" loading={submit.isPending} disabled={!body.trim() && !file}>
+        {late && <TextArea label="Why is this late?" rows={3} value={lateExplanation} onChange={(e) => setLateExplanation(e.target.value)} error={fieldError(submit.error, 'late_explanation')} required />}
+        {submit.error && !fieldError(submit.error, 'body') && !fieldError(submit.error, 'file') && !fieldError(submit.error, 'late_explanation') && <FormError error={submit.error} />}
+        <Button type="submit" variant="primary" loading={submit.isPending} disabled={(!body.trim() && !file) || (late && !lateExplanation.trim())}>
           Submit
         </Button>
       </form>
@@ -154,7 +159,14 @@ function SubmittedView({ assignment, mine }: { assignment: AssignmentDetail; min
   return (
     <>
       <Card title="Your submission">
-        <p className="muted small">Submitted {formatDateTime(submission.submitted_at)}</p>
+        <p className="muted small">
+          Submitted {formatDateTime(submission.submitted_at)} {submission.late && <Badge tone="warn">Late</Badge>}
+        </p>
+        {submission.late && submission.late_explanation && (
+          <p className="muted small">
+            Your explanation: <em>{submission.late_explanation}</em>
+          </p>
+        )}
         {submission.body && <div className="reading pre">{submission.body}</div>}
         {submission.storage_path && (
           <p>
@@ -320,7 +332,8 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
                             <span className="muted small block">{s.user?.email}</span>
                           </td>
                           <td>
-                            {formatDateTime(s.submitted_at)} {isPast(assignment.due_at) && new Date(s.submitted_at) > new Date(assignment.due_at) && <Badge tone="bad">Late</Badge>}
+                            {formatDateTime(s.submitted_at)} {s.late && <Badge tone="bad">Late</Badge>}
+                            {s.late && s.late_explanation && <span className="muted small block">{s.late_explanation}</span>}
                           </td>
                           <td>
                             {latest ? (

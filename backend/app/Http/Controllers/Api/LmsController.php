@@ -381,6 +381,7 @@ class LmsController extends Controller
             'due_at' => ['required', 'date', 'after:now'],
             'max_score' => ['required', 'integer', 'min:1'],
             'published' => ['sometimes', 'boolean'],
+            'allow_late_submissions' => ['sometimes', 'boolean'],
             'course_module_id' => ['nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $offering->id)],
             'target_user_ids' => ['sometimes', 'array'],
             'target_user_ids.*' => ['integer', Rule::exists('enrolments', 'user_id')->where('course_offering_id', $offering->id)->where('status', 'active')],
@@ -405,6 +406,7 @@ class LmsController extends Controller
             'instructions' => ['sometimes', 'nullable', 'string'],
             'due_at' => ['sometimes', 'date', 'after:now'],
             'published' => ['sometimes', 'boolean'],
+            'allow_late_submissions' => ['sometimes', 'boolean'],
             'change_reason' => ['sometimes', 'string', 'max:1000'],
             'course_module_id' => ['sometimes', 'nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $assignment->course_offering_id)],
             'target_user_ids' => ['sometimes', 'array'],
@@ -430,7 +432,12 @@ class LmsController extends Controller
     public function submit(Request $request, Assignment $assignment): JsonResponse
     {
         $this->authorize('submit', $assignment);
-        $data = $request->validate(['body' => ['nullable', 'string'], 'file' => ['bail', 'nullable', 'file', 'max:'.(int) config('lms.limits.upload_mb') * 1024, 'mimes:'.config('lms.upload_mimes'), new CleanFile]]);
+        $late = now()->greaterThan($assignment->due_at);
+        $data = $request->validate([
+            'body' => ['nullable', 'string'],
+            'file' => ['bail', 'nullable', 'file', 'max:'.(int) config('lms.limits.upload_mb') * 1024, 'mimes:'.config('lms.upload_mimes'), new CleanFile],
+            'late_explanation' => [Rule::requiredIf($late), 'nullable', 'string', 'max:1000'],
+        ]);
         if (empty($data['body']) && ! $request->hasFile('file')) {
             throw ValidationException::withMessages(['body' => 'Provide text or a file.']);
         }
@@ -440,7 +447,15 @@ class LmsController extends Controller
         }
         $path = $request->hasFile('file') ? $request->file('file')->store('submissions/'.$assignment->id.'/'.$request->user()->id, 's3') : null;
         try {
-            $submission = Submission::create(['assignment_id' => $assignment->id, 'user_id' => $request->user()->id, 'body' => $data['body'] ?? null, 'storage_path' => $path, 'submitted_at' => now()]);
+            $submission = Submission::create([
+                'assignment_id' => $assignment->id,
+                'user_id' => $request->user()->id,
+                'body' => $data['body'] ?? null,
+                'storage_path' => $path,
+                'submitted_at' => now(),
+                'late' => $late,
+                'late_explanation' => $late ? $data['late_explanation'] : null,
+            ]);
         } catch (UniqueConstraintViolationException) {
             // A concurrent request won the race; drop the file we just stored.
             if ($path) {
