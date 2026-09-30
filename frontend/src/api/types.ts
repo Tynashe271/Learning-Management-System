@@ -879,6 +879,41 @@ export interface LogbookEntry {
   reviewer_comment: string | null
 }
 
+export interface AttachmentPlacement {
+  id: number
+  course_offering_id: number
+  user_id: number
+  student?: { id: number; name: string; email: string }
+  organisation: string
+  supervisor_name: string
+  supervisor_email: string
+  objectives: string | null
+  starts_on: string
+  ends_on: string
+  supervisor_rating: number | null
+  supervisor_comment: string | null
+  supervisor_submitted_at: string | null
+}
+
+export interface AttachmentLogbookEntry {
+  id: number
+  placement_id: number
+  week_ending: string
+  hours: number
+  activities: string
+  evidence_path: string | null
+}
+
+export interface AttachmentFeedbackForm {
+  student_name: string
+  course: string
+  organisation: string
+  objectives: string | null
+  starts_on: string
+  ends_on: string
+  already_submitted: boolean
+}
+
 export interface RegistrationOffering extends Offering {
   registration: {
     open: boolean

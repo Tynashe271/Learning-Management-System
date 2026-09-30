@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\AppealController;
+use App\Http\Controllers\Api\AttachmentController;
 use App\Http\Controllers\Api\BackupController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CheckinController;
@@ -52,6 +53,8 @@ Route::post('/auth/sso/callback', [SsoController::class, 'callback'])->middlewar
 Route::post('/forgot-password', [AccountController::class, 'forgotPassword'])->middleware('throttle:password');
 Route::post('/reset-password', [AccountController::class, 'resetPassword'])->middleware('throttle:password');
 Route::get('/me/calendar/{token}.ics', [DashboardController::class, 'calendarFeed'])->where('token', '[A-Za-z0-9]+')->middleware('throttle:public');
+Route::get('/attachment-feedback/{token}', [AttachmentController::class, 'showFeedbackForm'])->middleware('throttle:password');
+Route::post('/attachment-feedback/{token}', [AttachmentController::class, 'submitFeedback'])->middleware('throttle:password');
 
 Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.get'])->group(function () {
     // Account
@@ -192,6 +195,15 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::post('/competencies/{competency}/logbook', [CompetencyController::class, 'storeLogbookEntry']);
     Route::patch('/logbook-entries/{entry}/review', [CompetencyController::class, 'reviewLogbookEntry']);
     Route::get('/logbook-entries/{entry}/evidence', [CompetencyController::class, 'downloadEvidence']);
+
+    // Industrial attachment workspace
+    Route::get('/offerings/{offering}/attachments', [AttachmentController::class, 'index']);
+    Route::post('/offerings/{offering}/attachments', [AttachmentController::class, 'store']);
+    Route::get('/offerings/{offering}/attachments/mine', [AttachmentController::class, 'mine']);
+    Route::get('/attachment-placements/{placement}/logbook', [AttachmentController::class, 'indexLogbookEntries']);
+    Route::post('/attachment-placements/{placement}/logbook', [AttachmentController::class, 'storeLogbookEntry']);
+    Route::post('/attachment-placements/{placement}/request-supervisor-feedback', [AttachmentController::class, 'requestSupervisorFeedback']);
+    Route::get('/attachment-logbook-entries/{entry}/evidence', [AttachmentController::class, 'downloadEvidence']);
 
     // Learning content and progress
     Route::post('/offerings/{offering}/modules', [LmsController::class, 'module']);

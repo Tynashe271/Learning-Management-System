@@ -22,6 +22,8 @@ import { NotificationsPage, ProfilePage } from './pages/account'
 import { AppealPage, AppealsTab, MyAppealsPage } from './pages/courses/Appeals'
 import { AssignmentPage } from './pages/courses/AssignmentPage'
 import { AttemptPage } from './pages/courses/AttemptPage'
+import { AttachmentFeedbackPage } from './pages/courses/AttachmentFeedbackPage'
+import { AttachmentTab } from './pages/courses/AttachmentTab'
 import { AttendanceTab, ClassesTab } from './pages/courses/ClassesTab'
 import { SkillsTab } from './pages/courses/SkillsTab'
 import { AnnouncementsTab, DiscussionPage, DiscussionsTab } from './pages/courses/CommunicationTabs'
@@ -111,6 +113,7 @@ export function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/sso/callback" element={<SsoCallbackPage />} />
+      <Route path="/attachment-feedback/:token" element={<AttachmentFeedbackPage />} />
 
       <Route element={<RequireAuth />}>
         <Route index element={<Dashboard />} />
@@ -124,6 +127,7 @@ export function App() {
           <Route path="classes" element={<NotEnrolmentOnly><ClassesTab /></NotEnrolmentOnly>} />
           <Route path="attendance" element={<NotEnrolmentOnly><AttendanceTab /></NotEnrolmentOnly>} />
           <Route path="skills" element={<NotEnrolmentOnly><SkillsTab /></NotEnrolmentOnly>} />
+          <Route path="attachment" element={<NotEnrolmentOnly><AttachmentTab /></NotEnrolmentOnly>} />
           <Route path="grades" element={<NotEnrolmentOnly><GradesTab /></NotEnrolmentOnly>} />
           <Route path="overview" element={<ManagerOnly><OverviewTab /></ManagerOnly>} />
           <Route path="progress" element={<ManagerOnly><ProgressTab /></ManagerOnly>} />

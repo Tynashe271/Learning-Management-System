@@ -80,4 +80,9 @@ class CourseOffering extends Model
     {
         return $this->hasMany(Competency::class);
     }
+
+    public function attachmentPlacements(): HasMany
+    {
+        return $this->hasMany(AttachmentPlacement::class);
+    }
 }
