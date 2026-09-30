@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { Appeal, Assignment, MyGrade, Offering, Page, RubricCriterion, SimilarityReport, Submission } from '../../api/types'
+import type { Appeal, Assignment, MyGrade, Offering, Page, RubricCriterion, SimilarityReport, Submission, SubmissionFeedback, SubmissionVersion } from '../../api/types'
 import { Alert, Badge, Button, Card, EmptyState, ErrorState, FileField, FormError, Loading, Modal, PageHeader, Pager, PublishedBadge, QueryView, Table, TextArea, TextField, pagerFromPage, useConfirm } from '../../components/ui'
 import { formatDateTime, formatScore, isPast, plural } from '../../lib/format'
 import { DownloadButton, fieldError, useApiMutation, useTitle } from '../../lib/hooks'
@@ -113,7 +113,7 @@ function StudentSection({ assignment }: { assignment: AssignmentDetail }) {
   return <SubmittedView assignment={assignment} mine={mine.data!} />
 }
 
-function SubmitForm({ assignment }: { assignment: AssignmentDetail }) {
+function SubmitForm({ assignment, resubmission, onDone }: { assignment: AssignmentDetail; resubmission?: boolean; onDone?: () => void }) {
   const [body, setBody] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [lateExplanation, setLateExplanation] = useState('')
@@ -127,25 +127,28 @@ function SubmitForm({ assignment }: { assignment: AssignmentDetail }) {
       if (late) form.append('late_explanation', lateExplanation.trim())
       return api.upload(`/assignments/${assignment.id}/submissions`, form)
     },
-    { invalidate: [['my-grade', assignment.id]], success: 'Submitted. Good luck!' },
+    { invalidate: [['my-grade', assignment.id]], success: resubmission ? 'Resubmitted.' : 'Submitted. Good luck!', onSuccess: onDone },
   )
   return (
-    <Card title="Your submission">
-      <p className="muted">Write your answer, attach a file, or both. You can submit once, so check it before you send.</p>
+    <Card title={resubmission ? 'Update your submission' : 'Your submission'}>
+      <p className="muted">{resubmission ? 'This replaces your last submission; your teacher can still see what you had before.' : 'Write your answer, attach a file, or both. You can submit once, so check it before you send.'}</p>
       {late && <Alert tone="warn">The deadline has passed. Your teacher allows late submissions, but you must explain why.</Alert>}
       <form
         onSubmit={async (event) => {
           event.preventDefault()
-          if (await confirm({ title: 'Submit your work?', message: 'You cannot change a submission after sending it.', confirmLabel: 'Submit' })) submit.mutate()
+          if (await confirm({ title: resubmission ? 'Replace your submission?' : 'Submit your work?', message: resubmission ? 'Your previous answer will be kept in its version history.' : 'You cannot change a submission after sending it.', confirmLabel: resubmission ? 'Resubmit' : 'Submit' })) submit.mutate()
         }}
       >
         <TextArea label="Your answer" optional rows={8} value={body} onChange={(e) => setBody(e.target.value)} error={fieldError(submit.error, 'body')} />
         <FileField label="Attach a file" optional onChange={(e) => setFile(e.target.files?.[0] ?? null)} error={fieldError(submit.error, 'file')} hint="Up to 25 MB. Documents, slides, spreadsheets, images, ZIP files and similar are accepted." />
         {late && <TextArea label="Why is this late?" rows={3} value={lateExplanation} onChange={(e) => setLateExplanation(e.target.value)} error={fieldError(submit.error, 'late_explanation')} required />}
         {submit.error && !fieldError(submit.error, 'body') && !fieldError(submit.error, 'file') && !fieldError(submit.error, 'late_explanation') && <FormError error={submit.error} />}
-        <Button type="submit" variant="primary" loading={submit.isPending} disabled={(!body.trim() && !file) || (late && !lateExplanation.trim())}>
-          Submit
-        </Button>
+        <div className="form-actions">
+          {resubmission && <Button onClick={onDone}>Cancel</Button>}
+          <Button type="submit" variant="primary" loading={submit.isPending} disabled={(!body.trim() && !file) || (late && !lateExplanation.trim())}>
+            {resubmission ? 'Resubmit' : 'Submit'}
+          </Button>
+        </div>
       </form>
     </Card>
   )
@@ -153,14 +156,16 @@ function SubmitForm({ assignment }: { assignment: AssignmentDetail }) {
 
 function SubmittedView({ assignment, mine }: { assignment: AssignmentDetail; mine: MyGrade }) {
   const { submission, grade } = mine
+  const [resubmitting, setResubmitting] = useState(false)
   const appeals = useQuery({ queryKey: ['appeals', 'mine'], queryFn: () => api.get<Page<Appeal>>('/my-appeals'), enabled: !!grade })
   const appeal = appeals.data?.data.find((x) => x.submission_id === submission.id)
+  const canResubmit = assignment.allow_resubmission && !grade
 
   return (
     <>
       <Card title="Your submission">
         <p className="muted small">
-          Submitted {formatDateTime(submission.submitted_at)} {submission.late && <Badge tone="warn">Late</Badge>}
+          Submitted {formatDateTime(submission.submitted_at)} {submission.late && <Badge tone="warn">Late</Badge>} {submission.version > 1 && <Badge tone="info">Version {submission.version}</Badge>}
         </p>
         {submission.late && submission.late_explanation && (
           <p className="muted small">
@@ -175,7 +180,15 @@ function SubmittedView({ assignment, mine }: { assignment: AssignmentDetail; min
             </DownloadButton>
           </p>
         )}
+        {submission.version > 1 && <VersionsSection submissionId={submission.id} />}
       </Card>
+      <FeedbackSection submissionId={submission.id} canWrite={false} />
+      {canResubmit &&
+        (resubmitting ? <SubmitForm assignment={assignment} resubmission onDone={() => setResubmitting(false)} /> : (
+          <p>
+            <Button onClick={() => setResubmitting(true)}>Update your submission</Button>
+          </p>
+        ))}
       <Card title="Your grade">
         {!grade ? (
           <EmptyState title="Not graded yet">You will be notified when your grade is published.</EmptyState>
@@ -219,6 +232,72 @@ function SubmittedView({ assignment, mine }: { assignment: AssignmentDetail; min
         )}
       </Card>
       {grade && <AppealSection submission={submission} appeal={appeal} loading={appeals.isPending} />}
+    </>
+  )
+}
+
+/** Feedback a grader leaves on a submission before it's formally scored. Read-only for the student, writable for graders. */
+function FeedbackSection({ submissionId, canWrite }: { submissionId: number; canWrite: boolean }) {
+  const [body, setBody] = useState('')
+  const feedback = useQuery({ queryKey: ['submission-feedback', submissionId], queryFn: () => api.get<SubmissionFeedback[]>(`/submissions/${submissionId}/feedback`) })
+  const send = useApiMutation(() => api.post<SubmissionFeedback>(`/submissions/${submissionId}/feedback`, { body: body.trim() }), { invalidate: [['submission-feedback', submissionId]], onSuccess: () => setBody('') })
+
+  if (feedback.isPending || feedback.isError) return null
+  if (!canWrite && feedback.data.length === 0) return null
+
+  return (
+    <Card title="Feedback">
+      {feedback.data.length === 0 && <p className="muted small">No feedback yet.</p>}
+      {feedback.data.map((f) => (
+        <div key={f.id}>
+          <p className="muted small">
+            {f.author.name} on version {f.version} · {formatDateTime(f.created_at)}
+          </p>
+          <div className="reading pre">{f.body}</div>
+        </div>
+      ))}
+      {canWrite && (
+        <form
+          className="inline-form"
+          onSubmit={(event) => {
+            event.preventDefault()
+            send.mutate()
+          }}
+        >
+          <TextArea label="Leave feedback on the current draft" rows={3} value={body} onChange={(e) => setBody(e.target.value)} error={fieldError(send.error, 'body')} />
+          {send.error && !fieldError(send.error, 'body') && <FormError error={send.error} />}
+          <Button type="submit" variant="primary" loading={send.isPending} disabled={!body.trim()}>
+            Send feedback
+          </Button>
+        </form>
+      )}
+    </Card>
+  )
+}
+
+/** Earlier drafts, kept whenever a resubmission replaces them. */
+function VersionsSection({ submissionId }: { submissionId: number }) {
+  const [open, setOpen] = useState(false)
+  const versions = useQuery({ queryKey: ['submission-versions', submissionId], queryFn: () => api.get<SubmissionVersion[]>(`/submissions/${submissionId}/versions`), enabled: open })
+
+  return (
+    <>
+      <p>
+        <Button small onClick={() => setOpen((o) => !o)}>
+          {open ? 'Hide previous versions' : 'View previous versions'}
+        </Button>
+      </p>
+      {open && versions.isPending && <p className="muted small">Loading…</p>}
+      {open &&
+        versions.data?.map((v) => (
+          <div key={v.version} className="reading">
+            <p className="muted small">
+              Version {v.version} · submitted {formatDateTime(v.submitted_at)}
+              {v.storage_path && ' · had a file attached'}
+            </p>
+            {v.body && <div className="reading pre">{v.body}</div>}
+          </div>
+        ))}
     </>
   )
 }
@@ -286,6 +365,7 @@ function AppealSection({ submission, appeal, loading }: { submission: Submission
 function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; rubric: RubricCriterion[] }) {
   const [page, setPage] = useState(1)
   const [grading, setGrading] = useState<Submission | null>(null)
+  const [givingFeedback, setGivingFeedback] = useState<Submission | null>(null)
   const [similarity, setSimilarity] = useState(false)
   const canGrade = assignment.abilities.grade
   const query = useQuery({ queryKey: ['submissions', assignment.id, page], queryFn: () => api.get<Page<Submission & { user?: { id: number; name: string; email: string } }>>(`/assignments/${assignment.id}/submissions`, { page }), enabled: canGrade, placeholderData: (previous) => previous })
@@ -332,7 +412,7 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
                             <span className="muted small block">{s.user?.email}</span>
                           </td>
                           <td>
-                            {formatDateTime(s.submitted_at)} {s.late && <Badge tone="bad">Late</Badge>}
+                            {formatDateTime(s.submitted_at)} {s.late && <Badge tone="bad">Late</Badge>} {s.version > 1 && <Badge tone="info">Version {s.version}</Badge>}
                             {s.late && s.late_explanation && <span className="muted small block">{s.late_explanation}</span>}
                           </td>
                           <td>
@@ -346,6 +426,11 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
                             )}
                           </td>
                           <td className="actions">
+                            {assignment.allow_resubmission && !published && (
+                              <Button small onClick={() => setGivingFeedback(s)}>
+                                Feedback
+                              </Button>
+                            )}
                             <Button small variant="primary" onClick={() => setGrading(s)}>
                               {latest ? 'Regrade' : 'Grade'}
                             </Button>
@@ -362,6 +447,11 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
         )}
       </Card>
       {grading && <GradeDialog assignment={assignment} submission={grading} rubric={rubric} studentName={(grading as Submission & { user?: { name: string } }).user?.name ?? `Student #${grading.user_id}`} onClose={() => setGrading(null)} />}
+      {givingFeedback && (
+        <Modal title={`Feedback: ${(givingFeedback as Submission & { user?: { name: string } }).user?.name ?? `Student #${givingFeedback.user_id}`}`} onClose={() => setGivingFeedback(null)}>
+          <FeedbackSection submissionId={givingFeedback.id} canWrite />
+        </Modal>
+      )}
       {similarity && <SimilarityDialog assignmentId={assignment.id} onClose={() => setSimilarity(false)} />}
     </>
   )

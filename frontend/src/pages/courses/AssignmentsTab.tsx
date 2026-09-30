@@ -27,6 +27,7 @@ export function AssignmentDialog({
   const [maxScore, setMaxScore] = useState(String(assignment?.max_score ?? 100))
   const [published, setPublished] = useState(assignment?.published ?? false)
   const [allowLate, setAllowLate] = useState(assignment?.allow_late_submissions ?? false)
+  const [allowResubmission, setAllowResubmission] = useState(assignment?.allow_resubmission ?? false)
   const [topicId, setTopicId] = useState(String(assignment ? (assignment.course_module_id ?? '') : (defaultModuleId ?? '')))
   const [reason, setReason] = useState('')
   const [targetMode, setTargetMode] = useState<'everyone' | 'specific'>((assignment?.target_user_ids?.length ?? 0) > 0 ? 'specific' : 'everyone')
@@ -44,11 +45,12 @@ export function AssignmentDialog({
           max_score: Number(maxScore),
           published,
           allow_late_submissions: allowLate,
+          allow_resubmission: allowResubmission,
           course_module_id: topicId ? Number(topicId) : null,
           target_user_ids: targetUserIds,
         })
       }
-      const changes: Record<string, unknown> = { title: title.trim(), instructions: instructions || null, published, allow_late_submissions: allowLate, course_module_id: topicId ? Number(topicId) : null, target_user_ids: targetUserIds }
+      const changes: Record<string, unknown> = { title: title.trim(), instructions: instructions || null, published, allow_late_submissions: allowLate, allow_resubmission: allowResubmission, course_module_id: topicId ? Number(topicId) : null, target_user_ids: targetUserIds }
       if (dueChanged) {
         changes.due_at = fromLocalInput(dueAt)
         changes.change_reason = reason.trim()
@@ -88,6 +90,7 @@ export function AssignmentDialog({
         <TargetPicker offeringId={offeringId} mode={targetMode} ids={targetIds} onModeChange={setTargetMode} onIdsChange={setTargetIds} />
         <CheckField label="Published" hint="Students can see and submit to published assignments." checked={published} onChange={(e) => setPublished(e.target.checked)} />
         <CheckField label="Allow late submissions" hint="Students may still submit after the deadline, but must explain why." checked={allowLate} onChange={(e) => setAllowLate(e.target.checked)} />
+        <CheckField label="Allow resubmission" hint="Students can submit a new draft to replace their last one, and you can leave feedback before it's graded. Locked once a grade is published." checked={allowResubmission} onChange={(e) => setAllowResubmission(e.target.checked)} />
         {save.error && !['title', 'instructions', 'due_at', 'max_score', 'change_reason', 'course_module_id'].some((f) => fieldError(save.error, f)) && <FormError error={save.error} />}
         <div className="form-actions">
           <Button onClick={onClose}>Cancel</Button>

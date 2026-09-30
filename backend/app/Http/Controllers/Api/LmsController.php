@@ -10,6 +10,7 @@ use App\Models\CourseOffering;
 use App\Models\LearningItem;
 use App\Models\RubricCriterion;
 use App\Models\Submission;
+use App\Models\SubmissionVersion;
 use App\Models\TeachingAssignment;
 use App\Models\User;
 use App\Notifications\GradePublished;
@@ -382,6 +383,7 @@ class LmsController extends Controller
             'max_score' => ['required', 'integer', 'min:1'],
             'published' => ['sometimes', 'boolean'],
             'allow_late_submissions' => ['sometimes', 'boolean'],
+            'allow_resubmission' => ['sometimes', 'boolean'],
             'course_module_id' => ['nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $offering->id)],
             'target_user_ids' => ['sometimes', 'array'],
             'target_user_ids.*' => ['integer', Rule::exists('enrolments', 'user_id')->where('course_offering_id', $offering->id)->where('status', 'active')],
@@ -407,6 +409,7 @@ class LmsController extends Controller
             'due_at' => ['sometimes', 'date', 'after:now'],
             'published' => ['sometimes', 'boolean'],
             'allow_late_submissions' => ['sometimes', 'boolean'],
+            'allow_resubmission' => ['sometimes', 'boolean'],
             'change_reason' => ['sometimes', 'string', 'max:1000'],
             'course_module_id' => ['sometimes', 'nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $assignment->course_offering_id)],
             'target_user_ids' => ['sometimes', 'array'],
@@ -442,10 +445,34 @@ class LmsController extends Controller
             throw ValidationException::withMessages(['body' => 'Provide text or a file.']);
         }
         $alreadySubmitted = ValidationException::withMessages(['assignment' => 'Already submitted.']);
-        if (Submission::where('assignment_id', $assignment->id)->where('user_id', $request->user()->id)->exists()) {
+        $existing = Submission::where('assignment_id', $assignment->id)->where('user_id', $request->user()->id)->first();
+        if ($existing && ! $assignment->allow_resubmission) {
             throw $alreadySubmitted;
         }
+        if ($existing && $existing->gradeRecords()->where('status', 'published')->exists()) {
+            throw ValidationException::withMessages(['assignment' => 'This assignment has already been graded and can no longer be resubmitted.']);
+        }
         $path = $request->hasFile('file') ? $request->file('file')->store('submissions/'.$assignment->id.'/'.$request->user()->id, 's3') : null;
+        if ($existing) {
+            SubmissionVersion::create([
+                'submission_id' => $existing->id,
+                'version' => $existing->version,
+                'body' => $existing->body,
+                'storage_path' => $existing->storage_path,
+                'submitted_at' => $existing->submitted_at,
+            ]);
+            $existing->update([
+                'body' => $data['body'] ?? null,
+                'storage_path' => $path,
+                'submitted_at' => now(),
+                'late' => $late,
+                'late_explanation' => $late ? $data['late_explanation'] : null,
+                'version' => $existing->version + 1,
+            ]);
+            activity()->causedBy($request->user())->performedOn($existing)->log('assignment resubmitted');
+
+            return response()->json($existing, 200);
+        }
         try {
             $submission = Submission::create([
                 'assignment_id' => $assignment->id,
@@ -466,6 +493,37 @@ class LmsController extends Controller
         activity()->causedBy($request->user())->performedOn($submission)->log('assignment submitted');
 
         return response()->json($submission, 201);
+    }
+
+    /** The prior versions of a submission, oldest first, each a snapshot taken just before a resubmission. */
+    public function submissionVersions(Request $request, Submission $submission): JsonResponse
+    {
+        $this->authorizeSubmissionAccess($request, $submission);
+
+        return response()->json($submission->versions()->orderBy('version')->get());
+    }
+
+    /** A grader leaves feedback on a submission as it currently stands, before the student resubmits or is formally graded. */
+    public function giveSubmissionFeedback(Request $request, Submission $submission): JsonResponse
+    {
+        $this->authorize('grade', $submission->assignment);
+        $data = $request->validate(['body' => ['required', 'string', 'max:2000']]);
+        $feedback = $submission->feedback()->create($data + ['version' => $submission->version, 'author_id' => $request->user()->id]);
+
+        return response()->json($feedback->load('author:id,name'), 201);
+    }
+
+    /** All feedback left on a submission across its versions, oldest first. */
+    public function submissionFeedback(Request $request, Submission $submission): JsonResponse
+    {
+        $this->authorizeSubmissionAccess($request, $submission);
+
+        return response()->json($submission->feedback()->with('author:id,name')->orderBy('id')->get());
+    }
+
+    private function authorizeSubmissionAccess(Request $request, Submission $submission): void
+    {
+        abort_unless($submission->user_id === $request->user()->id || $request->user()->can('grade', $submission->assignment), 403);
     }
 
     /** One assignment, with its course and what the caller may do with it, so a page can be built from its link alone. */

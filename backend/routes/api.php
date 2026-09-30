@@ -216,6 +216,9 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/assignments/{assignment}/my-grade', [LmsController::class, 'myGrade']);
     Route::post('/submissions/{submission}/grades', [LmsController::class, 'grade']);
     Route::get('/submissions/{submission}/download', [LmsController::class, 'downloadSubmission']);
+    Route::get('/submissions/{submission}/versions', [LmsController::class, 'submissionVersions']);
+    Route::get('/submissions/{submission}/feedback', [LmsController::class, 'submissionFeedback']);
+    Route::post('/submissions/{submission}/feedback', [LmsController::class, 'giveSubmissionFeedback']);
 
     // Quizzes
     Route::post('/offerings/{offering}/quizzes', [QuizController::class, 'store']);

@@ -253,6 +253,7 @@ export interface Assignment {
   max_score: number
   published: boolean
   allow_late_submissions: boolean
+  allow_resubmission: boolean
   created_at?: string
   /** present only in the manage view; absent means visible to the whole class */
   target_user_ids?: number[]
@@ -306,8 +307,24 @@ export interface Submission {
   submitted_at: string
   late: boolean
   late_explanation: string | null
+  version: number
   grade_records?: GradeRecord[]
   gradeRecords?: GradeRecord[]
+}
+
+export interface SubmissionVersion {
+  version: number
+  body: string | null
+  storage_path: string | null
+  submitted_at: string
+}
+
+export interface SubmissionFeedback {
+  id: number
+  version: number
+  body: string
+  author: { id: number; name: string }
+  created_at: string
 }
 
 export interface MyGrade {

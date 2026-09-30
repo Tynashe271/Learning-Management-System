@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Submission extends Model
 {
-    protected $fillable = ['assignment_id', 'user_id', 'body', 'storage_path', 'submitted_at', 'late', 'late_explanation'];
+    protected $fillable = ['assignment_id', 'user_id', 'body', 'storage_path', 'submitted_at', 'late', 'late_explanation', 'version'];
 
     protected function casts(): array
     {
@@ -28,5 +28,16 @@ class Submission extends Model
     public function gradeRecords(): HasMany
     {
         return $this->hasMany(GradeRecord::class);
+    }
+
+    /** Snapshots of earlier versions, taken just before each resubmission. */
+    public function versions(): HasMany
+    {
+        return $this->hasMany(SubmissionVersion::class);
+    }
+
+    public function feedback(): HasMany
+    {
+        return $this->hasMany(SubmissionFeedback::class);
     }
 }
