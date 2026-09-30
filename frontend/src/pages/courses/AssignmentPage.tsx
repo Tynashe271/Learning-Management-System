@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { Appeal, Assignment, AssignmentGroup, MyGrade, Offering, Page, Roster, RubricCriterion, SimilarityReport, Submission, SubmissionFeedback, SubmissionVersion } from '../../api/types'
+import type { Appeal, Assignment, AssignmentGroup, MyGrade, Offering, Page, PeerReviewReceived, PeerReviewTask, Roster, RubricCriterion, SimilarityReport, Submission, SubmissionFeedback, SubmissionVersion } from '../../api/types'
 import { Alert, Badge, Button, Card, EmptyState, ErrorState, FileField, FormError, Loading, Modal, PageHeader, Pager, PublishedBadge, QueryView, SelectField, Table, TextArea, TextField, pagerFromPage, useConfirm } from '../../components/ui'
 import { formatDateTime, formatScore, isPast, plural } from '../../lib/format'
 import { DownloadButton, fieldError, useApiMutation, useTitle } from '../../lib/hooks'
@@ -124,11 +124,13 @@ function StudentSection({ assignment }: { assignment: AssignmentDetail }) {
       </p>
     </Card>
   )
+  const peerReviewTasks = assignment.peer_reviews_per_student > 0 && <PeerReviewTasks assignmentId={assignment.id} />
   if (notSubmitted) {
     return (
       <>
         {groupCard}
         {assignment.abilities.submit ? <SubmitForm assignment={assignment} /> : <Card title="Your submission"><Alert tone="warn">{isPast(assignment.due_at) ? 'The deadline has passed and no work was submitted.' : 'You cannot submit to this assignment right now.'}</Alert></Card>}
+        {peerReviewTasks}
       </>
     )
   }
@@ -137,7 +139,56 @@ function StudentSection({ assignment }: { assignment: AssignmentDetail }) {
     <>
       {groupCard}
       <SubmittedView assignment={assignment} mine={mine.data!} />
+      {peerReviewTasks}
     </>
+  )
+}
+
+/** The classmates' submissions this student has been assigned to review, kept anonymous. */
+function PeerReviewTasks({ assignmentId }: { assignmentId: number }) {
+  const tasks = useQuery({ queryKey: ['my-peer-reviews', assignmentId], queryFn: () => api.get<PeerReviewTask[]>(`/assignments/${assignmentId}/my-peer-reviews`) })
+  if (tasks.isPending || tasks.isError || tasks.data.length === 0) return null
+
+  return (
+    <Card title="Peer reviews to do">
+      {tasks.data.map((t) => (
+        <PeerReviewTaskRow key={t.id} assignmentId={assignmentId} task={t} />
+      ))}
+    </Card>
+  )
+}
+
+function PeerReviewTaskRow({ assignmentId, task }: { assignmentId: number; task: PeerReviewTask }) {
+  const [body, setBody] = useState(task.body ?? '')
+  const send = useApiMutation(() => api.patch<PeerReviewTask>(`/peer-reviews/${task.id}`, { body: body.trim() }), { invalidate: [['my-peer-reviews', assignmentId]], success: 'Review sent.' })
+
+  return (
+    <div className="reading">
+      {task.submission.body && <div className="reading pre">{task.submission.body}</div>}
+      {task.submission.storage_path && (
+        <p>
+          <DownloadButton path={`/submissions/${task.submission.id}/download`} filename={`submission-${task.submission.id}`}>
+            Download their file
+          </DownloadButton>
+        </p>
+      )}
+      {task.submitted_at ? (
+        <p className="muted small">You reviewed this on {formatDateTime(task.submitted_at)}.</p>
+      ) : (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            send.mutate()
+          }}
+        >
+          <TextArea label="Your feedback" rows={3} value={body} onChange={(e) => setBody(e.target.value)} error={fieldError(send.error, 'body')} required />
+          {send.error && !fieldError(send.error, 'body') && <FormError error={send.error} />}
+          <Button type="submit" variant="primary" loading={send.isPending} disabled={!body.trim()}>
+            Send review
+          </Button>
+        </form>
+      )}
+    </div>
   )
 }
 
@@ -211,6 +262,7 @@ function SubmittedView({ assignment, mine }: { assignment: AssignmentDetail; min
         {submission.version > 1 && <VersionsSection submissionId={submission.id} />}
       </Card>
       <FeedbackSection submissionId={submission.id} canWrite={false} />
+      {assignment.peer_reviews_per_student > 0 && <PeerReviewsReceived submissionId={submission.id} />}
       {canResubmit &&
         (resubmitting ? <SubmitForm assignment={assignment} resubmission onDone={() => setResubmitting(false)} /> : (
           <p>
@@ -330,6 +382,23 @@ function VersionsSection({ submissionId }: { submissionId: number }) {
   )
 }
 
+/** Anonymous peer feedback a submission has received. */
+function PeerReviewsReceived({ submissionId }: { submissionId: number }) {
+  const reviews = useQuery({ queryKey: ['peer-reviews', submissionId], queryFn: () => api.get<PeerReviewReceived[]>(`/submissions/${submissionId}/peer-reviews`) })
+  if (reviews.isPending || reviews.isError || reviews.data.length === 0) return null
+
+  return (
+    <Card title="Peer feedback">
+      {reviews.data.map((r) => (
+        <div key={r.id}>
+          <p className="muted small">A classmate, {formatDateTime(r.submitted_at)}</p>
+          <div className="reading pre">{r.body}</div>
+        </div>
+      ))}
+    </Card>
+  )
+}
+
 function AppealSection({ submission, appeal, loading }: { submission: Submission; appeal?: Appeal; loading: boolean }) {
   const [reason, setReason] = useState('')
   const [open, setOpen] = useState(false)
@@ -396,6 +465,7 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
   const [givingFeedback, setGivingFeedback] = useState<Submission | null>(null)
   const [similarity, setSimilarity] = useState(false)
   const [managingGroups, setManagingGroups] = useState(false)
+  const [assigningPeerReview, setAssigningPeerReview] = useState(false)
   const canGrade = assignment.abilities.grade
   const query = useQuery({ queryKey: ['submissions', assignment.id, page], queryFn: () => api.get<Page<Submission & { user?: { id: number; name: string; email: string } }>>(`/assignments/${assignment.id}/submissions`, { page }), enabled: canGrade, placeholderData: (previous) => previous })
 
@@ -409,6 +479,11 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
               {assignment.is_group_assignment && (
                 <Button small onClick={() => setManagingGroups(true)}>
                   Groups
+                </Button>
+              )}
+              {!assignment.is_group_assignment && (
+                <Button small onClick={() => setAssigningPeerReview(true)}>
+                  {assignment.peer_reviews_per_student > 0 ? 'Reassign peer reviews' : 'Assign peer reviews'}
                 </Button>
               )}
               <Link className="btn btn-secondary btn-small" to={`/courses/${assignment.course_offering_id}/appeals`}>
@@ -490,6 +565,7 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
       )}
       {similarity && <SimilarityDialog assignmentId={assignment.id} onClose={() => setSimilarity(false)} />}
       {managingGroups && <GroupsDialog assignment={assignment} onClose={() => setManagingGroups(false)} />}
+      {assigningPeerReview && <PeerReviewAssignDialog assignment={assignment} onClose={() => setAssigningPeerReview(false)} />}
     </>
   )
 }
@@ -633,6 +709,37 @@ function GroupsDialog({ assignment, onClose }: { assignment: AssignmentDetail; o
           <Button onClick={onClose}>Close</Button>
           <Button type="submit" variant="primary" loading={create.isPending} disabled={!name.trim() || memberIds.length === 0}>
             Add group
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+/** Randomly hands out submissions for classmates to review. Running it again reshuffles anything not yet reviewed, but keeps completed reviews. */
+function PeerReviewAssignDialog({ assignment, onClose }: { assignment: AssignmentDetail; onClose: () => void }) {
+  const [perStudent, setPerStudent] = useState(String(assignment.peer_reviews_per_student || 2))
+  const assign = useApiMutation(() => api.post<{ assigned: number }>(`/assignments/${assignment.id}/peer-reviews/assign`, { per_student: Number(perStudent) }), {
+    invalidate: [['assignment', assignment.id]],
+    success: (r) => `Assigned ${r.assigned} review${r.assigned === 1 ? '' : 's'}.`,
+    onSuccess: onClose,
+  })
+
+  return (
+    <Modal title="Assign peer reviews" onClose={onClose}>
+      <p className="muted">Every student who has submitted gets this many classmates' submissions to review, picked at random and kept anonymous. Reviews already completed are kept if you run this again.</p>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          assign.mutate()
+        }}
+      >
+        <TextField label="Reviews per student" type="number" min={1} max={10} value={perStudent} onChange={(e) => setPerStudent(e.target.value)} error={fieldError(assign.error, 'per_student')} required />
+        {assign.error && !fieldError(assign.error, 'per_student') && <FormError error={assign.error} />}
+        <div className="form-actions">
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={assign.isPending} disabled={!perStudent}>
+            Assign
           </Button>
         </div>
       </form>

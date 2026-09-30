@@ -255,6 +255,7 @@ export interface Assignment {
   allow_late_submissions: boolean
   allow_resubmission: boolean
   is_group_assignment: boolean
+  peer_reviews_per_student: number
   created_at?: string
   /** present only in the manage view; absent means visible to the whole class */
   target_user_ids?: number[]
@@ -318,6 +319,19 @@ export interface AssignmentGroup {
   id: number
   name: string
   members: { id: number; name: string }[]
+}
+
+export interface PeerReviewTask {
+  id: number
+  submission: { id: number; body: string | null; storage_path: string | null }
+  body: string | null
+  submitted_at: string | null
+}
+
+export interface PeerReviewReceived {
+  id: number
+  body: string
+  submitted_at: string
 }
 
 export interface SubmissionVersion {

@@ -207,6 +207,10 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::post('/assignments/{assignment}/groups', [LmsController::class, 'storeAssignmentGroup']);
     Route::patch('/assignment-groups/{group}', [LmsController::class, 'updateAssignmentGroup']);
     Route::delete('/assignment-groups/{group}', [LmsController::class, 'destroyAssignmentGroup']);
+    Route::post('/assignments/{assignment}/peer-reviews/assign', [LmsController::class, 'assignPeerReviews']);
+    Route::get('/assignments/{assignment}/my-peer-reviews', [LmsController::class, 'myPeerReviews']);
+    Route::patch('/peer-reviews/{review}', [LmsController::class, 'givePeerReview']);
+    Route::get('/submissions/{submission}/peer-reviews', [LmsController::class, 'submissionPeerReviews']);
 
     // Grade appeals
     Route::post('/submissions/{submission}/appeal', [AppealController::class, 'store']);

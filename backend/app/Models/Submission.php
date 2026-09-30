@@ -45,4 +45,9 @@ class Submission extends Model
     {
         return $this->belongsTo(AssignmentGroup::class, 'assignment_group_id');
     }
+
+    public function peerReviews(): HasMany
+    {
+        return $this->hasMany(PeerReview::class);
+    }
 }

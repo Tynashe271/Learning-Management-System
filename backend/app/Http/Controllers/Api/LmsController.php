@@ -10,6 +10,7 @@ use App\Models\CourseModule;
 use App\Models\CourseOffering;
 use App\Models\LearningItem;
 use App\Models\RubricCriterion;
+use App\Models\PeerReview;
 use App\Models\Submission;
 use App\Models\SubmissionVersion;
 use App\Models\TeachingAssignment;
@@ -741,5 +742,63 @@ class LmsController extends Controller
         $group = $assignment->groups()->whereHas('members', fn ($q) => $q->where('users.id', $request->user()->id))->with('members:id,name')->first();
 
         return response()->json($group);
+    }
+
+    /** Wipes any not-yet-done assignments and hands every student with a submission a fresh, random batch of classmates to review. Already-completed reviews are kept. */
+    public function assignPeerReviews(Request $request, Assignment $assignment): JsonResponse
+    {
+        $this->authorize('manage', $assignment->offering);
+        abort_if($assignment->is_group_assignment, 422, 'Peer review is not supported for group assignments.');
+        $data = $request->validate(['per_student' => ['required', 'integer', 'min:1', 'max:10']]);
+
+        $submissions = Submission::where('assignment_id', $assignment->id)->get(['id', 'user_id']);
+        abort_if($submissions->count() < 2, 422, 'Need at least two submissions before assigning peer reviews.');
+
+        PeerReview::where('assignment_id', $assignment->id)->whereNull('submitted_at')->delete();
+
+        $perStudent = min($data['per_student'], $submissions->count() - 1);
+        $byUser = $submissions->keyBy('user_id');
+        $rows = [];
+        foreach ($byUser->keys() as $reviewerId) {
+            $targets = $byUser->keys()->filter(fn ($id) => $id !== $reviewerId)->shuffle()->take($perStudent);
+            foreach ($targets as $targetUserId) {
+                $rows[] = ['assignment_id' => $assignment->id, 'reviewer_id' => $reviewerId, 'submission_id' => $byUser[$targetUserId]->id, 'created_at' => now(), 'updated_at' => now()];
+            }
+        }
+        foreach (array_chunk($rows, 200) as $chunk) {
+            PeerReview::upsert($chunk, ['assignment_id', 'reviewer_id', 'submission_id'], ['updated_at']);
+        }
+        $assignment->update(['peer_reviews_per_student' => $perStudent]);
+        activity()->causedBy($request->user())->performedOn($assignment)->withProperties(['count' => count($rows)])->log('peer reviews assigned');
+
+        return response()->json(['assigned' => count($rows)]);
+    }
+
+    /** The submissions this student has been assigned to review, without revealing whose they are. */
+    public function myPeerReviews(Request $request, Assignment $assignment): JsonResponse
+    {
+        $this->authorize('view', $assignment);
+        $reviews = PeerReview::where('assignment_id', $assignment->id)->where('reviewer_id', $request->user()->id)
+            ->with('submission:id,body,storage_path')->orderBy('id')->get();
+
+        return response()->json($reviews->map(fn (PeerReview $r) => ['id' => $r->id, 'submission' => $r->submission->only(['id', 'body', 'storage_path']), 'body' => $r->body, 'submitted_at' => $r->submitted_at])->values());
+    }
+
+    public function givePeerReview(Request $request, PeerReview $review): JsonResponse
+    {
+        abort_unless($review->reviewer_id === $request->user()->id, 403);
+        $data = $request->validate(['body' => ['required', 'string', 'max:2000']]);
+        $review->update($data + ['submitted_at' => now()]);
+
+        return response()->json(['id' => $review->id, 'body' => $review->body, 'submitted_at' => $review->submitted_at]);
+    }
+
+    /** Completed reviews a submission has received, oldest first, with no reviewer identity attached. */
+    public function submissionPeerReviews(Request $request, Submission $submission): JsonResponse
+    {
+        $this->authorizeSubmissionAccess($request, $submission);
+        $reviews = $submission->peerReviews()->whereNotNull('submitted_at')->orderBy('id')->get(['id', 'body', 'submitted_at']);
+
+        return response()->json($reviews);
     }
 }
