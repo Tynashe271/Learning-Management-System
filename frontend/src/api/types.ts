@@ -854,6 +854,31 @@ export interface EnrolmentReport {
   total_enrolled: number
 }
 
+export type CompetencyStatusValue = 'not_started' | 'developing' | 'competent'
+
+export interface Competency {
+  id: number
+  course_offering_id: number
+  title: string
+  description: string | null
+  /** present only for a student's own view */
+  my_status?: CompetencyStatusValue
+  my_hours?: number
+}
+
+export interface LogbookEntry {
+  id: number
+  competency_id: number
+  user_id: number
+  user?: { id: number; name: string }
+  activity_date: string
+  hours: number
+  description: string
+  evidence_path: string | null
+  reviewed_at: string | null
+  reviewer_comment: string | null
+}
+
 export interface RegistrationOffering extends Offering {
   registration: {
     open: boolean

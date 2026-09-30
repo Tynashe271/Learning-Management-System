@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\AppealController;
 use App\Http\Controllers\Api\BackupController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CheckinController;
+use App\Http\Controllers\Api\CompetencyController;
 use App\Http\Controllers\Api\CourseCopyController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DepartmentController;
@@ -181,6 +182,16 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::delete('/discussions/{thread}', [DiscussionController::class, 'destroyThread']);
     Route::post('/discussions/{thread}/posts', [DiscussionController::class, 'reply']);
     Route::delete('/posts/{post}', [DiscussionController::class, 'destroyPost']);
+
+    // Practical Skills Passport
+    Route::get('/offerings/{offering}/competencies', [CompetencyController::class, 'index']);
+    Route::post('/offerings/{offering}/competencies', [CompetencyController::class, 'store']);
+    Route::patch('/competencies/{competency}', [CompetencyController::class, 'update']);
+    Route::delete('/competencies/{competency}', [CompetencyController::class, 'destroy']);
+    Route::get('/competencies/{competency}/logbook', [CompetencyController::class, 'indexLogbookEntries']);
+    Route::post('/competencies/{competency}/logbook', [CompetencyController::class, 'storeLogbookEntry']);
+    Route::patch('/logbook-entries/{entry}/review', [CompetencyController::class, 'reviewLogbookEntry']);
+    Route::get('/logbook-entries/{entry}/evidence', [CompetencyController::class, 'downloadEvidence']);
 
     // Learning content and progress
     Route::post('/offerings/{offering}/modules', [LmsController::class, 'module']);

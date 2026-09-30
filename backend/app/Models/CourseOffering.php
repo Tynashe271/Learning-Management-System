@@ -75,4 +75,9 @@ class CourseOffering extends Model
     {
         return $this->hasMany(ClassSession::class);
     }
+
+    public function competencies(): HasMany
+    {
+        return $this->hasMany(Competency::class);
+    }
 }

@@ -1,8 +1,8 @@
 # University LMS
 
-Laravel 13 JSON API for a university learning management system: accounts and roles with single sign-on, the academic catalogue, course content, assignments with rubrics (including level descriptions), quizzes, grading, a gradebook, progress tracking, attendance with self check-in and online-meeting links, announcements, discussions, grade appeals, summary emails, virus scanning, similarity screening, bulk imports, course copying, notifications, and an audit trail. The backend is in `backend/` and the web frontend, which uses every endpoint, is in `frontend/`.
+Laravel 13 JSON API for a university learning management system: accounts and roles with single sign-on, the academic catalogue, course content, assignments with rubrics (including level descriptions), quizzes, grading, a gradebook, progress tracking, attendance with self check-in and online-meeting links, a Practical Skills Passport, announcements, discussions, grade appeals, summary emails, virus scanning, similarity screening, bulk imports, course copying, notifications, and an audit trail. The backend is in `backend/` and the web frontend, which uses every endpoint, is in `frontend/`.
 
-This document describes what is built and running. For a longer-term product vision (adaptive learning, a practical skills passport, offline learning, an AI tutor, and more), see `ROADMAP.md` — none of it is implemented yet.
+This document describes what is built and running. `ROADMAP.md` holds the longer-term product vision it was written from; several of its numbered items (or parts of them) have since been built, in which case they're described here instead — this README, not the roadmap, is the source of truth for what exists today.
 
 ## Local setup with Podman
 
@@ -24,8 +24,8 @@ Do not expose this local HTTP setup on a public network. Configure TLS, producti
 | Area | Screens |
 |---|---|
 | Everyone | Sign in (password or single sign-on), forgot and reset password, dashboard ("needs your attention", notifications, courses), notifications, profile (name, password, summary-email preference and preview), footer links to the privacy policy and terms |
-| Students | Course content with progress ticks and downloads, assignments with submission, rubric, grade breakdown and appeals, quizzes with a timer and results, announcements, discussions, classes with meeting links and check-in by code, attendance, own grades, my appeals |
-| Lecturers and assistants | Modules, items and files; assignments and rubrics with levels; grading (rubric, drafts, reasons for changes); similarity check; quizzes and all four question types; announcements; discussions and moderation; classes, check-in codes and the roll; gradebook with CSV download; progress; appeals |
+| Students | Course content with progress ticks and downloads, assignments with submission, rubric, grade breakdown and appeals, quizzes with a timer and results, announcements, discussions, classes with meeting links and check-in by code, attendance, a Skills Passport logbook with evidence uploads, own grades, my appeals |
+| Lecturers and assistants | Modules, items and files; assignments and rubrics with levels; grading (rubric, drafts, reasons for changes); similarity check; quizzes and all five question types; announcements; discussions and moderation; classes, check-in codes and the roll; competencies and logbook review; gradebook with CSV download; progress; appeals |
 | Students (registration) | Register for courses that allow it while the term's registration window is open, see the places left, and drop before the add/drop deadline |
 | Registrars and administrators | Enrolment (one at a time, or from a list or CSV, respecting course capacity); teachers; terms with academic years and registration dates, departments, courses and offerings; publishing, archiving; copying a course to another term; accounts and one page per person (role, sign-in problems, sessions, privacy tools); CSV import with a dry run; usage and enrolment reports; audit log with filters and download; security events; system status |
 | Institution and system administrators | Settings, roles and permissions, notices to everyone, integrations, system and failed jobs, backups: see [System administration](#system-administration) |
@@ -173,6 +173,14 @@ Course-level powers (content, announcements, attendance, grading) apply only to 
 | `POST /sessions/{id}/checkin/open` (`{minutes}`, default 15), `POST /sessions/{id}/checkin/close`, `GET /sessions/{id}/checkin` | managers | Self check-in: the teacher opens a window and reads the six-digit code out in class; the status call shows the code, whether it is open, and how many students have checked in. |
 | `POST /sessions/{id}/checkin` (`{code}`) | enrolled students | Marks the student present, or late once more than `LMS_CHECKIN_LATE_AFTER_MINUTES` (default 10) have passed since the session's start. Rate limited to 10 tries a minute. A teacher's own mark always wins, teachers can correct a self check-in afterwards, and the code never appears in session listings. This proves the student had the code, not that they were in the room. |
 | `GET`/`POST /offerings/{id}/discussions`, `GET`/`DELETE /discussions/{id}`, `POST /discussions/{id}/posts`, `DELETE /posts/{id}` | enrolled students and staff | Forum threads and replies. Authors delete their own; managers moderate. |
+
+### Practical Skills Passport
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET`/`POST /offerings/{id}/competencies`, `PATCH`/`DELETE /competencies/{id}` | view / managers | The practical skills a course tracks. A student's `GET` includes `my_status` (`not_started`, `developing`, or `competent`) and `my_hours` (summed from their own logbook) on each one. A competency with logbook entries cannot be deleted. |
+| `GET`/`POST /competencies/{id}/logbook` | owner (`GET`: also managers, optionally `?user_id=`) | A student logs a dated, timed activity (`activity_date`, `hours`, `description`) with an optional `evidence` file (photo or video, same limits as other uploads); their first entry on a competency moves it from `not_started` to `developing`. Students see only their own entries; managers see everyone's. |
+| `PATCH /logbook-entries/{id}/review`, `GET /logbook-entries/{id}/evidence` | managers / owner or managers | A supervisor reviews one entry (`status`: `developing` or `competent`, optional `reviewer_comment`), which sets the student's overall status on that competency; downloads the entry's evidence file. |
 
 ### Assignments and grading
 

@@ -23,6 +23,7 @@ import { AppealPage, AppealsTab, MyAppealsPage } from './pages/courses/Appeals'
 import { AssignmentPage } from './pages/courses/AssignmentPage'
 import { AttemptPage } from './pages/courses/AttemptPage'
 import { AttendanceTab, ClassesTab } from './pages/courses/ClassesTab'
+import { SkillsTab } from './pages/courses/SkillsTab'
 import { AnnouncementsTab, DiscussionPage, DiscussionsTab } from './pages/courses/CommunicationTabs'
 import { ClassworkTab } from './pages/courses/ClassworkTab'
 import { useOffering } from './pages/courses/context'
@@ -122,6 +123,7 @@ export function App() {
           <Route path="discussions" element={<NotEnrolmentOnly><DiscussionsTab /></NotEnrolmentOnly>} />
           <Route path="classes" element={<NotEnrolmentOnly><ClassesTab /></NotEnrolmentOnly>} />
           <Route path="attendance" element={<NotEnrolmentOnly><AttendanceTab /></NotEnrolmentOnly>} />
+          <Route path="skills" element={<NotEnrolmentOnly><SkillsTab /></NotEnrolmentOnly>} />
           <Route path="grades" element={<NotEnrolmentOnly><GradesTab /></NotEnrolmentOnly>} />
           <Route path="overview" element={<ManagerOnly><OverviewTab /></ManagerOnly>} />
           <Route path="progress" element={<ManagerOnly><ProgressTab /></ManagerOnly>} />
