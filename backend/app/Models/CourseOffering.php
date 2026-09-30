@@ -85,4 +85,9 @@ class CourseOffering extends Model
     {
         return $this->hasMany(AttachmentPlacement::class);
     }
+
+    public function projects(): HasMany
+    {
+        return $this->hasMany(Project::class);
+    }
 }

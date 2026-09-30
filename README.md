@@ -1,6 +1,6 @@
 # University LMS
 
-Laravel 13 JSON API for a university learning management system: accounts and roles with single sign-on, the academic catalogue, course content, assignments with rubrics (including level descriptions), quizzes, grading, a gradebook, progress tracking, attendance with self check-in and online-meeting links, a Practical Skills Passport, an industrial attachment workspace, announcements, discussions, grade appeals, summary emails, virus scanning, similarity screening, bulk imports, course copying, notifications, and an audit trail. The backend is in `backend/` and the web frontend, which uses every endpoint, is in `frontend/`.
+Laravel 13 JSON API for a university learning management system: accounts and roles with single sign-on, the academic catalogue, course content, assignments with rubrics (including level descriptions), quizzes, grading, a gradebook, progress tracking, attendance with self check-in and online-meeting links, a Practical Skills Passport, an industrial attachment workspace, a research/project workspace, announcements, discussions, grade appeals, summary emails, virus scanning, similarity screening, bulk imports, course copying, notifications, and an audit trail. The backend is in `backend/` and the web frontend, which uses every endpoint, is in `frontend/`.
 
 This document describes what is built and running. `ROADMAP.md` holds the longer-term product vision it was written from; several of its numbered items (or parts of them) have since been built, in which case they're described here instead — this README, not the roadmap, is the source of truth for what exists today.
 
@@ -25,8 +25,8 @@ Do not expose this local HTTP setup on a public network. Configure TLS, producti
 |---|---|
 | Everyone | Sign in (password or single sign-on), forgot and reset password, dashboard ("needs your attention", notifications, courses), notifications, profile (name, password, summary-email preference and preview), footer links to the privacy policy and terms |
 | Anyone with a link, no account | A workplace supervisor's one-time attachment feedback page (`/attachment-feedback/:token`) |
-| Students | Course content with progress ticks and downloads, assignments with submission, rubric, grade breakdown and appeals, quizzes with a timer and results, announcements, discussions, classes with meeting links and check-in by code, attendance, a Skills Passport logbook with evidence uploads, an attachment placement with a weekly logbook, own grades, my appeals |
-| Lecturers and assistants | Modules, items and files; assignments and rubrics with levels; grading (rubric, drafts, reasons for changes); similarity check; quizzes and all five question types; announcements; discussions and moderation; classes, check-in codes and the roll; competencies and logbook review; attachment placements and supervisor feedback requests; gradebook with CSV download; progress; appeals |
+| Students | Course content with progress ticks and downloads, assignments with submission, rubric, grade breakdown and appeals, quizzes with a timer and results, announcements, discussions, classes with meeting links and check-in by code, attendance, a Skills Passport logbook with evidence uploads, an attachment placement with a weekly logbook, a project topic with milestones and meeting records, own grades, my appeals |
+| Lecturers and assistants | Modules, items and files; assignments and rubrics with levels; grading (rubric, drafts, reasons for changes); similarity check; quizzes and all five question types; announcements; discussions and moderation; classes, check-in codes and the roll; competencies and logbook review; attachment placements and supervisor feedback requests; project topic review, supervision, milestones and meetings; gradebook with CSV download; progress; appeals |
 | Students (registration) | Register for courses that allow it while the term's registration window is open, see the places left, and drop before the add/drop deadline |
 | Registrars and administrators | Enrolment (one at a time, or from a list or CSV, respecting course capacity); teachers; terms with academic years and registration dates, departments, courses and offerings; publishing, archiving; copying a course to another term; accounts and one page per person (role, sign-in problems, sessions, privacy tools); CSV import with a dry run; usage and enrolment reports; audit log with filters and download; security events; system status |
 | Institution and system administrators | Settings, roles and permissions, notices to everyone, integrations, system and failed jobs, backups: see [System administration](#system-administration) |
@@ -191,6 +191,17 @@ Course-level powers (content, announcements, attendance, grading) apply only to 
 | `GET`/`POST /attachment-placements/{id}/logbook`, `GET /attachment-logbook-entries/{id}/evidence` | owner (`GET`: also managers) | A weekly entry (`week_ending`, `hours`, `activities`, optional `evidence` file); one entry per week per placement. |
 | `POST /attachment-placements/{id}/request-supervisor-feedback` | managers | Emails the workplace supervisor — who has no LMS account — a one-time link valid for 14 days. Sending again invalidates any unused earlier link. |
 | `GET`/`POST /attachment-feedback/{token}` | anyone with the link | Public, unauthenticated: the supervisor reads the placement summary and submits a 1–5 rating and an optional comment, once. |
+
+### Research and project workspace
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET`/`POST /offerings/{id}/projects`, `GET /offerings/{id}/projects/mine` | managers / owner | A student proposes one project topic per offering (`status`: `proposed`). |
+| `PATCH /projects/{id}` | managers (`status`, `supervisor_id`, and content) / the owning student (title and description, only while still `proposed`) | Approve or reject a topic and assign a supervisor (any teacher of the offering); a student cannot set either. |
+| `GET`/`POST /projects/{id}/milestones`, `PATCH /project-milestones/{id}` | student, the assigned supervisor, or managers (`POST`/`PATCH`: supervisor or managers) | Supervisor-set checkpoints (`title`, `due_on`), toggled `completed`. |
+| `GET`/`POST /projects/{id}/meetings` | student, the assigned supervisor, or managers | A dated note either party logs after a supervision meeting. |
+
+Draft chapters, similarity screening and rubric-based marking reuse the existing assignment, similarity and rubric features (create an assignment scoped to the project) rather than a second copy of them.
 
 ### Assignments and grading
 

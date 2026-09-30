@@ -879,6 +879,37 @@ export interface LogbookEntry {
   reviewer_comment: string | null
 }
 
+export type ProjectStatus = 'proposed' | 'approved' | 'rejected'
+
+export interface Project {
+  id: number
+  course_offering_id: number
+  user_id: number
+  student?: { id: number; name: string; email: string }
+  title: string
+  description: string | null
+  status: ProjectStatus
+  supervisor_id: number | null
+  supervisor?: { id: number; name: string } | null
+}
+
+export interface ProjectMilestone {
+  id: number
+  project_id: number
+  title: string
+  due_on: string
+  completed_at: string | null
+  notes: string | null
+}
+
+export interface ProjectMeeting {
+  id: number
+  project_id: number
+  occurred_on: string
+  notes: string
+  user?: { id: number; name: string }
+}
+
 export interface AttachmentPlacement {
   id: number
   course_offering_id: number

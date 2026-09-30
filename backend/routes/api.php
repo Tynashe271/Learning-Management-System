@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\IntegrationController;
 use App\Http\Controllers\Api\LmsController;
 use App\Http\Controllers\Api\ManagementController;
 use App\Http\Controllers\Api\ProgressController;
+use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\QuizAttemptController;
 use App\Http\Controllers\Api\QuizController;
 use App\Http\Controllers\Api\RegistrationController;
@@ -204,6 +205,17 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::post('/attachment-placements/{placement}/logbook', [AttachmentController::class, 'storeLogbookEntry']);
     Route::post('/attachment-placements/{placement}/request-supervisor-feedback', [AttachmentController::class, 'requestSupervisorFeedback']);
     Route::get('/attachment-logbook-entries/{entry}/evidence', [AttachmentController::class, 'downloadEvidence']);
+
+    // Research and project workspace
+    Route::get('/offerings/{offering}/projects', [ProjectController::class, 'index']);
+    Route::post('/offerings/{offering}/projects', [ProjectController::class, 'store']);
+    Route::get('/offerings/{offering}/projects/mine', [ProjectController::class, 'mine']);
+    Route::patch('/projects/{project}', [ProjectController::class, 'update']);
+    Route::get('/projects/{project}/milestones', [ProjectController::class, 'indexMilestones']);
+    Route::post('/projects/{project}/milestones', [ProjectController::class, 'storeMilestone']);
+    Route::patch('/project-milestones/{milestone}', [ProjectController::class, 'updateMilestone']);
+    Route::get('/projects/{project}/meetings', [ProjectController::class, 'indexMeetings']);
+    Route::post('/projects/{project}/meetings', [ProjectController::class, 'storeMeeting']);
 
     // Learning content and progress
     Route::post('/offerings/{offering}/modules', [LmsController::class, 'module']);
