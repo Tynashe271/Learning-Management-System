@@ -65,9 +65,9 @@ function StudentView({ quiz }: { quiz: Quiz }) {
         {quiz.instructions && <div className="reading pre">{quiz.instructions}</div>}
         <dl className="details">
           <dt>Questions</dt>
-          <dd>{quiz.questions_count}</dd>
+          <dd>{quiz.questions_per_attempt ? `${quiz.questions_per_attempt} of ${quiz.questions_count}, chosen at random` : quiz.questions_count}</dd>
           <dt>Total points</dt>
-          <dd>{quiz.total_points}</dd>
+          <dd>{quiz.total_points}{quiz.questions_per_attempt && ' for the full pool — your attempt is worth less'}</dd>
           <dt>Time limit</dt>
           <dd>{quiz.time_limit_minutes ? `${quiz.time_limit_minutes} minutes once you start` : 'None'}</dd>
           <dt>Attempts</dt>
@@ -165,6 +165,7 @@ function ManagerView({ quiz, modules }: { quiz: Quiz; modules: Module[] }) {
           <dt>Questions</dt>
           <dd>
             {questions.length} · {totalPoints} points
+            {quiz.questions_per_attempt && ` · each attempt draws ${quiz.questions_per_attempt} at random`}
           </dd>
         </dl>
       </Card>

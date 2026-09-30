@@ -33,11 +33,18 @@ class QuizAttemptController extends Controller
             if ($attempts->count() >= $quiz->max_attempts) {
                 throw ValidationException::withMessages(['quiz' => 'No attempts remaining.']);
             }
-            if ($quiz->questions()->doesntExist()) {
+            $pool = $quiz->questions()->ordered()->get();
+            if ($pool->isEmpty()) {
                 throw ValidationException::withMessages(['quiz' => 'This quiz has no questions yet.']);
             }
 
-            return [$quiz->attempts()->create(['user_id' => $user->id, 'started_at' => now()]), true];
+            $new = $quiz->attempts()->create(['user_id' => $user->id, 'started_at' => now()]);
+            if ($quiz->questions_per_attempt && $quiz->questions_per_attempt < $pool->count()) {
+                $drawn = $pool->shuffle()->take($quiz->questions_per_attempt)->values();
+                $new->attemptQuestions()->createMany($drawn->map(fn ($q, $i) => ['quiz_question_id' => $q->id, 'position' => $i])->all());
+            }
+
+            return [$new, true];
         });
 
         return response()->json($this->inProgress($attempt->setRelation('quiz', $quiz)), $created ? 201 : 200);
@@ -93,7 +100,7 @@ class QuizAttemptController extends Controller
                 return null;
             }
 
-            $questions = $attempt->quiz->questions()->ordered()->with('options')->get()->keyBy('id');
+            $questions = $locked->questionSet()->keyBy('id');
             $given = collect($data['answers'])->keyBy('question_id');
             if ($given->keys()->diff($questions->keys())->isNotEmpty()) {
                 throw ValidationException::withMessages(['answers' => 'An answer refers to a question that is not in this quiz.']);
@@ -145,7 +152,7 @@ class QuizAttemptController extends Controller
     private function closeIfExpired(QuizAttempt $attempt): void
     {
         if ($attempt->isExpired()) {
-            $attempt->update(['submitted_at' => now(), 'score' => 0, 'max_score' => $attempt->quiz->totalPoints()]);
+            $attempt->update(['submitted_at' => now(), 'score' => 0, 'max_score' => $attempt->totalPoints()]);
         }
     }
 
@@ -158,7 +165,7 @@ class QuizAttemptController extends Controller
             'started_at' => $attempt->started_at,
             'deadline' => $attempt->deadline(),
             'draft_answers' => $attempt->draft_answers ?? [],
-            'questions' => $attempt->quiz->questions()->ordered()->with('options')->get()->map(fn ($q) => [
+            'questions' => $attempt->questionSet()->map(fn ($q) => [
                 'id' => $q->id,
                 'type' => $q->type,
                 'prompt' => $q->prompt,
@@ -170,7 +177,7 @@ class QuizAttemptController extends Controller
 
     private function result(QuizAttempt $attempt): array
     {
-        $questions = $attempt->quiz->questions()->ordered()->get()->keyBy('id');
+        $questions = $attempt->questionSet()->keyBy('id');
         $answers = $attempt->answers()->orderBy('id')->get();
 
         return [

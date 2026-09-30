@@ -40,6 +40,20 @@ class QuizAttempt extends Model
         return $this->hasMany(QuizAnswer::class);
     }
 
+    /** The questions drawn for this attempt, in order. Empty when the quiz uses its full pool for every attempt. */
+    public function attemptQuestions(): HasMany
+    {
+        return $this->hasMany(QuizAttemptQuestion::class)->orderBy('position');
+    }
+
+    /** The questions this attempt is actually built from: its own random draw if it has one, otherwise the quiz's full pool. */
+    public function questionSet(): \Illuminate\Support\Collection
+    {
+        $drawn = $this->attemptQuestions()->with('question.options')->get()->map(fn (QuizAttemptQuestion $aq) => $aq->question);
+
+        return $drawn->isNotEmpty() ? $drawn : $this->quiz->questions()->ordered()->with('options')->get();
+    }
+
     /** The earlier of the quiz deadline and the per-attempt time limit. */
     public function deadline(): CarbonImmutable
     {
@@ -55,5 +69,13 @@ class QuizAttempt extends Model
     public function isExpired(): bool
     {
         return $this->submitted_at === null && now()->greaterThan($this->deadline()->addSeconds(self::GRACE_SECONDS));
+    }
+
+    /** This attempt's own total, which may be less than the quiz's full total when it only drew a subset of questions. */
+    public function totalPoints(): int
+    {
+        $drawn = $this->attemptQuestions()->with('question')->get();
+
+        return (int) ($drawn->isNotEmpty() ? $drawn->sum(fn (QuizAttemptQuestion $aq) => $aq->question->points) : $this->quiz->totalPoints());
     }
 }

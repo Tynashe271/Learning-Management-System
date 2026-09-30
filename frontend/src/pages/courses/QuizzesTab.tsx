@@ -28,6 +28,7 @@ export function QuizDialog({
   const [attempts, setAttempts] = useState(String(quiz?.max_attempts ?? 1))
   const [published, setPublished] = useState(quiz?.published ?? false)
   const [isPractice, setIsPractice] = useState(quiz?.is_practice ?? false)
+  const [questionsPerAttempt, setQuestionsPerAttempt] = useState(quiz?.questions_per_attempt ? String(quiz.questions_per_attempt) : '')
   const [topicId, setTopicId] = useState(String(quiz ? (quiz.course_module_id ?? '') : (defaultModuleId ?? '')))
   const [reason, setReason] = useState('')
   const [targetMode, setTargetMode] = useState<'everyone' | 'specific'>((quiz?.target_user_ids?.length ?? 0) > 0 ? 'specific' : 'everyone')
@@ -44,6 +45,7 @@ export function QuizDialog({
         max_attempts: Number(attempts) || 1,
         published,
         is_practice: isPractice,
+        questions_per_attempt: questionsPerAttempt ? Number(questionsPerAttempt) : null,
         course_module_id: topicId ? Number(topicId) : null,
         target_user_ids: targetMode === 'specific' ? targetIds : [],
       }
@@ -53,7 +55,7 @@ export function QuizDialog({
     },
     { invalidate: [['offering', offeringId], ['quiz']], success: editing ? 'Quiz saved.' : 'Quiz created.', onSuccess: onClose },
   )
-  const known = ['title', 'instructions', 'opens_at', 'due_at', 'time_limit_minutes', 'max_attempts', 'change_reason', 'course_module_id', 'is_practice']
+  const known = ['title', 'instructions', 'opens_at', 'due_at', 'time_limit_minutes', 'max_attempts', 'change_reason', 'course_module_id', 'is_practice', 'questions_per_attempt']
 
   return (
     <Modal title={editing ? 'Edit quiz' : 'New quiz'} onClose={onClose} wide>
@@ -85,6 +87,16 @@ export function QuizDialog({
           <TextField label="Time limit (minutes)" optional type="number" min={1} max={600} value={limit} onChange={(e) => setLimit(e.target.value)} error={fieldError(save.error, 'time_limit_minutes')} hint="Leave empty for no limit." />
           <TextField label="Attempts allowed" type="number" min={1} max={isPractice ? 999 : 20} value={attempts} onChange={(e) => setAttempts(e.target.value)} error={fieldError(save.error, 'max_attempts')} />
         </div>
+        <TextField
+          label="Questions per attempt"
+          optional
+          type="number"
+          min={1}
+          value={questionsPerAttempt}
+          onChange={(e) => setQuestionsPerAttempt(e.target.value)}
+          error={fieldError(save.error, 'questions_per_attempt')}
+          hint="Leave empty to give every attempt all the questions. Otherwise each attempt draws this many at random from the full pool below, so students can see different questions."
+        />
         {dueChanged && <TextArea label="Reason for changing the deadline" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} error={fieldError(save.error, 'change_reason')} hint="Recorded in the audit log." required />}
         <TargetPicker offeringId={offeringId} mode={targetMode} ids={targetIds} onModeChange={setTargetMode} onIdsChange={setTargetIds} />
         <CheckField
