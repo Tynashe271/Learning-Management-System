@@ -101,6 +101,7 @@ describe('taking a quiz', () => {
     quiz_id: 1,
     started_at: '2026-01-01T00:00:00Z',
     deadline: null,
+    draft_answers: [],
     questions: [
       { id: 10, type: 'single_choice', prompt: 'Pick one', points: 1, options: [{ id: 100, text: 'Red' }, { id: 101, text: 'Blue' }] },
       { id: 11, type: 'multiple_choice', prompt: 'Pick many', points: 2, options: [{ id: 110, text: 'A' }, { id: 111, text: 'B' }] },

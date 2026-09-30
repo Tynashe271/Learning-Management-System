@@ -476,6 +476,7 @@ export interface AttemptInProgress {
   quiz_id: number
   started_at: string
   deadline: string | null
+  draft_answers: { question_id: number; option_ids?: number[]; text?: string }[]
   questions: { id: number; type: QuestionType; prompt: string; points: number; options: { id: number; text: string }[] }[]
 }
 

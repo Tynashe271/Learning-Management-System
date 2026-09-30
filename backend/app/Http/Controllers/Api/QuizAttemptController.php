@@ -52,6 +52,23 @@ class QuizAttemptController extends Controller
         return response()->json($attempt->submitted_at === null ? $this->inProgress($attempt) : $this->result($attempt));
     }
 
+    /** Saves a snapshot of in-progress answers without grading, so a crashed browser, a cleared cache, or switching devices does not lose an exam in progress. */
+    public function saveDraft(Request $request, QuizAttempt $attempt): JsonResponse
+    {
+        abort_unless($attempt->user_id === $request->user()->id, 403);
+        abort_if($attempt->submitted_at !== null, 422, 'This attempt has already been submitted.');
+        $data = $request->validate([
+            'answers' => ['present', 'array'],
+            'answers.*.question_id' => ['required', 'integer'],
+            'answers.*.option_ids' => ['sometimes', 'array', 'max:10'],
+            'answers.*.option_ids.*' => ['integer'],
+            'answers.*.text' => ['sometimes', 'nullable', 'string', 'max:10000'],
+        ]);
+        $attempt->update(['draft_answers' => $data['answers']]);
+
+        return response()->json(['saved_at' => now()]);
+    }
+
     public function submit(Request $request, QuizAttempt $attempt): JsonResponse
     {
         abort_unless($attempt->user_id === $request->user()->id, 403);
@@ -94,7 +111,7 @@ class QuizAttemptController extends Controller
                 $score += $points;
                 $locked->answers()->create(['quiz_question_id' => $question->id, 'response' => $response, 'is_correct' => $correct, 'points' => $points]);
             }
-            $locked->update(['submitted_at' => now(), 'score' => $score, 'max_score' => $questions->sum('points')]);
+            $locked->update(['submitted_at' => now(), 'score' => $score, 'max_score' => $questions->sum('points'), 'draft_answers' => null]);
 
             return $locked;
         });
@@ -140,6 +157,7 @@ class QuizAttemptController extends Controller
             'quiz_id' => $attempt->quiz_id,
             'started_at' => $attempt->started_at,
             'deadline' => $attempt->deadline(),
+            'draft_answers' => $attempt->draft_answers ?? [],
             'questions' => $attempt->quiz->questions()->ordered()->with('options')->get()->map(fn ($q) => [
                 'id' => $q->id,
                 'type' => $q->type,

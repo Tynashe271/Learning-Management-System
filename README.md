@@ -211,6 +211,7 @@ Question types: `single_choice`, `multiple_choice` (all correct options required
 | `POST /quizzes/{id}/questions`, `PATCH`/`DELETE /questions/{id}` | managers | Author questions. Locked once anyone has attempted the quiz; a quiz with attempts cannot be deleted, only unpublished. |
 | `POST /quizzes/{id}/attempts` | enrolled students | Start (or resume) an attempt. The response holds the questions without correct answers, plus the `deadline`. |
 | `POST /attempts/{id}/submit` | the student | Body `{"answers": [{"question_id", "option_ids": [...] or "text"}]}`. An attempt still open a minute past its deadline is closed with a zero score. |
+| `PUT /attempts/{id}/draft` | the student | Same `answers` shape as submit, but saves it as a draft without grading. The frontend calls this every couple of seconds while an attempt is in progress, and `GET /attempts/{id}` returns the latest draft as `draft_answers` so refreshing, a crashed browser, a cleared cache, or switching devices does not lose an exam in progress. Refused once the attempt is submitted. |
 | `GET /attempts/{id}`, `GET /quizzes/{id}/my-attempts`, `GET /quizzes/{id}/attempts` | owner or staff / student / staff | Results and attempt lists. |
 
 ### Uploads

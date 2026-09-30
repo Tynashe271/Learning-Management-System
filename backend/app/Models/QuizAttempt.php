@@ -12,7 +12,7 @@ class QuizAttempt extends Model
     /** Seconds allowed past the deadline for network latency before an attempt is closed unanswered. */
     public const GRACE_SECONDS = 60;
 
-    protected $fillable = ['quiz_id', 'user_id', 'started_at', 'submitted_at', 'score', 'max_score'];
+    protected $fillable = ['quiz_id', 'user_id', 'started_at', 'submitted_at', 'score', 'max_score', 'draft_answers'];
 
     protected function casts(): array
     {
@@ -21,6 +21,7 @@ class QuizAttempt extends Model
             'submitted_at' => 'immutable_datetime',
             'score' => 'decimal:2',
             'max_score' => 'decimal:2',
+            'draft_answers' => 'array',
         ];
     }
 

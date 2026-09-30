@@ -56,10 +56,12 @@ function Taking({ attempt }: { attempt: AttemptInProgress }) {
   const storageKey = `lms.attempt.${attempt.id}`
   const [answers, setAnswers] = useState<Answers>(() => {
     try {
-      return JSON.parse(sessionStorage.getItem(storageKey) ?? '{}') as Answers
+      const stored = sessionStorage.getItem(storageKey)
+      if (stored) return JSON.parse(stored) as Answers
     } catch {
-      return {}
+      /* fall through to whatever the server auto-saved */
     }
+    return Object.fromEntries(attempt.draft_answers.map((a) => [a.question_id, { option_ids: a.option_ids ?? [], text: a.text ?? '' }]))
   })
   const left = useCountdown(attempt.deadline)
   const submitted = useRef(false)
@@ -100,6 +102,15 @@ function Taking({ attempt }: { attempt: AttemptInProgress }) {
     },
   })
 
+  // Auto-saves periodically so an exam survives a crashed browser, a cleared cache, or switching devices - not just this tab's local storage.
+  const saveDraft = useApiMutation(() => api.put<{ saved_at: string }>(`/attempts/${attempt.id}/draft`, { answers: payload }))
+  const savedAt = saveDraft.data?.saved_at
+  useEffect(() => {
+    if (submit.isPending || submit.isSuccess) return
+    const timer = setTimeout(() => saveDraft.mutate(), 2000)
+    return () => clearTimeout(timer)
+  }, [payload, submit, saveDraft])
+
   // When the time is up, send whatever has been answered; the server decides whether it still counts.
   useEffect(() => {
     if (left === 0 && !submitted.current && !submit.isPending && !submit.isSuccess) {
@@ -124,6 +135,7 @@ function Taking({ attempt }: { attempt: AttemptInProgress }) {
         actions={left !== null && <span className={`timer${left <= 60 ? ' timer-low' : ''}`} role="timer" aria-live="off">⏱ {clock(left)}</span>}
       />
       {left !== null && left <= 60 && left > 0 && <Alert tone="warn">Less than a minute left. Your answers will be sent automatically when the time is up.</Alert>}
+      <p className="muted small">{saveDraft.isPending ? 'Saving…' : savedAt ? `Auto-saved ${formatDateTime(savedAt)}` : 'Your answers are auto-saved as you go.'}</p>
       <form
         onSubmit={async (event) => {
           event.preventDefault()
