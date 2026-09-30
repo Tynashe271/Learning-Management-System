@@ -29,6 +29,7 @@ export function QuizDialog({
   const [published, setPublished] = useState(quiz?.published ?? false)
   const [isPractice, setIsPractice] = useState(quiz?.is_practice ?? false)
   const [questionsPerAttempt, setQuestionsPerAttempt] = useState(quiz?.questions_per_attempt ? String(quiz.questions_per_attempt) : '')
+  const [openBook, setOpenBook] = useState(quiz?.is_open_book ?? false)
   const [topicId, setTopicId] = useState(String(quiz ? (quiz.course_module_id ?? '') : (defaultModuleId ?? '')))
   const [reason, setReason] = useState('')
   const [targetMode, setTargetMode] = useState<'everyone' | 'specific'>((quiz?.target_user_ids?.length ?? 0) > 0 ? 'specific' : 'everyone')
@@ -46,6 +47,7 @@ export function QuizDialog({
         published,
         is_practice: isPractice,
         questions_per_attempt: questionsPerAttempt ? Number(questionsPerAttempt) : null,
+        is_open_book: openBook,
         course_module_id: topicId ? Number(topicId) : null,
         target_user_ids: targetMode === 'specific' ? targetIds : [],
       }
@@ -105,6 +107,7 @@ export function QuizDialog({
           checked={isPractice}
           onChange={(e) => setIsPractice(e.target.checked)}
         />
+        <CheckField label="Open book" hint="Just a label shown to students — this cannot check what they have open elsewhere." checked={openBook} onChange={(e) => setOpenBook(e.target.checked)} />
         <CheckField label="Published" hint="Students can take published quizzes while they are open." checked={published} onChange={(e) => setPublished(e.target.checked)} />
         {save.error && !known.some((f) => fieldError(save.error, f)) && <FormError error={save.error} />}
         <div className="form-actions">

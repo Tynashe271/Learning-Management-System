@@ -60,7 +60,14 @@ function StudentView({ quiz }: { quiz: Quiz }) {
 
   return (
     <>
-      <PageHeader title={<>{quiz.title} {quiz.is_practice && <Badge tone="info">Practice</Badge>}</>} subtitle={quiz.is_practice ? 'Ungraded — take it as many times as you like.' : w.text} />
+      <PageHeader
+        title={
+          <>
+            {quiz.title} {quiz.is_practice && <Badge tone="info">Practice</Badge>} {quiz.is_open_book && <Badge tone="good">Open book</Badge>}
+          </>
+        }
+        subtitle={quiz.is_practice ? 'Ungraded — take it as many times as you like.' : w.text}
+      />
       <Card>
         {quiz.instructions && <div className="reading pre">{quiz.instructions}</div>}
         <dl className="details">
@@ -162,6 +169,8 @@ function ManagerView({ quiz, modules }: { quiz: Quiz; modules: Module[] }) {
           <dd>{quiz.time_limit_minutes ? `${quiz.time_limit_minutes} minutes` : 'None'}</dd>
           <dt>Attempts allowed</dt>
           <dd>{quiz.max_attempts}</dd>
+          <dt>Open book</dt>
+          <dd>{quiz.is_open_book ? 'Yes' : 'No'}</dd>
           <dt>Questions</dt>
           <dd>
             {questions.length} · {totalPoints} points

@@ -28,6 +28,7 @@ class QuizController extends Controller
             'published' => ['sometimes', 'boolean'],
             'is_practice' => ['sometimes', 'boolean'],
             'questions_per_attempt' => ['sometimes', 'nullable', 'integer', 'min:1'],
+            'is_open_book' => ['sometimes', 'boolean'],
             'course_module_id' => ['nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $offering->id)],
             'target_user_ids' => ['sometimes', 'array'],
             'target_user_ids.*' => ['integer', Rule::exists('enrolments', 'user_id')->where('course_offering_id', $offering->id)->where('status', 'active')],
@@ -56,7 +57,7 @@ class QuizController extends Controller
         }
 
         // Students never receive questions here; they arrive with an attempt.
-        return response()->json($quiz->only(['id', 'course_offering_id', 'title', 'instructions', 'opens_at', 'due_at', 'time_limit_minutes', 'max_attempts', 'is_practice', 'questions_per_attempt']) + [
+        return response()->json($quiz->only(['id', 'course_offering_id', 'title', 'instructions', 'opens_at', 'due_at', 'time_limit_minutes', 'max_attempts', 'is_practice', 'questions_per_attempt', 'is_open_book']) + [
             'questions_count' => $quiz->questions()->count(),
             'total_points' => $quiz->totalPoints(),
             'attempts_used' => $quiz->attempts()->where('user_id', $request->user()->id)->count(),
@@ -77,6 +78,7 @@ class QuizController extends Controller
             'published' => ['sometimes', 'boolean'],
             'is_practice' => ['sometimes', 'boolean'],
             'questions_per_attempt' => ['sometimes', 'nullable', 'integer', 'min:1'],
+            'is_open_book' => ['sometimes', 'boolean'],
             'change_reason' => ['sometimes', 'string', 'max:1000'],
             'course_module_id' => ['sometimes', 'nullable', 'integer', Rule::exists('course_modules', 'id')->where('course_offering_id', $quiz->course_offering_id)],
             'target_user_ids' => ['sometimes', 'array'],

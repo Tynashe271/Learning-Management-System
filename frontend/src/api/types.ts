@@ -453,6 +453,7 @@ export interface Quiz {
   time_limit_minutes: number | null
   max_attempts: number
   questions_per_attempt: number | null
+  is_open_book: boolean
   published?: boolean
   is_practice?: boolean
   created_at?: string
