@@ -9,8 +9,10 @@ use App\Models\CourseOffering;
 use App\Models\Enrolment;
 use App\Models\TeachingAssignment;
 use App\Models\User;
+use App\Notifications\AnnouncementPosted;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class AnnouncementTest extends TestCase
@@ -59,6 +61,35 @@ class AnnouncementTest extends TestCase
         $this->assertSame('Welcome', $enrolled->notifications->first()->data['title']);
         $this->assertCount(0, $withdrawn->notifications);
         $this->assertCount(0, $outsider->notifications);
+    }
+
+    public function test_an_ordinary_announcement_is_not_emailed_immediately(): void
+    {
+        Notification::fake();
+        $lecturer = $this->userWithRole('lecturer');
+        $enrolled = $this->userWithRole('student');
+        $offering = $this->offering();
+        TeachingAssignment::create(['course_offering_id' => $offering->id, 'user_id' => $lecturer->id]);
+        $this->enrol($offering, $enrolled);
+
+        $this->actingAs($lecturer)->postJson('/api/offerings/'.$offering->id.'/announcements', ['title' => 'Welcome', 'body' => 'Read chapter 1.'])->assertCreated();
+
+        Notification::assertSentTo($enrolled, AnnouncementPosted::class, fn ($notification, $channels) => $channels === ['database']);
+    }
+
+    public function test_an_urgent_announcement_is_also_emailed_right_away(): void
+    {
+        Notification::fake();
+        $lecturer = $this->userWithRole('lecturer');
+        $enrolled = $this->userWithRole('student');
+        $offering = $this->offering();
+        TeachingAssignment::create(['course_offering_id' => $offering->id, 'user_id' => $lecturer->id]);
+        $this->enrol($offering, $enrolled);
+
+        $this->actingAs($lecturer)->postJson('/api/offerings/'.$offering->id.'/announcements', ['title' => 'Class cancelled', 'body' => 'No power on campus today.', 'urgent' => true])
+            ->assertCreated()->assertJsonPath('urgent', true);
+
+        Notification::assertSentTo($enrolled, AnnouncementPosted::class, fn ($notification, $channels) => in_array('mail', $channels, true));
     }
 
     public function test_unpublished_offering_does_not_notify_students(): void

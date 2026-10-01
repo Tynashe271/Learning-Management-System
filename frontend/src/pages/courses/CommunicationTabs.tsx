@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { Announcement, Offering, Page, Post, StudyGroup, Thread } from '../../api/types'
 import { useMe } from '../../auth/AuthContext'
-import { Alert, Avatar, Badge, Button, Card, EmptyState, ErrorState, FormError, Loading, Modal, PageHeader, Pager, QueryView, TextArea, TextField, pagerFromPage, useConfirm } from '../../components/ui'
+import { Alert, Avatar, Badge, Button, Card, CheckField, EmptyState, ErrorState, FormError, Loading, Modal, PageHeader, Pager, QueryView, TextArea, TextField, pagerFromPage, useConfirm } from '../../components/ui'
 import { formatDateTime, plural, relativeTime } from '../../lib/format'
 import { fieldError, useApiMutation, useTitle } from '../../lib/hooks'
 import { useOffering } from './context'
@@ -32,7 +32,11 @@ export function AnnouncementsTab() {
             {data.data.map((a) => (
               <Card
                 key={a.id}
-                title={a.title}
+                title={
+                  <>
+                    {a.urgent && <Badge tone="bad">Urgent</Badge>} {a.title}
+                  </>
+                }
                 actions={
                   manage && (
                     <Button
@@ -66,9 +70,10 @@ function AnnouncementDialog({ offering, onClose }: { offering: number; onClose: 
   const { offering: o } = useOffering()
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
-  const save = useApiMutation(() => api.post(`/offerings/${offering}/announcements`, { title: title.trim(), body }), {
+  const [urgent, setUrgent] = useState(false)
+  const save = useApiMutation(() => api.post(`/offerings/${offering}/announcements`, { title: title.trim(), body, urgent }), {
     invalidate: [['announcements', offering]],
-    success: o.published ? 'Announcement posted. Enrolled students have been notified.' : 'Announcement posted.',
+    success: o.published ? (urgent ? 'Urgent notice posted and emailed to every enrolled student.' : 'Announcement posted. Enrolled students have been notified.') : 'Announcement posted.',
     onSuccess: onClose,
   })
   return (
@@ -81,6 +86,7 @@ function AnnouncementDialog({ offering, onClose }: { offering: number; onClose: 
       >
         <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} error={fieldError(save.error, 'title')} maxLength={255} autoFocus required />
         <TextArea label="Message" rows={8} value={body} onChange={(e) => setBody(e.target.value)} error={fieldError(save.error, 'body')} required />
+        <CheckField label="Urgent — also email every student immediately" hint="For a genuine emergency class notice (e.g. a cancellation). An ordinary announcement waits for the student's own notification/digest settings." checked={urgent} onChange={(e) => setUrgent(e.target.checked)} />
         {!o.published && <Alert tone="info">This course is not published, so students will not be notified until it is.</Alert>}
         {save.error && !fieldError(save.error, 'title') && !fieldError(save.error, 'body') && <FormError error={save.error} />}
         <div className="form-actions">

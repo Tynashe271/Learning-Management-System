@@ -620,6 +620,7 @@ export interface Announcement {
   id: number
   title: string
   body: string
+  urgent: boolean
   created_at: string
   author?: { id: number; name: string }
 }

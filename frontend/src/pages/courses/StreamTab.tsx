@@ -4,12 +4,12 @@ import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import type { AiReply, AiStudentMode, AiTeachingMode, Announcement, Page } from '../../api/types'
 import { useMe } from '../../auth/AuthContext'
-import { Avatar, Button, Card, EmptyState, ErrorState, FormError, Loading, SelectField, TextArea, TextField } from '../../components/ui'
+import { Avatar, Badge, Button, Card, CheckField, EmptyState, ErrorState, FormError, Loading, SelectField, TextArea, TextField } from '../../components/ui'
 import { formatDateTime, relativeTime } from '../../lib/format'
 import { fieldError, useApiMutation } from '../../lib/hooks'
 import { useOffering } from './context'
 
-type FeedItem = { key: string; at: string; icon: string; kind: string; title: string; to?: string; body?: string; author?: string }
+type FeedItem = { key: string; at: string; icon: string; kind: string; title: string; to?: string; body?: string; author?: string; urgent?: boolean }
 
 /** The course's landing tab: a reverse-chronological feed of what's new, Classroom-style. */
 export function StreamTab() {
@@ -17,7 +17,7 @@ export function StreamTab() {
   const announcements = useQuery({ queryKey: ['announcements', id, 1], queryFn: () => api.get<Page<Announcement>>(`/offerings/${id}/announcements`, { page: 1 }) })
 
   const feed: FeedItem[] = [
-    ...(announcements.data?.data.map((a) => ({ key: `an${a.id}`, at: a.created_at, icon: '📣', kind: 'Announcement', title: a.title, body: a.body, author: a.author?.name })) ?? []),
+    ...(announcements.data?.data.map((a) => ({ key: `an${a.id}`, at: a.created_at, icon: a.urgent ? '🚨' : '📣', kind: 'Announcement', title: a.title, body: a.body, author: a.author?.name, urgent: a.urgent })) ?? []),
     ...(offering.assignments ?? [])
       .filter((a) => a.published && a.created_at)
       .map((a) => ({ key: `as${a.id}`, at: a.created_at as string, icon: '📝', kind: 'New assignment', title: a.title, to: `/assignments/${a.id}` })),
@@ -63,7 +63,9 @@ export function StreamTab() {
                 {item.kind}
                 {item.author ? ` · ${item.author}` : ''} · <span title={formatDateTime(item.at)}>{relativeTime(item.at)}</span>
               </div>
-              <strong>{item.to ? <Link to={item.to}>{item.title}</Link> : item.title}</strong>
+              <strong>
+                {item.urgent && <Badge tone="bad">Urgent</Badge>} {item.to ? <Link to={item.to}>{item.title}</Link> : item.title}
+              </strong>
               {item.body && <p className="pre">{item.body}</p>}
             </div>
           </div>
@@ -144,12 +146,14 @@ function Composer({ offeringId }: { offeringId: number }) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
-  const save = useApiMutation(() => api.post(`/offerings/${offeringId}/announcements`, { title: title.trim(), body }), {
+  const [urgent, setUrgent] = useState(false)
+  const save = useApiMutation(() => api.post(`/offerings/${offeringId}/announcements`, { title: title.trim(), body, urgent }), {
     invalidate: [['announcements', offeringId]],
-    success: 'Shared with your class.',
+    success: urgent ? 'Urgent notice posted and emailed to every enrolled student.' : 'Shared with your class.',
     onSuccess: () => {
       setTitle('')
       setBody('')
+      setUrgent(false)
       setOpen(false)
     },
   })
@@ -174,6 +178,7 @@ function Composer({ offeringId }: { offeringId: number }) {
       >
         <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} error={fieldError(save.error, 'title')} maxLength={255} autoFocus required />
         <TextArea label="Message" rows={4} value={body} onChange={(e) => setBody(e.target.value)} error={fieldError(save.error, 'body')} required />
+        <CheckField label="Urgent — also email every student immediately" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} />
         <div className="form-actions">
           <Button onClick={() => setOpen(false)}>Cancel</Button>
           <Button type="submit" variant="primary" loading={save.isPending} disabled={!title.trim() || !body.trim()}>

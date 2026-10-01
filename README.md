@@ -167,7 +167,7 @@ Course-level powers (content, announcements, attendance, grading) apply only to 
 | `GET /items/{id}/download` | viewers | Download a file item. |
 | `POST`/`DELETE /items/{id}/complete` | enrolled students | Mark material done or not done. |
 | `GET /offerings/{id}/progress` | viewers | A student gets their own completion; managers get every student's. |
-| `GET`/`POST /offerings/{id}/announcements`, `DELETE /announcements/{id}` | view / managers | Announcements; posting notifies actively enrolled students. |
+| `GET`/`POST /offerings/{id}/announcements`, `DELETE /announcements/{id}` | view / managers | Announcements; posting notifies actively enrolled students in-app. An `urgent` announcement (an emergency class notice, e.g. a cancellation) also emails every one of them immediately, rather than waiting for their notification/digest preferences. |
 | `GET`/`POST /offerings/{id}/sessions`, `PATCH`/`DELETE /sessions/{id}` | view / managers | Scheduled class meetings with a start and end, an optional room, and an optional `join_url` (http/https only) for an online meeting on Zoom, Teams, Meet, or any other service. Students also see their own attendance status on each session. |
 | `GET`/`PUT /sessions/{id}/attendance` | managers | The roll of actively enrolled students, and marking or correcting attendance (`present`, `late`, `absent`, `excused`, with an optional note) for one or many students at once. |
 | `GET /offerings/{id}/attendance` | viewers | A student gets their own totals; managers get every student's. Late counts as attended; excused sessions are left out of the percentage. |
@@ -326,6 +326,14 @@ Streaks, badges and participation points are all computed from data the app alre
 | `GET`/`POST /me/learning-goals`, `PATCH`/`DELETE /learning-goals/{id}` | the student themselves | A personal goal (`title`, optional `target_date`), always self-managed — nobody else can read or change another person's goals. `PATCH` with `{"completed": true/false}` stamps or clears `completed_at`. |
 
 Progress celebrations are the frontend showing the badges and streak that already exist here, rather than a separate notification system.
+
+### Communication centre
+
+Roadmap item 19 is mostly already covered elsewhere in this document: course announcements and urgent/emergency notices ([Content, progress, and communication](#content-progress-and-communication)), group discussions and student study groups (same section), email and in-app notifications with a per-person frequency preference ([Account](#account), [Scheduled jobs](#scheduled-jobs)). What is deliberately not built:
+
+- **Private messages** - this repo's own messaging feature was removed before (see git history), and ROADMAP.md itself says to re-evaluate before building it again. Course discussions, assignment feedback threads, the AI assistant, and the intervention centre's supportive check-in note already cover most of what private messages would be used for here, without the moderation and abuse surface a general inbox carries.
+- **SMS deadline alerts** - needs an external SMS gateway this repo does not integrate.
+- **Consultation booking** - deliberately left to the free-text consultation hours in [Catalogue and offerings](#catalogue-and-offerings), the same decision made for items 2 and 12: a lecturer's own hours in their own words, not a scheduling system.
 
 ### Scheduled jobs
 

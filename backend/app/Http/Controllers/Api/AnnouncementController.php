@@ -23,8 +23,8 @@ class AnnouncementController extends Controller
     public function store(Request $request, CourseOffering $offering): JsonResponse
     {
         $this->authorize('manage', $offering);
-        $data = $request->validate(['title' => ['required', 'string', 'max:255'], 'body' => ['required', 'string']]);
-        $announcement = $offering->announcements()->create($data + ['user_id' => $request->user()->id]);
+        $data = $request->validate(['title' => ['required', 'string', 'max:255'], 'body' => ['required', 'string'], 'urgent' => ['sometimes', 'boolean']]);
+        $announcement = $offering->announcements()->create($data + ['user_id' => $request->user()->id, 'urgent' => $data['urgent'] ?? false]);
 
         if ($offering->published) {
             $offering->enrolments()->where('status', 'active')->pluck('user_id')->chunk(200)->each(
