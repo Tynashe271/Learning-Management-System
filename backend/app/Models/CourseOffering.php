@@ -90,4 +90,9 @@ class CourseOffering extends Model
     {
         return $this->hasMany(Project::class);
     }
+
+    public function interventionPlans(): HasMany
+    {
+        return $this->hasMany(InterventionPlan::class);
+    }
 }

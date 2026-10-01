@@ -1,6 +1,6 @@
 # University LMS
 
-Laravel 13 JSON API for a university learning management system: accounts and roles with single sign-on, the academic catalogue, course content, assignments with rubrics (including level descriptions), quizzes, grading, a gradebook, progress tracking, attendance with self check-in and online-meeting links, a Practical Skills Passport, an industrial attachment workspace, a research/project workspace, announcements, discussions, grade appeals, summary emails, virus scanning, similarity screening, bulk imports, course copying, notifications, and an audit trail. The backend is in `backend/` and the web frontend, which uses every endpoint, is in `frontend/`.
+Laravel 13 JSON API for a university learning management system: accounts and roles with single sign-on, the academic catalogue, course content, assignments with rubrics (including level descriptions), quizzes, grading, a gradebook, progress tracking, attendance with self check-in and online-meeting links, a Practical Skills Passport, an industrial attachment workspace, a research/project workspace, a learning intervention centre, announcements, discussions, grade appeals, summary emails, virus scanning, similarity screening, bulk imports, course copying, notifications, and an audit trail. The backend is in `backend/` and the web frontend, which uses every endpoint, is in `frontend/`.
 
 This document describes what is built and running. `ROADMAP.md` holds the longer-term product vision it was written from; several of its numbered items (or parts of them) have since been built, in which case they're described here instead — this README, not the roadmap, is the source of truth for what exists today.
 
@@ -26,7 +26,7 @@ Do not expose this local HTTP setup on a public network. Configure TLS, producti
 | Everyone | Sign in (password or single sign-on), forgot and reset password, dashboard ("needs your attention", notifications, courses), notifications, profile (name, password, summary-email preference and preview), footer links to the privacy policy and terms |
 | Anyone with a link, no account | A workplace supervisor's one-time attachment feedback page (`/attachment-feedback/:token`) |
 | Students | Course content with progress ticks and downloads, assignments with submission, rubric, grade breakdown and appeals, quizzes with a timer and results, announcements, discussions, classes with meeting links and check-in by code, attendance, a Skills Passport logbook with evidence uploads, an attachment placement with a weekly logbook, a project topic with milestones and meeting records, own grades, my appeals |
-| Lecturers and assistants | Modules, items and files; assignments and rubrics with levels; grading (rubric, drafts, reasons for changes); similarity check; quizzes and all five question types; announcements; discussions and moderation; classes, check-in codes and the roll; competencies and logbook review; attachment placements and supervisor feedback requests; project topic review, supervision, milestones and meetings; gradebook with CSV download; progress; appeals |
+| Lecturers and assistants | Modules, items and files; assignments and rubrics with levels; grading (rubric, drafts, reasons for changes); similarity check; quizzes and all five question types; announcements; discussions and moderation; classes, check-in codes and the roll; competencies and logbook review; attachment placements and supervisor feedback requests; project topic review, supervision, milestones and meetings; at-risk signals and intervention plans; gradebook (with weighting and a continuous-assessment total) and CSV download; progress; appeals |
 | Students (registration) | Register for courses that allow it while the term's registration window is open, see the places left, and drop before the add/drop deadline |
 | Registrars and administrators | Enrolment (one at a time, or from a list or CSV, respecting course capacity); teachers; terms with academic years and registration dates, departments, courses and offerings; publishing, archiving; copying a course to another term; accounts and one page per person (role, sign-in problems, sessions, privacy tools); CSV import with a dry run; usage and enrolment reports; audit log with filters and download; security events; system status |
 | Institution and system administrators | Settings, roles and permissions, notices to everyone, integrations, system and failed jobs, backups: see [System administration](#system-administration) |
@@ -202,6 +202,16 @@ Course-level powers (content, announcements, attendance, grading) apply only to 
 | `GET`/`POST /projects/{id}/meetings` | student, the assigned supervisor, or managers | A dated note either party logs after a supervision meeting. |
 
 Draft chapters, similarity screening and rubric-based marking reuse the existing assignment, similarity and rubric features (create an assignment scoped to the project) rather than a second copy of them.
+
+### Learning intervention centre
+
+| Route | Who | Purpose |
+|---|---|---|
+| `GET /offerings/{id}/at-risk` | managers | Every actively enrolled student with three signals computed on the fly, not stored: `missing_assignments` (published assignments past their deadline with nothing submitted), `declining` (their recent published-grade average is at least 10 points below their earlier average, once there are enough marks to compare), and `inactive_days` (days since last sign-in, `null` if they never have). `flagged` is true if any signal is tripped (missing work, a decline, or 14+ inactive days); `has_open_plan` says whether an intervention plan is already open for them. |
+| `GET`/`POST /offerings/{id}/intervention-plans` (`?user_id=`) | managers | A lecturer's record of reaching out: `reason` and an optional `action_plan`, both internal. An optional `message_to_student` sends the student a private, separate note (database and email) that never includes the reason or action plan. |
+| `PATCH /intervention-plans/{id}` | managers | Update the plan or set `status` to `resolved` (stamps `resolved_at`) or back to `open`; can also send a further `message_to_student`. |
+
+Scheduling consultation sessions is deliberately left to the free-text consultation hours in [Catalogue and offerings](#catalogue-and-offerings) - no booking system, for the same reason as item 2's lecturer consultation times.
 
 ### Assignments and grading
 

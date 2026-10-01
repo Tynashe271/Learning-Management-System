@@ -118,7 +118,7 @@ function OfferingBody({ offering, enrolmentOnly, ctx, manage = false }: { offeri
         { to: `${base}/attachment`, label: 'Attachment' },
         { to: `${base}/projects`, label: 'Projects' },
         { to: `${base}/grades`, label: manage ? 'Gradebook' : 'My grades' },
-        ...(manage ? [{ to: `${base}/overview`, label: 'Overview' }, { to: `${base}/progress`, label: 'Progress' }] : []),
+        ...(manage ? [{ to: `${base}/overview`, label: 'Overview' }, { to: `${base}/progress`, label: 'Progress' }, { to: `${base}/support`, label: 'Support' }] : []),
         ...(manage || ctx.registrar ? [{ to: `${base}/people`, label: 'People' }] : []),
         ...(manage ? [{ to: `${base}/appeals`, label: 'Appeals' }] : []),
         ...(context.admin ? [{ to: `${base}/settings`, label: 'Settings' }] : []),

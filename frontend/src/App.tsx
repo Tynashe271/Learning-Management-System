@@ -26,6 +26,7 @@ import { AttachmentFeedbackPage } from './pages/courses/AttachmentFeedbackPage'
 import { AttachmentTab } from './pages/courses/AttachmentTab'
 import { AttendanceTab, ClassesTab } from './pages/courses/ClassesTab'
 import { ProjectsTab } from './pages/courses/ProjectsTab'
+import { SupportTab } from './pages/courses/SupportTab'
 import { SkillsTab } from './pages/courses/SkillsTab'
 import { AnnouncementsTab, DiscussionPage, DiscussionsTab } from './pages/courses/CommunicationTabs'
 import { ClassworkTab } from './pages/courses/ClassworkTab'
@@ -133,6 +134,7 @@ export function App() {
           <Route path="grades" element={<NotEnrolmentOnly><GradesTab /></NotEnrolmentOnly>} />
           <Route path="overview" element={<ManagerOnly><OverviewTab /></ManagerOnly>} />
           <Route path="progress" element={<ManagerOnly><ProgressTab /></ManagerOnly>} />
+          <Route path="support" element={<ManagerOnly><SupportTab /></ManagerOnly>} />
           <Route path="people" element={<PeopleOnly><PeopleTab /></PeopleOnly>} />
           <Route path="appeals" element={<ManagerOnly><AppealsTab /></ManagerOnly>} />
           <Route path="settings" element={<AdminOnly><SettingsTab /></AdminOnly>} />

@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\HandRaiseController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\IntegrationController;
+use App\Http\Controllers\Api\InterventionController;
 use App\Http\Controllers\Api\LmsController;
 use App\Http\Controllers\Api\ManagementController;
 use App\Http\Controllers\Api\ProgressController;
@@ -216,6 +217,12 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::patch('/project-milestones/{milestone}', [ProjectController::class, 'updateMilestone']);
     Route::get('/projects/{project}/meetings', [ProjectController::class, 'indexMeetings']);
     Route::post('/projects/{project}/meetings', [ProjectController::class, 'storeMeeting']);
+
+    // Learning intervention centre
+    Route::get('/offerings/{offering}/at-risk', [InterventionController::class, 'atRisk']);
+    Route::get('/offerings/{offering}/intervention-plans', [InterventionController::class, 'indexPlans']);
+    Route::post('/offerings/{offering}/intervention-plans', [InterventionController::class, 'storePlan']);
+    Route::patch('/intervention-plans/{plan}', [InterventionController::class, 'updatePlan']);
 
     // Learning content and progress
     Route::post('/offerings/{offering}/modules', [LmsController::class, 'module']);

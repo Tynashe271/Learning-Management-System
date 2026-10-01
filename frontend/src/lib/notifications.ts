@@ -20,6 +20,8 @@ export function notificationText(n: Notification): string {
       return `Due soon: ${title}`
     case 'SystemAnnouncementPosted':
       return `Notice from the institution: ${title}`
+    case 'SupportCheckIn':
+      return typeof n.data.message === 'string' ? n.data.message : `A note from your ${title} teacher`
     default:
       return title || 'Update'
   }
@@ -31,6 +33,8 @@ export function notificationLink(n: Notification): string | null {
   switch (kind(n)) {
     case 'AnnouncementPosted':
       return d.offering_id ? `/courses/${d.offering_id}/announcements` : null
+    case 'SupportCheckIn':
+      return d.offering_id ? `/courses/${d.offering_id}` : null
     case 'GradePublished':
     case 'AssignmentDueSoon':
       return d.assignment_id ? `/assignments/${d.assignment_id}` : null

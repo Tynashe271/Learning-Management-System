@@ -884,6 +884,30 @@ export interface LogbookEntry {
   reviewer_comment: string | null
 }
 
+export interface AtRiskRow {
+  user: { id: number; name: string; email: string }
+  has_open_plan: boolean
+  missing_assignments: number
+  declining: boolean
+  inactive_days: number | null
+  flagged: boolean
+}
+
+export type InterventionStatus = 'open' | 'resolved'
+
+export interface InterventionPlan {
+  id: number
+  course_offering_id: number
+  user_id: number
+  student?: { id: number; name: string }
+  author?: { id: number; name: string }
+  reason: string
+  action_plan: string | null
+  status: InterventionStatus
+  resolved_at: string | null
+  created_at: string
+}
+
 export type ProjectStatus = 'proposed' | 'approved' | 'rejected'
 
 export interface Project {
