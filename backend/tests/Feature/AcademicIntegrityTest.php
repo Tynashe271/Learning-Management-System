@@ -85,6 +85,19 @@ class AcademicIntegrityTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors('submission_id');
     }
 
+    public function test_a_submission_from_a_different_course_cannot_be_attached_to_the_case(): void
+    {
+        $otherOffering = $this->offering('B');
+        $this->teach($otherOffering, $this->lecturer);
+        $this->enrol($otherOffering, $this->ada);
+        $otherAssignment = Assignment::create(['course_offering_id' => $otherOffering->id, 'title' => 'Other essay', 'due_at' => now()->addDay(), 'max_score' => 100, 'published' => true]);
+        $otherSubmissionId = $this->actingAs($this->ada)->postJson('/api/assignments/'.$otherAssignment->id.'/submissions', ['body' => 'x'])->assertCreated()->json('id');
+
+        $this->actingAs($this->lecturer)->postJson('/api/offerings/'.$this->offering->id.'/integrity-cases', [
+            'user_id' => $this->ada->id, 'submission_id' => $otherSubmissionId, 'description' => 'x',
+        ])->assertUnprocessable()->assertJsonValidationErrors('submission_id');
+    }
+
     public function test_only_a_manager_can_see_or_open_integrity_cases(): void
     {
         $this->actingAs($this->ada)->getJson('/api/offerings/'.$this->offering->id.'/integrity-cases')->assertForbidden();

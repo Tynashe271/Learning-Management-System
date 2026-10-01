@@ -12,7 +12,9 @@ class LearningGoalController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        return response()->json(LearningGoal::where('user_id', $request->user()->id)->orderBy('completed_at')->orderBy('target_date')->orderBy('id')->get());
+        // Explicit "is it done" ordering, not a bare orderBy('completed_at'): Postgres and SQLite put a null completed_at
+        // on opposite ends of an ascending sort by default, which would silently reorder this between tests and production.
+        return response()->json(LearningGoal::where('user_id', $request->user()->id)->orderByRaw('completed_at is not null')->orderBy('target_date')->orderBy('id')->get());
     }
 
     public function store(Request $request): JsonResponse

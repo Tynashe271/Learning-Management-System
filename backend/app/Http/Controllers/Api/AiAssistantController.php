@@ -71,18 +71,22 @@ class AiAssistantController extends Controller
         $used = 0;
         $sources = collect();
         $material = '';
-        foreach ($items as $i => $item) {
-            $chunk = Str::limit((string) $item->body, max(0, min(2000, $budget - $used)));
+        foreach ($items as $item) {
+            $remaining = $budget - $used;
+            if ($remaining <= 0) {
+                break;
+            }
+            // An item with an empty body (editable to blank independently of its type) is skipped entirely, not
+            // numbered: the bracket number below must always match this source's position, or "Sources: N" parsing
+            // in respond() would point at the wrong material - or at nothing, once any earlier item is skipped.
+            $chunk = Str::limit((string) $item->body, min(2000, $remaining));
             if ($chunk === '') {
                 continue;
             }
-            $n = $i + 1;
+            $n = $sources->count() + 1;
             $material .= "[{$n}] {$item->title}\n{$chunk}\n\n";
             $sources->push(['id' => $item->id, 'title' => $item->title]);
             $used += mb_strlen($chunk);
-            if ($used >= $budget) {
-                break;
-            }
         }
 
         $course = $offering->course?->title ?? 'this course';

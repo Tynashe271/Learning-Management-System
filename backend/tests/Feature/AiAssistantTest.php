@@ -68,6 +68,27 @@ class AiAssistantTest extends TestCase
         });
     }
 
+    public function test_source_numbering_still_matches_after_a_blank_item_is_skipped(): void
+    {
+        $this->enableAi();
+        $module = $this->offering->modules()->create(['title' => 'Week 1', 'position' => 1]);
+        // A text item can be edited down to an empty body without being unpublished or deleted - it must be skipped
+        // when numbering sources, not counted, or every source after it would be labelled one number too high.
+        $module->items()->create(['title' => 'Cleared item', 'type' => 'text', 'body' => '', 'published' => true, 'position' => 1]);
+        $module->items()->create(['title' => 'Variables', 'type' => 'text', 'body' => 'A variable stores a value under a name.', 'published' => true, 'position' => 2]);
+        $this->fakeReply("A variable is a named storage location for a value.\n\nSources: 1");
+
+        $result = $this->actingAs($this->ada)->postJson('/api/offerings/'.$this->offering->id.'/ai/assist', ['mode' => 'ask', 'prompt' => 'What is a variable?'])
+            ->assertOk()->json();
+
+        $this->assertCount(1, $result['sources']);
+        $this->assertSame('Variables', $result['sources'][0]['title']);
+
+        Http::assertSent(function ($request) {
+            return str_contains($request['system'], "[1] Variables");
+        });
+    }
+
     public function test_sources_none_yields_an_empty_sources_list(): void
     {
         $this->enableAi();

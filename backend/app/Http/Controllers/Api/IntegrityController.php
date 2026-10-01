@@ -24,7 +24,10 @@ class IntegrityController extends Controller
         $this->authorize('manage', $offering);
         $data = $request->validate([
             'user_id' => ['required', 'integer', Rule::exists('enrolments', 'user_id')->where('course_offering_id', $offering->id)->where('status', 'active')],
-            'submission_id' => ['nullable', 'integer', Rule::exists('submissions', 'id')->where('user_id', $request->input('user_id'))],
+            // Scoped to this offering too, not just this student: the same student may have a submission with the same
+            // id's worth of privilege in a different course, which has nothing to do with a case opened here.
+            'submission_id' => ['nullable', 'integer', Rule::exists('submissions', 'id')->where('user_id', $request->input('user_id'))
+                ->whereIn('assignment_id', $offering->assignments()->pluck('id'))],
             'description' => ['required', 'string', 'max:4000'],
         ]);
         $case = $offering->integrityCases()->create($data + ['reported_by' => $request->user()->id, 'status' => 'open']);
