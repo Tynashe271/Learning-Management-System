@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\BackupController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CheckinController;
 use App\Http\Controllers\Api\CompetencyController;
+use App\Http\Controllers\Api\CourseAnalyticsController;
 use App\Http\Controllers\Api\CourseCopyController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DepartmentController;
@@ -161,6 +162,7 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/offerings/{offering}/gradebook', [GradebookController::class, 'gradebook'])->middleware('throttle:heavy');
     Route::get('/offerings/{offering}/my-grades', [GradebookController::class, 'mine']);
     Route::get('/offerings/{offering}/progress', [ProgressController::class, 'progress']);
+    Route::get('/offerings/{offering}/analytics', [CourseAnalyticsController::class, 'show']);
     Route::post('/offerings/{offering}/enrolments', [LmsController::class, 'enrol']);
     Route::post('/offerings/{offering}/enrolments/import', [ManagementController::class, 'importEnrolments'])->middleware('throttle:heavy');
     Route::post('/offerings/{offering}/teachers', [LmsController::class, 'teacher']);

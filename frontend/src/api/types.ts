@@ -209,6 +209,26 @@ export interface OfferingSummary {
   quizzes: { id: number; title: string; due_at: string; published: boolean; students_attempted: number }[]
 }
 
+export interface CourseAnalytics {
+  completion: { average_percent: number | null; students: number }
+  assessments: {
+    type: 'assignment' | 'quiz'
+    id: number
+    title: string
+    module_id: number | null
+    due_at: string | null
+    average_percent: number | null
+    enrolled: number
+    submitted: number
+    on_time: number | null
+    late: number | null
+    missing: number
+  }[]
+  weak_topics: { module_id: number; average_percent: number; assessment_count: number }[]
+  response_time: { average_hours: number | null; graded: number }
+  competencies: { id: number; title: string; not_started: number; developing: number; competent: number }[]
+}
+
 // ---- content ---------------------------------------------------------------------------------------------------
 export interface LearningItem {
   id: number

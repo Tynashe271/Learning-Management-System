@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../../api/client'
-import type { Accommodation, Enrolment, EnrolmentImportResult, OfferingEngagement, OfferingSummary, Person, Roster, RoleName, Teacher } from '../../api/types'
+import type { Accommodation, CourseAnalytics, Enrolment, EnrolmentImportResult, OfferingEngagement, OfferingSummary, Person, Roster, RoleName, Teacher } from '../../api/types'
 import { useAuth, useMe } from '../../auth/AuthContext'
 import { PersonPicker } from '../../components/PersonPicker'
 import { Alert, Badge, Button, Card, EmptyState, FileField, FormError, Modal, Pager, QueryView, SelectField, Table, TextArea, TextField, pagerFromMeta, useConfirm } from '../../components/ui'
@@ -10,12 +10,60 @@ import { fieldError, useApiMutation } from '../../lib/hooks'
 import { useOffering } from './context'
 
 export function OverviewTab() {
-  const { id } = useOffering()
+  const { id, offering } = useOffering()
   const query = useQuery({ queryKey: ['summary', id], queryFn: () => api.get<OfferingSummary>(`/offerings/${id}/summary`) })
+  const analytics = useQuery({ queryKey: ['analytics', id], queryFn: () => api.get<CourseAnalytics>(`/offerings/${id}/analytics`) })
+  const moduleTitle = (moduleId: number) => offering.modules?.find((m) => m.id === moduleId)?.title ?? `Module ${moduleId}`
   return (
     <QueryView query={query}>
       {(s) => (
         <>
+          {analytics.data && (
+            <Card title="Class analytics">
+              <p>
+                Average content completed: <strong>{analytics.data.completion.average_percent === null ? 'n/a' : `${analytics.data.completion.average_percent}%`}</strong>
+                {' · '}
+                Average time to a published grade: <strong>{analytics.data.response_time.average_hours === null ? 'n/a' : plural(Math.round(analytics.data.response_time.average_hours), 'hour')}</strong>
+              </p>
+              {analytics.data.weak_topics.length > 0 && (
+                <>
+                  <h3>Hardest topics</h3>
+                  <ul className="plain-list">
+                    {analytics.data.weak_topics.map((t) => (
+                      <li key={t.module_id}>
+                        {moduleTitle(t.module_id)}: averaging {t.average_percent}% across {plural(t.assessment_count, 'assessment')}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {analytics.data.competencies.length > 0 && (
+                <>
+                  <h3>Practical competencies</h3>
+                  <Table caption="Competency status counts">
+                    <thead>
+                      <tr>
+                        <th>Competency</th>
+                        <th>Not started</th>
+                        <th>Developing</th>
+                        <th>Competent</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analytics.data.competencies.map((c) => (
+                        <tr key={c.id}>
+                          <td>{c.title}</td>
+                          <td>{c.not_started}</td>
+                          <td>{c.developing}</td>
+                          <td>{c.competent}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </>
+              )}
+            </Card>
+          )}
           <Card title="Assignments" actions={<span className="muted">{plural(s.enrolled, 'active student')}</span>}>
             {s.assignments.length === 0 ? (
               <EmptyState title="No assignments yet" />
@@ -28,20 +76,25 @@ export function OverviewTab() {
                     <th>Submitted</th>
                     <th>Graded</th>
                     <th>Still to submit</th>
+                    <th>Average score</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {s.assignments.map((a) => (
-                    <tr key={a.id}>
-                      <td>
-                        {a.title} {!a.published && <Badge tone="warn">Draft</Badge>}
-                      </td>
-                      <td>{formatDateTime(a.due_at)}</td>
-                      <td>{a.submissions}</td>
-                      <td>{a.graded}</td>
-                      <td>{a.awaiting_submission}</td>
-                    </tr>
-                  ))}
+                  {s.assignments.map((a) => {
+                    const row = analytics.data?.assessments.find((x) => x.type === 'assignment' && x.id === a.id)
+                    return (
+                      <tr key={a.id}>
+                        <td>
+                          {a.title} {!a.published && <Badge tone="warn">Draft</Badge>}
+                        </td>
+                        <td>{formatDateTime(a.due_at)}</td>
+                        <td>{a.submissions}</td>
+                        <td>{a.graded}</td>
+                        <td>{a.awaiting_submission}</td>
+                        <td>{row?.average_percent == null ? '—' : `${row.average_percent}%`}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </Table>
             )}
@@ -56,20 +109,25 @@ export function OverviewTab() {
                     <th>Quiz</th>
                     <th>Due</th>
                     <th>Students who attempted</th>
+                    <th>Average score</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {s.quizzes.map((q) => (
-                    <tr key={q.id}>
-                      <td>
-                        {q.title} {!q.published && <Badge tone="warn">Draft</Badge>}
-                      </td>
-                      <td>{formatDateTime(q.due_at)}</td>
-                      <td>
-                        {q.students_attempted} of {s.enrolled}
-                      </td>
-                    </tr>
-                  ))}
+                  {s.quizzes.map((q) => {
+                    const row = analytics.data?.assessments.find((x) => x.type === 'quiz' && x.id === q.id)
+                    return (
+                      <tr key={q.id}>
+                        <td>
+                          {q.title} {!q.published && <Badge tone="warn">Draft</Badge>}
+                        </td>
+                        <td>{formatDateTime(q.due_at)}</td>
+                        <td>
+                          {q.students_attempted} of {s.enrolled}
+                        </td>
+                        <td>{row?.average_percent == null ? '—' : `${row.average_percent}%`}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </Table>
             )}
