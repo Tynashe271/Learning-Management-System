@@ -59,11 +59,18 @@ class QuizAttempt extends Model
     {
         $deadline = $this->quiz->due_at;
         if ($this->quiz->time_limit_minutes) {
-            $limit = $this->started_at->addMinutes($this->quiz->time_limit_minutes);
+            $minutes = $this->quiz->time_limit_minutes * (1 + $this->extraTimePercent() / 100);
+            $limit = $this->started_at->addMinutes((int) ceil($minutes));
             $deadline = $limit->lessThan($deadline) ? $limit : $deadline;
         }
 
         return $deadline;
+    }
+
+    /** The student's documented extra-time accommodation for this course, as a percentage added to the time limit (0 if none). */
+    private function extraTimePercent(): int
+    {
+        return Accommodation::where('course_offering_id', $this->quiz->course_offering_id)->where('user_id', $this->user_id)->value('extra_time_percent') ?? 0;
     }
 
     public function isExpired(): bool

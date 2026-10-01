@@ -6,6 +6,7 @@ import type { DigestFrequency, DigestSummary, Me, Notification, Page, Preference
 import { ROLE_LABELS } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { Alert, Badge, Button, Card, CheckField, EmptyState, FormError, Pager, PageHeader, QueryView, SelectField, TextField, pagerFromPage, useToast } from '../components/ui'
+import { useDisplayPrefs } from '../lib/display'
 import { formatDateTime, relativeTime } from '../lib/format'
 import { fieldError, useApiMutation, useTitle } from '../lib/hooks'
 import { describePolicy, policyProblems, useAuthConfig } from '../lib/institution'
@@ -54,7 +55,38 @@ export function ProfilePage() {
         <DigestCard />
         <LowDataModeCard />
       </div>
+      <div className="grid-2">
+        <DisplayCard />
+      </div>
     </>
+  )
+}
+
+function DisplayCard() {
+  const { fontSize, setFontSize, highContrast, setHighContrast } = useDisplayPrefs()
+
+  return (
+    <Card title="Display">
+      <p className="muted">Remembered on this device only, like a browser's own zoom or dark-mode setting.</p>
+      <fieldset className="field">
+        <legend>Text size</legend>
+        <div className="segmented">
+          <label className={fontSize === 'normal' ? 'on' : ''}>
+            <input type="radio" name="font-size" checked={fontSize === 'normal'} onChange={() => setFontSize('normal')} />
+            Normal
+          </label>
+          <label className={fontSize === 'large' ? 'on' : ''}>
+            <input type="radio" name="font-size" checked={fontSize === 'large'} onChange={() => setFontSize('large')} />
+            Large
+          </label>
+          <label className={fontSize === 'larger' ? 'on' : ''}>
+            <input type="radio" name="font-size" checked={fontSize === 'larger'} onChange={() => setFontSize('larger')} />
+            Larger
+          </label>
+        </div>
+      </fieldset>
+      <CheckField label="High contrast" hint="Stronger text, borders and colour contrast throughout the app." checked={highContrast} onChange={(e) => setHighContrast(e.target.checked)} />
+    </Card>
   )
 }
 

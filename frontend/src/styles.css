@@ -45,6 +45,30 @@
   }
 }
 
+/* Accessibility: font size and contrast, set from the "Display" menu and remembered per device (localStorage). */
+html[data-font-size='large'] {
+  font-size: 112.5%;
+}
+html[data-font-size='larger'] {
+  font-size: 125%;
+}
+html[data-contrast='high'] {
+  --text: #000000;
+  --muted: #2a2a2a;
+  --border: #000000;
+  --bg: #ffffff;
+  --surface: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-contrast='high'] {
+    --text: #ffffff;
+    --muted: #e6e6e6;
+    --border: #ffffff;
+    --bg: #000000;
+    --surface: #000000;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

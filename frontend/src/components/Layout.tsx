@@ -5,6 +5,7 @@ import { api } from '../api/client'
 import type { Notification, Page, SystemAnnouncement } from '../api/types'
 import { ROLE_LABELS } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
+import { useDisplayPrefs } from '../lib/display'
 import { institutionName, useAuthConfig } from '../lib/institution'
 import { useOnline } from '../lib/online'
 import { Alert, Avatar } from './ui'
@@ -22,6 +23,7 @@ export function Layout() {
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const online = useOnline()
+  useDisplayPrefs() // applies the remembered font size and contrast to the whole app, not just the account page
 
   useEffect(() => setMenuOpen(false), [location.pathname])
 

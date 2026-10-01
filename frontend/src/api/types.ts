@@ -321,6 +321,15 @@ export interface Submission {
 
 export type IntegrityCaseStatus = 'open' | 'upheld' | 'dismissed'
 
+export interface Accommodation {
+  id: number
+  course_offering_id: number
+  user_id: number
+  student?: { id: number; name: string; email: string }
+  extra_time_percent: number
+  notes: string | null
+}
+
 export interface IntegrityCase {
   id: number
   course_offering_id: number

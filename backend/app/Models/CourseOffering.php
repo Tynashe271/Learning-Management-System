@@ -105,4 +105,9 @@ class CourseOffering extends Model
     {
         return $this->hasMany(IntegrityCase::class);
     }
+
+    public function accommodations(): HasMany
+    {
+        return $this->hasMany(Accommodation::class);
+    }
 }

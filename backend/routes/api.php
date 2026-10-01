@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AcademicStructureController;
+use App\Http\Controllers\Api\AccommodationController;
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\AiAssistantController;
@@ -242,6 +243,11 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     // AI learning assistant and lecturer teaching assistant
     Route::post('/offerings/{offering}/ai/assist', [AiAssistantController::class, 'assist'])->middleware('throttle:heavy');
     Route::post('/offerings/{offering}/ai/teaching-assist', [AiAssistantController::class, 'teachingAssist'])->middleware('throttle:heavy');
+
+    // Accessibility: extended-time accommodations
+    Route::get('/offerings/{offering}/accommodations', [AccommodationController::class, 'index']);
+    Route::post('/offerings/{offering}/accommodations', [AccommodationController::class, 'store']);
+    Route::delete('/accommodations/{accommodation}', [AccommodationController::class, 'destroy']);
 
     // Learning content and progress
     Route::post('/offerings/{offering}/modules', [LmsController::class, 'module']);

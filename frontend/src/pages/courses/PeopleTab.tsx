@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../../api/client'
-import type { EnrolmentImportResult, OfferingSummary, Person, Roster, RoleName, Teacher } from '../../api/types'
+import type { Accommodation, Enrolment, EnrolmentImportResult, OfferingSummary, Person, Roster, RoleName, Teacher } from '../../api/types'
 import { useAuth, useMe } from '../../auth/AuthContext'
 import { PersonPicker } from '../../components/PersonPicker'
-import { Alert, Badge, Button, Card, EmptyState, FileField, FormError, Modal, Pager, QueryView, SelectField, Table, TextArea, pagerFromMeta, useConfirm } from '../../components/ui'
+import { Alert, Badge, Button, Card, EmptyState, FileField, FormError, Modal, Pager, QueryView, SelectField, Table, TextArea, TextField, pagerFromMeta, useConfirm } from '../../components/ui'
 import { formatDateTime, plural } from '../../lib/format'
 import { fieldError, useApiMutation } from '../../lib/hooks'
 import { useOffering } from './context'
@@ -81,7 +81,7 @@ export function OverviewTab() {
 }
 
 export function PeopleTab() {
-  const { id, admin, registrar } = useOffering()
+  const { id, admin, registrar, manage } = useOffering()
   const { can } = useAuth()
   const me = useMe()
   const confirm = useConfirm()
@@ -90,6 +90,8 @@ export function PeopleTab() {
   const [assigning, setAssigning] = useState(false)
   const [importing, setImporting] = useState(false)
   const [settingHoursFor, setSettingHoursFor] = useState<Teacher | null>(null)
+  const [settingAccommodationFor, setSettingAccommodationFor] = useState<Enrolment | null>(null)
+  const accommodations = useQuery({ queryKey: ['accommodations', id], queryFn: () => api.get<Accommodation[]>(`/offerings/${id}/accommodations`), enabled: manage })
   const query = useQuery({ queryKey: ['roster', id, page], queryFn: () => api.get<Roster>(`/offerings/${id}/roster`, { page }), placeholderData: (previous) => previous })
 
   const setStatus = useApiMutation((v: { userId: number; status: 'active' | 'withdrawn' }) => api.post(`/offerings/${id}/enrolments`, { user_id: v.userId, status: v.status }), { invalidate: [['roster', id]], toastError: true, success: 'Enrolment updated.' })
@@ -168,24 +170,36 @@ export function PeopleTab() {
                       <th>Name</th>
                       <th>Email</th>
                       <th>Status</th>
-                      {registrar && <th />}
+                      {manage && <th>Accommodation</th>}
+                      {(registrar || manage) && <th />}
                     </tr>
                   </thead>
                   <tbody>
-                    {data.enrolments.map((e) => (
-                      <tr key={e.id}>
-                        <td>{e.user?.name}</td>
-                        <td>{e.user?.email}</td>
-                        <td>{e.status === 'active' ? <Badge tone="good">Active</Badge> : <Badge>Withdrawn</Badge>}</td>
-                        {registrar && (
-                          <td className="actions">
-                            <Button small onClick={() => setStatus.mutate({ userId: e.user_id, status: e.status === 'active' ? 'withdrawn' : 'active' })}>
-                              {e.status === 'active' ? 'Withdraw' : 'Re-enrol'}
-                            </Button>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
+                    {data.enrolments.map((e) => {
+                      const accommodation = accommodations.data?.find((a) => a.user_id === e.user_id)
+                      return (
+                        <tr key={e.id}>
+                          <td>{e.user?.name}</td>
+                          <td>{e.user?.email}</td>
+                          <td>{e.status === 'active' ? <Badge tone="good">Active</Badge> : <Badge>Withdrawn</Badge>}</td>
+                          {manage && <td>{accommodation ? <Badge tone="info">+{accommodation.extra_time_percent}% time</Badge> : <span className="muted">None</span>}</td>}
+                          {(registrar || manage) && (
+                            <td className="actions">
+                              {registrar && (
+                                <Button small onClick={() => setStatus.mutate({ userId: e.user_id, status: e.status === 'active' ? 'withdrawn' : 'active' })}>
+                                  {e.status === 'active' ? 'Withdraw' : 'Re-enrol'}
+                                </Button>
+                              )}
+                              {manage && (
+                                <Button small onClick={() => setSettingAccommodationFor(e)}>
+                                  {accommodation ? 'Edit accommodation' : 'Add accommodation'}
+                                </Button>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </Table>
                 <Pager {...pagerFromMeta(data.meta)} onPage={setPage} />
@@ -195,6 +209,14 @@ export function PeopleTab() {
           {enrolling && <EnrolDialog offeringId={id} enrolledIds={data.enrolments.map((e) => e.user_id)} onClose={() => setEnrolling(false)} />}
           {assigning && <AssignDialog offeringId={id} teacherIds={data.teachers.map((t) => t.user_id)} onClose={() => setAssigning(false)} />}
           {importing && <ImportDialog offeringId={id} onClose={() => setImporting(false)} />}
+          {settingAccommodationFor && (
+            <AccommodationDialog
+              offeringId={id}
+              student={settingAccommodationFor}
+              existing={accommodations.data?.find((a) => a.user_id === settingAccommodationFor.user_id) ?? null}
+              onClose={() => setSettingAccommodationFor(null)}
+            />
+          )}
         </>
       )}
     </QueryView>
@@ -254,6 +276,63 @@ function ConsultationHoursDialog({ offeringId, teacher, onClose }: { offeringId:
         <div className="form-actions">
           <Button onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="primary" loading={save.isPending}>
+            Save
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function AccommodationDialog({ offeringId, student, existing, onClose }: { offeringId: number; student: Enrolment; existing: Accommodation | null; onClose: () => void }) {
+  const [percent, setPercent] = useState(String(existing?.extra_time_percent ?? ''))
+  const [notes, setNotes] = useState(existing?.notes ?? '')
+  const confirm = useConfirm()
+  const save = useApiMutation(() => api.post(`/offerings/${offeringId}/accommodations`, { user_id: student.user_id, extra_time_percent: Number(percent), notes: notes.trim() || null }), {
+    invalidate: [['accommodations', offeringId]],
+    success: 'Accommodation saved.',
+    onSuccess: onClose,
+  })
+  const remove = useApiMutation(() => api.delete(`/accommodations/${existing!.id}`), {
+    invalidate: [['accommodations', offeringId]],
+    success: 'Accommodation removed.',
+    onSuccess: onClose,
+  })
+  return (
+    <Modal title={`Extended-time accommodation for ${student.user?.name}`} onClose={onClose}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          save.mutate()
+        }}
+      >
+        <TextField
+          label="Extra time (%)"
+          type="number"
+          min={1}
+          max={300}
+          value={percent}
+          onChange={(e) => setPercent(e.target.value)}
+          hint="Added to the time limit of every timed quiz in this course, e.g. 25 for time-and-a-quarter."
+          error={fieldError(save.error, 'extra_time_percent')}
+          required
+        />
+        <TextArea label="Notes" optional rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} error={fieldError(save.error, 'notes')} maxLength={2000} placeholder="e.g. Documented with disability services, review date" />
+        {save.error && !fieldError(save.error, 'extra_time_percent') && !fieldError(save.error, 'notes') && <FormError error={save.error} />}
+        <div className="form-actions">
+          {existing && (
+            <Button
+              variant="danger"
+              onClick={async () => {
+                if (await confirm({ title: 'Remove this accommodation?', message: 'Timed quizzes will go back to their plain time limit for this student.', confirmLabel: 'Remove accommodation', danger: true })) remove.mutate()
+              }}
+              loading={remove.isPending}
+            >
+              Remove
+            </Button>
+          )}
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={save.isPending} disabled={!percent}>
             Save
           </Button>
         </div>
