@@ -100,4 +100,9 @@ class CourseOffering extends Model
     {
         return $this->hasMany(StudyGroup::class);
     }
+
+    public function integrityCases(): HasMany
+    {
+        return $this->hasMany(IntegrityCase::class);
+    }
 }

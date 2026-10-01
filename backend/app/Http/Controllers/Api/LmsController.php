@@ -510,6 +510,8 @@ class LmsController extends Controller
             'body' => ['nullable', 'string'],
             'file' => ['bail', 'nullable', 'file', 'max:'.(int) config('lms.limits.upload_mb') * 1024, 'mimes:'.config('lms.upload_mimes'), new CleanFile],
             'late_explanation' => [Rule::requiredIf($late), 'nullable', 'string', 'max:1000'],
+            'used_ai' => ['sometimes', 'boolean'],
+            'ai_use_description' => [Rule::requiredIf(fn () => $request->boolean('used_ai')), 'nullable', 'string', 'max:1000'],
         ]);
         if (empty($data['body']) && ! $request->hasFile('file')) {
             throw ValidationException::withMessages(['body' => 'Provide text or a file.']);
@@ -545,7 +547,7 @@ class LmsController extends Controller
                     $row = $group ? $groupRows->firstWhere('user_id', $memberId) : Submission::where('assignment_id', $assignment->id)->where('user_id', $memberId)->first();
                     if ($row) {
                         SubmissionVersion::create(['submission_id' => $row->id, 'version' => $row->version, 'body' => $row->body, 'storage_path' => $row->storage_path, 'submitted_at' => $row->submitted_at]);
-                        $row->update(['body' => $data['body'] ?? null, 'storage_path' => $path, 'submitted_at' => now(), 'late' => $late, 'late_explanation' => $late ? $data['late_explanation'] : null, 'version' => $row->version + 1]);
+                        $row->update(['body' => $data['body'] ?? null, 'storage_path' => $path, 'submitted_at' => now(), 'late' => $late, 'late_explanation' => $late ? $data['late_explanation'] : null, 'used_ai' => $data['used_ai'] ?? false, 'ai_use_description' => ($data['used_ai'] ?? false) ? $data['ai_use_description'] : null, 'version' => $row->version + 1]);
                     } else {
                         $row = Submission::create([
                             'assignment_id' => $assignment->id,
@@ -556,6 +558,8 @@ class LmsController extends Controller
                             'submitted_at' => now(),
                             'late' => $late,
                             'late_explanation' => $late ? $data['late_explanation'] : null,
+                            'used_ai' => $data['used_ai'] ?? false,
+                            'ai_use_description' => ($data['used_ai'] ?? false) ? $data['ai_use_description'] : null,
                         ]);
                     }
                     if ($memberId === $request->user()->id) {

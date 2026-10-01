@@ -311,10 +311,28 @@ export interface Submission {
   submitted_at: string
   late: boolean
   late_explanation: string | null
+  used_ai: boolean
+  ai_use_description: string | null
   version: number
   group?: { id: number; name: string } | null
   grade_records?: GradeRecord[]
   gradeRecords?: GradeRecord[]
+}
+
+export type IntegrityCaseStatus = 'open' | 'upheld' | 'dismissed'
+
+export interface IntegrityCase {
+  id: number
+  course_offering_id: number
+  user_id: number
+  student?: { id: number; name: string; email: string }
+  submission_id: number | null
+  reporter?: { id: number; name: string }
+  description: string
+  status: IntegrityCaseStatus
+  outcome: string | null
+  resolved_at: string | null
+  created_at: string
 }
 
 export interface AssignmentGroup {

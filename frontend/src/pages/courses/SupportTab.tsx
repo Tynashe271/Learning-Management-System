@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../../api/client'
-import type { AtRiskRow, InterventionPlan } from '../../api/types'
+import type { AtRiskRow, IntegrityCase, InterventionPlan } from '../../api/types'
 import { Badge, Button, Card, EmptyState, FormError, Modal, QueryView, Table, TextArea } from '../../components/ui'
 import { formatDateTime } from '../../lib/format'
 import { fieldError, useApiMutation } from '../../lib/hooks'
@@ -54,8 +54,75 @@ export function SupportTab() {
           }}
         </QueryView>
       </Card>
+      <IntegrityCasesCard />
       {opening && <PlansDialog row={opening} onClose={() => setOpening(null)} />}
     </>
+  )
+}
+
+const CASE_TONE = { open: 'warn', upheld: 'bad', dismissed: 'neutral' } as const
+
+/** The lecturer's investigation workspace for cases flagged from an assignment's submissions table. */
+function IntegrityCasesCard() {
+  const { id } = useOffering()
+  const cases = useQuery({ queryKey: ['integrity-cases', id], queryFn: () => api.get<IntegrityCase[]>(`/offerings/${id}/integrity-cases`) })
+  const [outcomes, setOutcomes] = useState<Record<number, string>>({})
+  const decide = useApiMutation(
+    (vars: { id: number; status: 'upheld' | 'dismissed' }) => api.patch(`/integrity-cases/${vars.id}`, { status: vars.status, outcome: outcomes[vars.id]?.trim() || null }),
+    { invalidate: [['integrity-cases', id]], toastError: true },
+  )
+
+  return (
+    <Card title="Academic integrity cases">
+      <QueryView query={cases} isEmpty={(c) => c.length === 0} empty={<EmptyState title="No cases">Flag a submission from its assignment page to open one.</EmptyState>}>
+        {(rows) => (
+          <Table caption="Integrity cases">
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Concern</th>
+                <th>Status</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.student?.name ?? `Student #${c.user_id}`}</td>
+                  <td>
+                    {c.description}
+                    {c.outcome && (
+                      <span className="muted small block">
+                        <strong>Outcome:</strong> {c.outcome}
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <Badge tone={CASE_TONE[c.status]}>{c.status}</Badge>
+                  </td>
+                  <td className="actions">
+                    {c.status === 'open' && (
+                      <form
+                        className="inline-form"
+                        onSubmit={(event) => event.preventDefault()}
+                      >
+                        <TextArea label="Outcome" optional rows={1} value={outcomes[c.id] ?? ''} onChange={(e) => setOutcomes((o) => ({ ...o, [c.id]: e.target.value }))} />
+                        <Button small onClick={() => decide.mutate({ id: c.id, status: 'dismissed' })} loading={decide.isPending && decide.variables?.id === c.id && decide.variables.status === 'dismissed'}>
+                          Dismiss
+                        </Button>
+                        <Button small variant="danger" onClick={() => decide.mutate({ id: c.id, status: 'upheld' })} loading={decide.isPending && decide.variables?.id === c.id && decide.variables.status === 'upheld'}>
+                          Uphold
+                        </Button>
+                      </form>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </QueryView>
+    </Card>
   )
 }
 

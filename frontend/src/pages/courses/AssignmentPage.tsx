@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import type { Appeal, Assignment, AssignmentGroup, MyGrade, Offering, Page, PeerReviewReceived, PeerReviewTask, Roster, RubricCriterion, SimilarityReport, Submission, SubmissionFeedback, SubmissionVersion } from '../../api/types'
-import { Alert, Badge, Button, Card, EmptyState, ErrorState, FileField, FormError, Loading, Modal, PageHeader, Pager, PublishedBadge, QueryView, SelectField, Table, TextArea, TextField, pagerFromPage, useConfirm } from '../../components/ui'
+import { Alert, Badge, Button, Card, CheckField, EmptyState, ErrorState, FileField, FormError, Loading, Modal, PageHeader, Pager, PublishedBadge, QueryView, SelectField, Table, TextArea, TextField, pagerFromPage, useConfirm } from '../../components/ui'
 import { formatDateTime, formatScore, isPast, plural } from '../../lib/format'
 import { DownloadButton, fieldError, useApiMutation, useTitle } from '../../lib/hooks'
 import { AssignmentDialog } from './AssignmentsTab'
@@ -196,6 +196,8 @@ function SubmitForm({ assignment, resubmission, onDone }: { assignment: Assignme
   const [body, setBody] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [lateExplanation, setLateExplanation] = useState('')
+  const [usedAi, setUsedAi] = useState(false)
+  const [aiUseDescription, setAiUseDescription] = useState('')
   const confirm = useConfirm()
   const late = isPast(assignment.due_at)
   const submit = useApiMutation(
@@ -204,6 +206,8 @@ function SubmitForm({ assignment, resubmission, onDone }: { assignment: Assignme
       if (body.trim()) form.append('body', body)
       if (file) form.append('file', file)
       if (late) form.append('late_explanation', lateExplanation.trim())
+      form.append('used_ai', String(usedAi))
+      if (usedAi) form.append('ai_use_description', aiUseDescription.trim())
       return api.upload(`/assignments/${assignment.id}/submissions`, form)
     },
     { invalidate: [['my-grade', assignment.id]], success: resubmission ? 'Resubmitted.' : 'Submitted. Good luck!', onSuccess: onDone },
@@ -221,10 +225,12 @@ function SubmitForm({ assignment, resubmission, onDone }: { assignment: Assignme
         <TextArea label="Your answer" optional rows={8} value={body} onChange={(e) => setBody(e.target.value)} error={fieldError(submit.error, 'body')} />
         <FileField label="Attach a file" optional onChange={(e) => setFile(e.target.files?.[0] ?? null)} error={fieldError(submit.error, 'file')} hint="Up to 25 MB. Documents, slides, spreadsheets, images, ZIP files and similar are accepted." />
         {late && <TextArea label="Why is this late?" rows={3} value={lateExplanation} onChange={(e) => setLateExplanation(e.target.value)} error={fieldError(submit.error, 'late_explanation')} required />}
-        {submit.error && !fieldError(submit.error, 'body') && !fieldError(submit.error, 'file') && !fieldError(submit.error, 'late_explanation') && <FormError error={submit.error} />}
+        <CheckField label="I used AI tools while working on this" checked={usedAi} onChange={(e) => setUsedAi(e.target.checked)} />
+        {usedAi && <TextArea label="How did you use it?" rows={2} value={aiUseDescription} onChange={(e) => setAiUseDescription(e.target.value)} error={fieldError(submit.error, 'ai_use_description')} required />}
+        {submit.error && !fieldError(submit.error, 'body') && !fieldError(submit.error, 'file') && !fieldError(submit.error, 'late_explanation') && !fieldError(submit.error, 'ai_use_description') && <FormError error={submit.error} />}
         <div className="form-actions">
           {resubmission && <Button onClick={onDone}>Cancel</Button>}
-          <Button type="submit" variant="primary" loading={submit.isPending} disabled={(!body.trim() && !file) || (late && !lateExplanation.trim())}>
+          <Button type="submit" variant="primary" loading={submit.isPending} disabled={(!body.trim() && !file) || (late && !lateExplanation.trim()) || (usedAi && !aiUseDescription.trim())}>
             {resubmission ? 'Resubmit' : 'Submit'}
           </Button>
         </div>
@@ -244,11 +250,16 @@ function SubmittedView({ assignment, mine }: { assignment: AssignmentDetail; min
     <>
       <Card title="Your submission">
         <p className="muted small">
-          Submitted {formatDateTime(submission.submitted_at)} {submission.late && <Badge tone="warn">Late</Badge>} {submission.version > 1 && <Badge tone="info">Version {submission.version}</Badge>}
+          Submitted {formatDateTime(submission.submitted_at)} {submission.late && <Badge tone="warn">Late</Badge>} {submission.version > 1 && <Badge tone="info">Version {submission.version}</Badge>} {submission.used_ai && <Badge tone="info">AI use declared</Badge>}
         </p>
         {submission.late && submission.late_explanation && (
           <p className="muted small">
             Your explanation: <em>{submission.late_explanation}</em>
+          </p>
+        )}
+        {submission.used_ai && submission.ai_use_description && (
+          <p className="muted small">
+            How you used AI: <em>{submission.ai_use_description}</em>
           </p>
         )}
         {submission.body && <div className="reading pre">{submission.body}</div>}
@@ -470,6 +481,7 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
   const [page, setPage] = useState(1)
   const [grading, setGrading] = useState<Submission | null>(null)
   const [givingFeedback, setGivingFeedback] = useState<Submission | null>(null)
+  const [flagging, setFlagging] = useState<(Submission & { user?: { id: number; name: string; email: string } }) | null>(null)
   const [similarity, setSimilarity] = useState(false)
   const [managingGroups, setManagingGroups] = useState(false)
   const [assigningPeerReview, setAssigningPeerReview] = useState(false)
@@ -530,8 +542,9 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
                           </td>
                           {assignment.is_group_assignment && <td>{s.group?.name ?? <span className="muted">—</span>}</td>}
                           <td>
-                            {formatDateTime(s.submitted_at)} {s.late && <Badge tone="bad">Late</Badge>} {s.version > 1 && <Badge tone="info">Version {s.version}</Badge>}
+                            {formatDateTime(s.submitted_at)} {s.late && <Badge tone="bad">Late</Badge>} {s.version > 1 && <Badge tone="info">Version {s.version}</Badge>} {s.used_ai && <Badge tone="info">AI use declared</Badge>}
                             {s.late && s.late_explanation && <span className="muted small block">{s.late_explanation}</span>}
+                            {s.used_ai && s.ai_use_description && <span className="muted small block">{s.ai_use_description}</span>}
                           </td>
                           <td>
                             {latest ? (
@@ -551,6 +564,9 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
                             )}
                             <Button small variant="primary" onClick={() => setGrading(s)}>
                               {latest ? 'Regrade' : 'Grade'}
+                            </Button>
+                            <Button small onClick={() => setFlagging(s)}>
+                              Flag
                             </Button>
                           </td>
                         </tr>
@@ -573,7 +589,38 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
       {similarity && <SimilarityDialog assignmentId={assignment.id} onClose={() => setSimilarity(false)} />}
       {managingGroups && <GroupsDialog assignment={assignment} onClose={() => setManagingGroups(false)} />}
       {assigningPeerReview && <PeerReviewAssignDialog assignment={assignment} onClose={() => setAssigningPeerReview(false)} />}
+      {flagging && <IntegrityCaseDialog offeringId={assignment.course_offering_id} submission={flagging} onClose={() => setFlagging(null)} />}
     </>
+  )
+}
+
+/** Opens an academic-integrity case for a submission, for the lecturer's investigation workspace. */
+function IntegrityCaseDialog({ offeringId, submission, onClose }: { offeringId: number; submission: Submission & { user?: { id: number; name: string } }; onClose: () => void }) {
+  const [description, setDescription] = useState('')
+  const file = useApiMutation(
+    () => api.post(`/offerings/${offeringId}/integrity-cases`, { user_id: submission.user_id, submission_id: submission.id, description: description.trim() }),
+    { success: 'Case opened.', onSuccess: onClose },
+  )
+
+  return (
+    <Modal title={`Flag: ${submission.user?.name ?? `Student #${submission.user_id}`}`} onClose={onClose}>
+      <p className="muted">Opens an academic-integrity case in the Support tab's investigation workspace, separate from grading and from a grade appeal.</p>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          file.mutate()
+        }}
+      >
+        <TextArea label="What is the concern?" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} error={fieldError(file.error, 'description')} required />
+        {file.error && !fieldError(file.error, 'description') && <FormError error={file.error} />}
+        <div className="form-actions">
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={file.isPending} disabled={!description.trim()}>
+            Open case
+          </Button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 

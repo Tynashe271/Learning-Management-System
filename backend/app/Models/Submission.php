@@ -8,11 +8,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Submission extends Model
 {
-    protected $fillable = ['assignment_id', 'user_id', 'assignment_group_id', 'body', 'storage_path', 'submitted_at', 'late', 'late_explanation', 'version'];
+    protected $fillable = ['assignment_id', 'user_id', 'assignment_group_id', 'body', 'storage_path', 'submitted_at', 'late', 'late_explanation', 'used_ai', 'ai_use_description', 'version'];
 
     protected function casts(): array
     {
-        return ['submitted_at' => 'immutable_datetime', 'late' => 'boolean'];
+        return ['submitted_at' => 'immutable_datetime', 'late' => 'boolean', 'used_ai' => 'boolean'];
     }
 
     public function assignment(): BelongsTo

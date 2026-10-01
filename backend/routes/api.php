@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\HandRaiseController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\IntegrationController;
+use App\Http\Controllers\Api\IntegrityController;
 use App\Http\Controllers\Api\InterventionController;
 use App\Http\Controllers\Api\LmsController;
 use App\Http\Controllers\Api\ManagementController;
@@ -231,6 +232,11 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::delete('/study-groups/{group}', [StudyGroupController::class, 'destroy']);
     Route::post('/study-groups/{group}/join', [StudyGroupController::class, 'join']);
     Route::post('/study-groups/{group}/leave', [StudyGroupController::class, 'leave']);
+
+    // Academic integrity centre
+    Route::get('/offerings/{offering}/integrity-cases', [IntegrityController::class, 'index']);
+    Route::post('/offerings/{offering}/integrity-cases', [IntegrityController::class, 'store']);
+    Route::patch('/integrity-cases/{case}', [IntegrityController::class, 'update']);
 
     // Learning content and progress
     Route::post('/offerings/{offering}/modules', [LmsController::class, 'module']);
