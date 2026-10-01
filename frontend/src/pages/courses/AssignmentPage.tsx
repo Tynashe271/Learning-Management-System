@@ -50,7 +50,7 @@ export function AssignmentPage() {
         title={a.title}
         subtitle={
           <>
-            Due {formatDateTime(a.due_at)} · Out of {a.max_score} {isPast(a.due_at) && <Badge>Closed</Badge>}
+            Due {formatDateTime(a.due_at)} · Out of {a.max_score} {a.weight !== null && <>· Weighted {a.weight}%</>} {isPast(a.due_at) && <Badge>Closed</Badge>}
           </>
         }
         actions={

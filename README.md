@@ -207,7 +207,7 @@ Draft chapters, similarity screening and rubric-based marking reuse the existing
 
 | Route | Who | Purpose |
 |---|---|---|
-| `POST /offerings/{id}/assignments`, `PATCH`/`DELETE /assignments/{id}` | managers | Changing a deadline needs `change_reason` and is audit-logged. Assignments with submissions cannot be deleted. |
+| `POST /offerings/{id}/assignments`, `PATCH`/`DELETE /assignments/{id}` | managers | Changing a deadline needs `change_reason` and is audit-logged. Assignments with submissions cannot be deleted. An optional `weight` (0–100) feeds the gradebook's continuous-assessment total; see the gradebook route below. |
 | `GET /assignments/{id}` | anyone who can view it | One assignment with its course and what the caller may do: `abilities.manage`, `.grade`, `.submit`. |
 | `POST /assignments/{id}/submissions` | enrolled students | Text and/or file, once, before the deadline. If the assignment has `allow_late_submissions` on, a submission after the deadline is still accepted but needs a `late_explanation` and is flagged `late` for the grader. If `allow_resubmission` is on, sending it again replaces the submission (the prior version is kept, see below) instead of being refused — until a published grade exists, after which it is refused like any other resubmission attempt. For a group assignment (`is_group_assignment`), the caller must already be placed in a group; submitting (or resubmitting) and being graded apply to every member, each of whom keeps their own submission and grade record. |
 | `GET /assignments/{id}/submissions`, `GET /submissions/{id}/download` | graders / owner | List and download submissions. |
@@ -225,7 +225,7 @@ Draft chapters, similarity screening and rubric-based marking reuse the existing
 | `GET /my-appeals`, `GET /offerings/{id}/appeals` (`?status=`), `GET /appeals/{id}` | student / managers / either | Appeals, open ones first. The detail includes the published grade history. |
 | `POST /appeals/{id}/resolve` (`{outcome, response}`) | lecturers and course admins (permission `resolve-appeals`) | `upheld` needs a revised grade to have been published first through the normal grading route, with its change reason; `rejected` is refused if the grade was changed. The student is notified of the outcome by email and in the app; the explanation is read after signing in. Decisions are final and audit-logged. |
 | `GET /assignments/{id}/my-grade` | students | Your submission and latest published grade. |
-| `GET /offerings/{id}/gradebook` (`?format=csv`) | managers | Every student's marks: latest published assignment grade and best submitted quiz attempt. CSV cells are protected against spreadsheet formula injection. |
+| `GET /offerings/{id}/gradebook` (`?format=csv`) | managers | Every student's marks: latest published assignment grade and best submitted quiz attempt. An assignment or quiz may carry an optional `weight` (0–100); each row then also carries `weighted_percent`, a continuous-assessment total blending only the marked items that have a weight (scaled back to 100%), and `weight_used`, the weight actually counted. Items with no weight still count toward the plain, unweighted `percent` as before. CSV cells are protected against spreadsheet formula injection. |
 | `GET /offerings/{id}/my-grades` | students | Your own row of the gradebook. |
 
 Percent is calculated over the items a student has a mark for, so work not yet graded does not lower it.

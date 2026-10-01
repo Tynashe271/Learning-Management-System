@@ -24,6 +24,9 @@ function MyGradesView() {
             <div className="stats">
               <Stat label="Overall" value={formatPercent(data.grades?.percent)} hint="of the work marked so far" />
               <Stat label="Points" value={`${formatScore(data.grades?.total ?? 0)} / ${formatScore(data.grades?.possible ?? 0)}`} />
+              {data.grades?.weighted_percent !== null && data.grades?.weighted_percent !== undefined && (
+                <Stat label="Continuous assessment total" value={formatPercent(data.grades.weighted_percent)} hint={`weighted over ${data.grades.weight_used}% of the course`} />
+              )}
             </div>
           </Card>
           <Card title="Marks">
@@ -32,6 +35,7 @@ function MyGradesView() {
                 <tr>
                   <th>Work</th>
                   <th>Type</th>
+                  <th>Weight</th>
                   <th>Your mark</th>
                 </tr>
               </thead>
@@ -44,6 +48,7 @@ function MyGradesView() {
                         <Link to={c.type === 'assignment' ? `/assignments/${c.id}` : `/quizzes/${c.id}`}>{c.title}</Link>
                       </td>
                       <td>{c.type === 'assignment' ? 'Assignment' : 'Quiz'}</td>
+                      <td>{c.weight !== null ? `${c.weight}%` : <span className="muted">—</span>}</td>
                       <td>{score === null || score === undefined ? <span className="muted">Not marked yet</span> : `${formatScore(score)} / ${formatScore(c.max)}`}</td>
                     </tr>
                   )
@@ -75,11 +80,15 @@ function GradebookView() {
                   {data.columns.map((c) => (
                     <th key={c.key}>
                       {c.title}
-                      <span className="muted small block">out of {formatScore(c.max)}</span>
+                      <span className="muted small block">
+                        out of {formatScore(c.max)}
+                        {c.weight !== null && ` · weight ${c.weight}%`}
+                      </span>
                     </th>
                   ))}
                   <th>Total</th>
                   <th>Percent</th>
+                  {data.columns.some((c) => c.weight !== null) && <th>CA total</th>}
                 </tr>
               </thead>
               <tbody>
@@ -98,12 +107,15 @@ function GradebookView() {
                     <td>
                       <strong>{formatPercent(r.percent)}</strong>
                     </td>
+                    {data.columns.some((c) => c.weight !== null) && (
+                      <td>{r.weighted_percent === null ? <span className="muted">—</span> : <strong>{formatPercent(r.weighted_percent)}</strong>}</td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </Table>
             <Pager {...pagerFromMeta(data.meta)} onPage={setPage} />
-            <p className="muted small">Assignments count the latest published grade; quizzes count the best submitted attempt. Percent is taken over the work a student has a mark for.</p>
+            <p className="muted small">Assignments count the latest published grade; quizzes count the best submitted attempt. Percent is taken over the work a student has a mark for. The CA total blends only the items you have given a weight, scaled back to 100%.</p>
           </>
         )}
       </QueryView>

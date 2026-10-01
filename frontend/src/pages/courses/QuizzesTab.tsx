@@ -30,6 +30,7 @@ export function QuizDialog({
   const [isPractice, setIsPractice] = useState(quiz?.is_practice ?? false)
   const [questionsPerAttempt, setQuestionsPerAttempt] = useState(quiz?.questions_per_attempt ? String(quiz.questions_per_attempt) : '')
   const [openBook, setOpenBook] = useState(quiz?.is_open_book ?? false)
+  const [weight, setWeight] = useState(quiz?.weight !== null && quiz?.weight !== undefined ? String(quiz.weight) : '')
   const [topicId, setTopicId] = useState(String(quiz ? (quiz.course_module_id ?? '') : (defaultModuleId ?? '')))
   const [reason, setReason] = useState('')
   const [targetMode, setTargetMode] = useState<'everyone' | 'specific'>((quiz?.target_user_ids?.length ?? 0) > 0 ? 'specific' : 'everyone')
@@ -48,6 +49,7 @@ export function QuizDialog({
         is_practice: isPractice,
         questions_per_attempt: questionsPerAttempt ? Number(questionsPerAttempt) : null,
         is_open_book: openBook,
+        weight: weight ? Number(weight) : null,
         course_module_id: topicId ? Number(topicId) : null,
         target_user_ids: targetMode === 'specific' ? targetIds : [],
       }
@@ -57,7 +59,7 @@ export function QuizDialog({
     },
     { invalidate: [['offering', offeringId], ['quiz']], success: editing ? 'Quiz saved.' : 'Quiz created.', onSuccess: onClose },
   )
-  const known = ['title', 'instructions', 'opens_at', 'due_at', 'time_limit_minutes', 'max_attempts', 'change_reason', 'course_module_id', 'is_practice', 'questions_per_attempt']
+  const known = ['title', 'instructions', 'opens_at', 'due_at', 'time_limit_minutes', 'max_attempts', 'change_reason', 'course_module_id', 'is_practice', 'questions_per_attempt', 'weight']
 
   return (
     <Modal title={editing ? 'Edit quiz' : 'New quiz'} onClose={onClose} wide>
@@ -108,6 +110,18 @@ export function QuizDialog({
           onChange={(e) => setIsPractice(e.target.checked)}
         />
         <CheckField label="Open book" hint="Just a label shown to students — this cannot check what they have open elsewhere." checked={openBook} onChange={(e) => setOpenBook(e.target.checked)} />
+        <TextField
+          label="Weight toward the final grade (%)"
+          optional
+          type="number"
+          min={0}
+          max={100}
+          step="0.01"
+          value={weight}
+          onChange={(e) => setWeight(e.target.value)}
+          error={fieldError(save.error, 'weight')}
+          hint="Leave empty to leave this out of the gradebook's weighted total."
+        />
         <CheckField label="Published" hint="Students can take published quizzes while they are open." checked={published} onChange={(e) => setPublished(e.target.checked)} />
         {save.error && !known.some((f) => fieldError(save.error, f)) && <FormError error={save.error} />}
         <div className="form-actions">

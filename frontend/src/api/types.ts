@@ -251,6 +251,7 @@ export interface Assignment {
   instructions: string | null
   due_at: string
   max_score: number
+  weight: number | null
   published: boolean
   allow_late_submissions: boolean
   allow_resubmission: boolean
@@ -393,6 +394,7 @@ export interface GradeColumn {
   id: number
   title: string
   max: number
+  weight: number | null
 }
 
 export interface GradeRow {
@@ -401,6 +403,8 @@ export interface GradeRow {
   total: number
   possible: number
   percent: number | null
+  weighted_percent: number | null
+  weight_used: number | null
 }
 
 export interface Gradebook {
@@ -454,6 +458,7 @@ export interface Quiz {
   max_attempts: number
   questions_per_attempt: number | null
   is_open_book: boolean
+  weight: number | null
   published?: boolean
   is_practice?: boolean
   created_at?: string

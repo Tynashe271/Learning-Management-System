@@ -18,7 +18,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-const assignment: Assignment = { id: 5, course_offering_id: 1, title: 'Essay', instructions: null, due_at: '2030-01-01T00:00:00Z', max_score: 20, published: true, allow_late_submissions: false, allow_resubmission: false, is_group_assignment: false, peer_reviews_per_student: 0 }
+const assignment: Assignment = { id: 5, course_offering_id: 1, title: 'Essay', instructions: null, due_at: '2030-01-01T00:00:00Z', max_score: 20, weight: null, published: true, allow_late_submissions: false, allow_resubmission: false, is_group_assignment: false, peer_reviews_per_student: 0 }
 const submission: Submission = { id: 9, assignment_id: 5, user_id: 4, body: 'My answer', storage_path: null, submitted_at: '2026-01-01T00:00:00Z', late: false, late_explanation: null, version: 1 }
 const rubric: RubricCriterion[] = [
   { id: 1, title: 'Argument', description: null, max_points: 12, levels: [{ id: 11, title: 'Strong', description: 'Clear', points: 12 }, { id: 12, title: 'Weak', description: null, points: 4 }] },

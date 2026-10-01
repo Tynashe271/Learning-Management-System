@@ -81,6 +81,12 @@ function StudentView({ quiz }: { quiz: Quiz }) {
           <dd>
             {used} of {quiz.max_attempts} used
           </dd>
+          {quiz.weight !== null && (
+            <>
+              <dt>Weight toward your final grade</dt>
+              <dd>{quiz.weight}%</dd>
+            </>
+          )}
         </dl>
         {inProgress ? (
           <Button variant="primary" loading={start.isPending} onClick={() => start.mutate()}>
@@ -171,6 +177,8 @@ function ManagerView({ quiz, modules }: { quiz: Quiz; modules: Module[] }) {
           <dd>{quiz.max_attempts}</dd>
           <dt>Open book</dt>
           <dd>{quiz.is_open_book ? 'Yes' : 'No'}</dd>
+          <dt>Weight toward the final grade</dt>
+          <dd>{quiz.weight !== null ? `${quiz.weight}%` : <span className="muted">Not weighted</span>}</dd>
           <dt>Questions</dt>
           <dd>
             {questions.length} · {totalPoints} points

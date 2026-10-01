@@ -25,6 +25,7 @@ export function AssignmentDialog({
   const [instructions, setInstructions] = useState(assignment?.instructions ?? '')
   const [dueAt, setDueAt] = useState(toLocalInput(assignment?.due_at))
   const [maxScore, setMaxScore] = useState(String(assignment?.max_score ?? 100))
+  const [weight, setWeight] = useState(assignment?.weight !== null && assignment?.weight !== undefined ? String(assignment.weight) : '')
   const [published, setPublished] = useState(assignment?.published ?? false)
   const [allowLate, setAllowLate] = useState(assignment?.allow_late_submissions ?? false)
   const [allowResubmission, setAllowResubmission] = useState(assignment?.allow_resubmission ?? false)
@@ -44,6 +45,7 @@ export function AssignmentDialog({
           instructions: instructions || null,
           due_at: fromLocalInput(dueAt),
           max_score: Number(maxScore),
+          weight: weight ? Number(weight) : null,
           published,
           allow_late_submissions: allowLate,
           allow_resubmission: allowResubmission,
@@ -52,7 +54,7 @@ export function AssignmentDialog({
           target_user_ids: targetUserIds,
         })
       }
-      const changes: Record<string, unknown> = { title: title.trim(), instructions: instructions || null, published, allow_late_submissions: allowLate, allow_resubmission: allowResubmission, course_module_id: topicId ? Number(topicId) : null, target_user_ids: targetUserIds }
+      const changes: Record<string, unknown> = { title: title.trim(), instructions: instructions || null, weight: weight ? Number(weight) : null, published, allow_late_submissions: allowLate, allow_resubmission: allowResubmission, course_module_id: topicId ? Number(topicId) : null, target_user_ids: targetUserIds }
       if (dueChanged) {
         changes.due_at = fromLocalInput(dueAt)
         changes.change_reason = reason.trim()
@@ -88,13 +90,25 @@ export function AssignmentDialog({
           <TextField label="Due" type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} error={fieldError(save.error, 'due_at')} hint="In your local time. Must be in the future." required />
           {!editing && <TextField label="Maximum score" type="number" min={1} value={maxScore} onChange={(e) => setMaxScore(e.target.value)} error={fieldError(save.error, 'max_score')} required />}
         </div>
+        <TextField
+          label="Weight toward the final grade (%)"
+          optional
+          type="number"
+          min={0}
+          max={100}
+          step="0.01"
+          value={weight}
+          onChange={(e) => setWeight(e.target.value)}
+          error={fieldError(save.error, 'weight')}
+          hint="Leave empty to leave this out of the gradebook's weighted total."
+        />
         {dueChanged && <TextArea label="Reason for changing the deadline" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} error={fieldError(save.error, 'change_reason')} hint="Recorded in the audit log." required />}
         <TargetPicker offeringId={offeringId} mode={targetMode} ids={targetIds} onModeChange={setTargetMode} onIdsChange={setTargetIds} />
         <CheckField label="Published" hint="Students can see and submit to published assignments." checked={published} onChange={(e) => setPublished(e.target.checked)} />
         <CheckField label="Allow late submissions" hint="Students may still submit after the deadline, but must explain why." checked={allowLate} onChange={(e) => setAllowLate(e.target.checked)} />
         <CheckField label="Allow resubmission" hint="Students can submit a new draft to replace their last one, and you can leave feedback before it's graded. Locked once a grade is published." checked={allowResubmission} onChange={(e) => setAllowResubmission(e.target.checked)} />
         {!editing && <CheckField label="Group assignment" hint="Students submit as a team you place into groups after creating this assignment. One member's submission and grade apply to the whole group." checked={isGroup} onChange={(e) => setIsGroup(e.target.checked)} />}
-        {save.error && !['title', 'instructions', 'due_at', 'max_score', 'change_reason', 'course_module_id'].some((f) => fieldError(save.error, f)) && <FormError error={save.error} />}
+        {save.error && !['title', 'instructions', 'due_at', 'max_score', 'weight', 'change_reason', 'course_module_id'].some((f) => fieldError(save.error, f)) && <FormError error={save.error} />}
         <div className="form-actions">
           <Button onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="primary" loading={save.isPending} disabled={!title.trim() || !dueAt || (dueChanged && !reason.trim())}>

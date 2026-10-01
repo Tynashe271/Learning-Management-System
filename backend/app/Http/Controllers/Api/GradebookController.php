@@ -53,10 +53,11 @@ class GradebookController extends Controller
         $assignments = $offering->assignments()->where('published', true)->orderBy('due_at')->orderBy('id')->get();
         $quizzes = $offering->quizzes()->where('published', true)->where('is_practice', false)->withSum('questions as total_points', 'points')->orderBy('due_at')->orderBy('id')->get();
 
-        $columns = $assignments->map(fn ($a) => ['key' => 'assignment:'.$a->id, 'type' => 'assignment', 'id' => $a->id, 'title' => $a->title, 'max' => (float) $a->max_score])
-            ->concat($quizzes->map(fn ($q) => ['key' => 'quiz:'.$q->id, 'type' => 'quiz', 'id' => $q->id, 'title' => $q->title, 'max' => (float) $q->total_points]))
+        $columns = $assignments->map(fn ($a) => ['key' => 'assignment:'.$a->id, 'type' => 'assignment', 'id' => $a->id, 'title' => $a->title, 'max' => (float) $a->max_score, 'weight' => $a->weight !== null ? (float) $a->weight : null])
+            ->concat($quizzes->map(fn ($q) => ['key' => 'quiz:'.$q->id, 'type' => 'quiz', 'id' => $q->id, 'title' => $q->title, 'max' => (float) $q->total_points, 'weight' => $q->weight !== null ? (float) $q->weight : null]))
             ->values()->all();
         $max = collect($columns)->pluck('max', 'key');
+        $weight = collect($columns)->pluck('weight', 'key');
         $userIds = $students->pluck('id');
 
         $scores = [];
@@ -77,10 +78,21 @@ class GradebookController extends Controller
             }
         }
 
-        $rows = $students->map(function ($user) use ($columns, $scores, $max) {
+        $rows = $students->map(function ($user) use ($columns, $scores, $max, $weight) {
             $marked = $scores[$user->id] ?? [];
             $total = array_sum($marked);
             $possible = array_sum(array_map(fn ($key) => $max[$key], array_keys($marked)));
+
+            $weightedSum = 0;
+            $weightTotal = 0;
+            foreach ($marked as $key => $score) {
+                $w = $weight[$key] ?? null;
+                if ($w === null || $max[$key] <= 0) {
+                    continue;
+                }
+                $weightedSum += ($score / $max[$key]) * $w;
+                $weightTotal += $w;
+            }
 
             return [
                 'user' => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email],
@@ -88,6 +100,9 @@ class GradebookController extends Controller
                 'total' => $total,
                 'possible' => $possible,
                 'percent' => $possible > 0 ? round($total / $possible * 100, 2) : null,
+                // The continuous-assessment total: a weighted average over the marked items that carry a weight, scaled back to 100.
+                'weighted_percent' => $weightTotal > 0 ? round($weightedSum / $weightTotal * 100, 2) : null,
+                'weight_used' => $weightTotal > 0 ? $weightTotal : null,
             ];
         })->values()->all();
 
@@ -105,13 +120,17 @@ class GradebookController extends Controller
                 $paginator = Paging::activeStudents($offering)->paginate(self::CSV_CHUNK, ['*'], 'page', $page);
                 $book = $this->build($offering, $paginator->getCollection()->pluck('user')->filter()->values());
                 if ($page === 1) {
-                    $put(array_merge(['Name', 'Email'], array_map(fn ($c) => $this->safeCell($c['title'].' (out of '.$c['max'].')'), $book['columns']), ['Total', 'Possible', 'Percent']));
+                    $put(array_merge(
+                        ['Name', 'Email'],
+                        array_map(fn ($c) => $this->safeCell($c['title'].' (out of '.$c['max'].')'.($c['weight'] !== null ? ', weight '.$c['weight'].'%' : '')), $book['columns']),
+                        ['Total', 'Possible', 'Percent', 'Weighted % (CA total)'],
+                    ));
                 }
                 foreach ($book['rows'] as $row) {
                     $put(array_merge(
                         [$this->safeCell($row['user']['name']), $this->safeCell($row['user']['email'])],
                         array_map(fn ($c) => $row['scores'][$c['key']] ?? '', $book['columns']),
-                        [$row['total'], $row['possible'], $row['percent'] ?? ''],
+                        [$row['total'], $row['possible'], $row['percent'] ?? '', $row['weighted_percent'] ?? ''],
                     ));
                 }
                 $page++;
