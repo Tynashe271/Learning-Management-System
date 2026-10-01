@@ -95,4 +95,9 @@ class CourseOffering extends Model
     {
         return $this->hasMany(InterventionPlan::class);
     }
+
+    public function studyGroups(): HasMany
+    {
+        return $this->hasMany(StudyGroup::class);
+    }
 }

@@ -884,6 +884,16 @@ export interface LogbookEntry {
   reviewer_comment: string | null
 }
 
+export interface StudyGroup {
+  id: number
+  name: string
+  description: string | null
+  max_members: number | null
+  creator: { id: number; name: string }
+  members: { id: number; name: string }[]
+  my_member: boolean
+}
+
 export interface AtRiskRow {
   user: { id: number; name: string; email: string }
   has_open_plan: boolean

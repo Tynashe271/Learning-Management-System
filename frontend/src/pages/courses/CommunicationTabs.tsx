@@ -2,9 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { Announcement, Offering, Page, Post, Thread } from '../../api/types'
+import type { Announcement, Offering, Page, Post, StudyGroup, Thread } from '../../api/types'
 import { useMe } from '../../auth/AuthContext'
-import { Alert, Avatar, Button, Card, EmptyState, ErrorState, FormError, Loading, Modal, PageHeader, Pager, QueryView, TextArea, TextField, pagerFromPage, useConfirm } from '../../components/ui'
+import { Alert, Avatar, Badge, Button, Card, EmptyState, ErrorState, FormError, Loading, Modal, PageHeader, Pager, QueryView, TextArea, TextField, pagerFromPage, useConfirm } from '../../components/ui'
 import { formatDateTime, plural, relativeTime } from '../../lib/format'
 import { fieldError, useApiMutation, useTitle } from '../../lib/hooks'
 import { useOffering } from './context'
@@ -133,7 +133,107 @@ export function DiscussionsTab() {
         </QueryView>
       </Card>
       {creating && <ThreadDialog offeringId={id} onClose={() => setCreating(false)} onCreated={(thread) => navigate(`/discussions/${thread.id}`)} />}
+      <StudyGroupsCard offeringId={id} />
     </>
+  )
+}
+
+/** Student-organised study groups: any enrolled student can start or join one, unlike a lecturer's assignment groups. */
+function StudyGroupsCard({ offeringId }: { offeringId: number }) {
+  const { manage } = useOffering()
+  const me = useMe()
+  const confirm = useConfirm()
+  const [creating, setCreating] = useState(false)
+  const query = useQuery({ queryKey: ['study-groups', offeringId], queryFn: () => api.get<StudyGroup[]>(`/offerings/${offeringId}/study-groups`) })
+  const join = useApiMutation((groupId: number) => api.post(`/study-groups/${groupId}/join`), { invalidate: [['study-groups', offeringId]], toastError: true })
+  const leave = useApiMutation((groupId: number) => api.post(`/study-groups/${groupId}/leave`), { invalidate: [['study-groups', offeringId]], toastError: true })
+  const remove = useApiMutation((groupId: number) => api.delete(`/study-groups/${groupId}`), { invalidate: [['study-groups', offeringId]], toastError: true })
+
+  return (
+    <Card
+      title="Study groups"
+      actions={
+        !manage && (
+          <Button small onClick={() => setCreating(true)}>
+            Start a group
+          </Button>
+        )
+      }
+    >
+      <QueryView query={query} isEmpty={(g) => g.length === 0} empty={<EmptyState title="No study groups yet">Students can start one to work together.</EmptyState>}>
+        {(groups) => (
+          <ul className="list">
+            {groups.map((g) => (
+              <li key={g.id}>
+                <span className="grow">
+                  <strong>{g.name}</strong> {g.my_member && <Badge tone="good">You're in</Badge>}
+                  <span className="muted small block">
+                    {g.description} {g.description && '· '}
+                    {g.members.map((m) => m.name).join(', ')}
+                    {g.max_members && ` (${g.members.length}/${g.max_members})`}
+                  </span>
+                </span>
+                {!manage && !g.my_member && (
+                  <Button small variant="primary" loading={join.isPending && join.variables === g.id} onClick={() => join.mutate(g.id)}>
+                    Join
+                  </Button>
+                )}
+                {!manage && g.my_member && (
+                  <Button small loading={leave.isPending && leave.variables === g.id} onClick={() => leave.mutate(g.id)}>
+                    Leave
+                  </Button>
+                )}
+                {(manage || g.creator.id === me?.id) && (
+                  <Button
+                    small
+                    variant="danger"
+                    loading={remove.isPending && remove.variables === g.id}
+                    onClick={async () => {
+                      if (await confirm({ title: `Delete ${g.name}?`, confirmLabel: 'Delete', danger: true })) remove.mutate(g.id)
+                    }}
+                  >
+                    Delete
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </QueryView>
+      {creating && <StudyGroupDialog offeringId={offeringId} onClose={() => setCreating(false)} />}
+    </Card>
+  )
+}
+
+function StudyGroupDialog({ offeringId, onClose }: { offeringId: number; onClose: () => void }) {
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [maxMembers, setMaxMembers] = useState('')
+  const save = useApiMutation(
+    () => api.post(`/offerings/${offeringId}/study-groups`, { name: name.trim(), description: description.trim() || null, max_members: maxMembers ? Number(maxMembers) : null }),
+    { invalidate: [['study-groups', offeringId]], success: 'Group created.', onSuccess: onClose },
+  )
+
+  return (
+    <Modal title="Start a study group" onClose={onClose}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          save.mutate()
+        }}
+      >
+        <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} error={fieldError(save.error, 'name')} maxLength={255} autoFocus required />
+        <TextArea label="Description" optional rows={2} value={description} onChange={(e) => setDescription(e.target.value)} error={fieldError(save.error, 'description')} />
+        <TextField label="Maximum members" optional type="number" min={2} max={50} value={maxMembers} onChange={(e) => setMaxMembers(e.target.value)} error={fieldError(save.error, 'max_members')} />
+        {save.error && !['name', 'description', 'max_members'].some((f) => fieldError(save.error, f)) && <FormError error={save.error} />}
+        <div className="form-actions">
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={save.isPending} disabled={!name.trim()}>
+            Create
+          </Button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 

@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\SessionQuestionController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SimilarityController;
 use App\Http\Controllers\Api\SsoController;
+use App\Http\Controllers\Api\StudyGroupController;
 use App\Http\Controllers\Api\SystemAnnouncementController;
 use App\Http\Controllers\Api\SystemController;
 use App\Http\Controllers\Api\UserController;
@@ -223,6 +224,13 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/offerings/{offering}/intervention-plans', [InterventionController::class, 'indexPlans']);
     Route::post('/offerings/{offering}/intervention-plans', [InterventionController::class, 'storePlan']);
     Route::patch('/intervention-plans/{plan}', [InterventionController::class, 'updatePlan']);
+
+    // Collaborative learning community
+    Route::get('/offerings/{offering}/study-groups', [StudyGroupController::class, 'index']);
+    Route::post('/offerings/{offering}/study-groups', [StudyGroupController::class, 'store']);
+    Route::delete('/study-groups/{group}', [StudyGroupController::class, 'destroy']);
+    Route::post('/study-groups/{group}/join', [StudyGroupController::class, 'join']);
+    Route::post('/study-groups/{group}/leave', [StudyGroupController::class, 'leave']);
 
     // Learning content and progress
     Route::post('/offerings/{offering}/modules', [LmsController::class, 'module']);
