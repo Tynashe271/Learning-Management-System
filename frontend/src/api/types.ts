@@ -242,6 +242,29 @@ export interface Progress {
   meta?: Meta
 }
 
+export interface Badge {
+  key: string
+  kind: 'skill' | 'milestone' | 'quiz_ace'
+  label: string
+}
+
+export interface Engagement {
+  streak: { current_days: number; longest_days: number }
+  badges: Badge[]
+  participation: { offering_id: number; course: string | null; points: number }[]
+}
+
+export interface OfferingEngagement {
+  students: { user: { id: number; name: string; email: string }; points: number }[]
+}
+
+export interface LearningGoal {
+  id: number
+  title: string
+  target_date: string | null
+  completed_at: string | null
+}
+
 // ---- assignments -----------------------------------------------------------------------------------------------
 export interface Assignment {
   id: number

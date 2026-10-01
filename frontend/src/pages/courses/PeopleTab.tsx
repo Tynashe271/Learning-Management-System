@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../../api/client'
-import type { Accommodation, Enrolment, EnrolmentImportResult, OfferingSummary, Person, Roster, RoleName, Teacher } from '../../api/types'
+import type { Accommodation, Enrolment, EnrolmentImportResult, OfferingEngagement, OfferingSummary, Person, Roster, RoleName, Teacher } from '../../api/types'
 import { useAuth, useMe } from '../../auth/AuthContext'
 import { PersonPicker } from '../../components/PersonPicker'
 import { Alert, Badge, Button, Card, EmptyState, FileField, FormError, Modal, Pager, QueryView, SelectField, Table, TextArea, TextField, pagerFromMeta, useConfirm } from '../../components/ui'
@@ -92,6 +92,7 @@ export function PeopleTab() {
   const [settingHoursFor, setSettingHoursFor] = useState<Teacher | null>(null)
   const [settingAccommodationFor, setSettingAccommodationFor] = useState<Enrolment | null>(null)
   const accommodations = useQuery({ queryKey: ['accommodations', id], queryFn: () => api.get<Accommodation[]>(`/offerings/${id}/accommodations`), enabled: manage })
+  const engagement = useQuery({ queryKey: ['engagement', 'offering', id], queryFn: () => api.get<OfferingEngagement>(`/offerings/${id}/engagement`), enabled: manage })
   const query = useQuery({ queryKey: ['roster', id, page], queryFn: () => api.get<Roster>(`/offerings/${id}/roster`, { page }), placeholderData: (previous) => previous })
 
   const setStatus = useApiMutation((v: { userId: number; status: 'active' | 'withdrawn' }) => api.post(`/offerings/${id}/enrolments`, { user_id: v.userId, status: v.status }), { invalidate: [['roster', id]], toastError: true, success: 'Enrolment updated.' })
@@ -171,18 +172,21 @@ export function PeopleTab() {
                       <th>Email</th>
                       <th>Status</th>
                       {manage && <th>Accommodation</th>}
+                      {manage && <th>Participation</th>}
                       {(registrar || manage) && <th />}
                     </tr>
                   </thead>
                   <tbody>
                     {data.enrolments.map((e) => {
                       const accommodation = accommodations.data?.find((a) => a.user_id === e.user_id)
+                      const points = engagement.data?.students.find((s) => s.user.id === e.user_id)?.points
                       return (
                         <tr key={e.id}>
                           <td>{e.user?.name}</td>
                           <td>{e.user?.email}</td>
                           <td>{e.status === 'active' ? <Badge tone="good">Active</Badge> : <Badge>Withdrawn</Badge>}</td>
                           {manage && <td>{accommodation ? <Badge tone="info">+{accommodation.extra_time_percent}% time</Badge> : <span className="muted">None</span>}</td>}
+                          {manage && <td>{plural(points ?? 0, 'point')}</td>}
                           {(registrar || manage) && (
                             <td className="actions">
                               {registrar && (

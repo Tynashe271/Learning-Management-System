@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\DigestController;
 use App\Http\Controllers\Api\DiscussionController;
+use App\Http\Controllers\Api\EngagementController;
 use App\Http\Controllers\Api\GradebookController;
 use App\Http\Controllers\Api\HandRaiseController;
 use App\Http\Controllers\Api\HealthController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\IntegrationController;
 use App\Http\Controllers\Api\IntegrityController;
 use App\Http\Controllers\Api\InterventionController;
+use App\Http\Controllers\Api\LearningGoalController;
 use App\Http\Controllers\Api\LmsController;
 use App\Http\Controllers\Api\ManagementController;
 use App\Http\Controllers\Api\ProgressController;
@@ -73,6 +75,11 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/me/agenda', [DashboardController::class, 'agenda']);
     Route::get('/me/insights', [DashboardController::class, 'insights']);
     Route::post('/me/calendar-token', [DashboardController::class, 'calendarToken']);
+    Route::get('/me/engagement', [EngagementController::class, 'me']);
+    Route::get('/me/learning-goals', [LearningGoalController::class, 'index']);
+    Route::post('/me/learning-goals', [LearningGoalController::class, 'store']);
+    Route::patch('/learning-goals/{goal}', [LearningGoalController::class, 'update']);
+    Route::delete('/learning-goals/{goal}', [LearningGoalController::class, 'destroy']);
     Route::post('/logout', [LmsController::class, 'logout']);
     Route::get('/notifications', [LmsController::class, 'notifications']);
     Route::post('/notifications/{notification}/read', [LmsController::class, 'readNotification']);
@@ -248,6 +255,9 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/offerings/{offering}/accommodations', [AccommodationController::class, 'index']);
     Route::post('/offerings/{offering}/accommodations', [AccommodationController::class, 'store']);
     Route::delete('/accommodations/{accommodation}', [AccommodationController::class, 'destroy']);
+
+    // Engagement and motivation: per-course participation points, for managers
+    Route::get('/offerings/{offering}/engagement', [EngagementController::class, 'offering']);
 
     // Learning content and progress
     Route::post('/offerings/{offering}/modules', [LmsController::class, 'module']);
