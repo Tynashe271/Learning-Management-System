@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\AiAssistant;
+use App\Services\AiUnavailable;
 use App\Services\OidcClient;
 use App\Services\ScannerUnavailable;
 use App\Services\VirusScanner;
@@ -27,7 +29,7 @@ class IntegrationController extends Controller
         $this->allow($request);
 
         return response()->json(['integrations' => [
-            $this->sso(), $this->email(), $this->storage(), $this->scanner(), $this->studentRecords(), $this->meetings(), $this->payments(), $this->api(),
+            $this->sso(), $this->email(), $this->storage(), $this->scanner(), $this->studentRecords(), $this->meetings(), $this->payments(), $this->api(), $this->ai(),
         ]]);
     }
 
@@ -40,6 +42,7 @@ class IntegrationController extends Controller
             'email' => $this->testMail($request),
             'storage' => $this->testStorage(),
             'scanner' => $this->testScanner(),
+            'ai' => $this->testAi(),
             default => abort(404),
         };
         activity()->causedBy($request->user())->withProperties(['integration' => $key, 'ok' => $result['ok']])->log('integration tested');
@@ -105,6 +108,20 @@ class IntegrationController extends Controller
             'summary' => $on ? 'Every upload is scanned before it is stored.' : 'Off. Uploads are checked for file type but not scanned for viruses.',
             'details' => ['Scanner' => config('lms.virus_scan.host').':'.config('lms.virus_scan.port'), 'If the scanner is down' => config('lms.virus_scan.fail_open') ? 'accept uploads (logged)' : 'refuse uploads'],
             'change' => 'LMS_VIRUS_SCAN and CLAMAV_* in backend/.env; start the scanner with: podman compose --profile scan up -d',
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function ai(): array
+    {
+        $on = app(AiAssistant::class)->enabled();
+
+        return [
+            'key' => 'ai', 'label' => 'AI learning and teaching assistant', 'can_test' => true,
+            'status' => $on ? 'ok' : 'off',
+            'summary' => $on ? 'On, through '.config('lms.ai.model').'. Answers to students are restricted to each course\'s own published material.' : 'Off. Students and lecturers see no AI assistant.',
+            'details' => ['Model' => config('lms.ai.model'), 'API key' => filled(config('lms.ai.api_key')) ? 'set' : 'not set', 'Per-request material budget' => config('lms.ai.max_source_chars').' characters'],
+            'change' => 'LMS_AI_* and ANTHROPIC_API_KEY in backend/.env (see the README, "AI learning assistant")',
         ];
     }
 
@@ -209,6 +226,21 @@ class IntegrationController extends Controller
         }
 
         return $found === null ? ['ok' => true, 'message' => 'The scanner answered and found the test file clean.'] : ['ok' => false, 'message' => "The scanner flagged a harmless test file ({$found}). Something is wrong with it."];
+    }
+
+    /** @return array{ok: bool, message: string} */
+    private function testAi(): array
+    {
+        if (! app(AiAssistant::class)->enabled()) {
+            return ['ok' => false, 'message' => 'The AI assistant is switched off (LMS_AI_ENABLED and ANTHROPIC_API_KEY).'];
+        }
+        try {
+            $reply = app(AiAssistant::class)->complete('Reply with exactly one word: hello', 'Say hello.');
+        } catch (AiUnavailable $e) {
+            return ['ok' => false, 'message' => $e->getMessage()];
+        }
+
+        return ['ok' => true, 'message' => 'The AI service replied: '.Str::limit($reply, 100)];
     }
 
     private function allow(Request $request): void

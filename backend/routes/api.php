@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AcademicStructureController;
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AdminReportController;
+use App\Http\Controllers\Api\AiAssistantController;
 use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\AppealController;
 use App\Http\Controllers\Api\AttachmentController;
@@ -237,6 +238,10 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/offerings/{offering}/integrity-cases', [IntegrityController::class, 'index']);
     Route::post('/offerings/{offering}/integrity-cases', [IntegrityController::class, 'store']);
     Route::patch('/integrity-cases/{case}', [IntegrityController::class, 'update']);
+
+    // AI learning assistant and lecturer teaching assistant
+    Route::post('/offerings/{offering}/ai/assist', [AiAssistantController::class, 'assist'])->middleware('throttle:heavy');
+    Route::post('/offerings/{offering}/ai/teaching-assist', [AiAssistantController::class, 'teachingAssist'])->middleware('throttle:heavy');
 
     // Learning content and progress
     Route::post('/offerings/{offering}/modules', [LmsController::class, 'module']);

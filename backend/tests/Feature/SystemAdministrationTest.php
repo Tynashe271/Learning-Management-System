@@ -186,7 +186,7 @@ class SystemAdministrationTest extends TestCase
         $response = $this->as($this->uniAdmin)->getJson('/api/integrations')->assertOk();
         $byKey = collect($response->json('integrations'))->keyBy('key');
 
-        $this->assertEqualsCanonicalizing(['sso', 'email', 'storage', 'scanner', 'student_records', 'meetings', 'payments', 'api'], $byKey->keys()->all());
+        $this->assertEqualsCanonicalizing(['sso', 'email', 'storage', 'scanner', 'student_records', 'meetings', 'payments', 'api', 'ai'], $byKey->keys()->all());
         $this->assertSame('ok', $byKey['sso']['status']);
         $this->assertSame('set', $byKey['sso']['details']['Client secret']);
         $this->assertStringNotContainsString('TOP-SECRET-VALUE', $response->getContent());
@@ -220,11 +220,24 @@ class SystemAdministrationTest extends TestCase
 
     public function test_tests_that_cannot_run_say_so_instead_of_failing(): void
     {
-        config(['lms.virus_scan.enabled' => false, 'lms.sso.enabled' => false]);
+        config(['lms.virus_scan.enabled' => false, 'lms.sso.enabled' => false, 'lms.ai.enabled' => false]);
 
         $this->as($this->uniAdmin)->postJson('/api/integrations/scanner/test')->assertOk()->assertJsonPath('ok', false);
         $this->as($this->uniAdmin)->postJson('/api/integrations/sso/test')->assertOk()->assertJsonPath('ok', false);
+        $this->as($this->uniAdmin)->postJson('/api/integrations/ai/test')->assertOk()->assertJsonPath('ok', false);
         $this->as($this->uniAdmin)->postJson('/api/integrations/payments/test')->assertNotFound();
+    }
+
+    public function test_the_ai_integration_is_off_until_configured(): void
+    {
+        config(['lms.ai.enabled' => false]);
+        $ai = collect($this->as($this->uniAdmin)->getJson('/api/integrations')->json('integrations'))->firstWhere('key', 'ai');
+        $this->assertSame('off', $ai['status']);
+
+        config(['lms.ai.enabled' => true, 'lms.ai.api_key' => 'test-key']);
+        $ai = collect($this->as($this->uniAdmin)->getJson('/api/integrations')->json('integrations'))->firstWhere('key', 'ai');
+        $this->assertSame('ok', $ai['status']);
+        $this->assertSame('set', $ai['details']['API key']);
     }
 
     // ---- system announcements -------------------------------------------------------------------------------------------

@@ -902,6 +902,14 @@ export interface LogbookEntry {
   reviewer_comment: string | null
 }
 
+export type AiStudentMode = 'ask' | 'summarise' | 'revision_questions' | 'flashcards' | 'study_plan'
+export type AiTeachingMode = 'lesson_outline' | 'quiz_draft' | 'rubric' | 'discussion_questions' | 'remedial_suggestions'
+
+export interface AiReply {
+  answer: string
+  sources: { id: number; title: string }[]
+}
+
 export interface StudyGroup {
   id: number
   name: string

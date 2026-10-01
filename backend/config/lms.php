@@ -96,6 +96,16 @@ return [
         'fail_open' => (bool) env('LMS_VIRUS_SCAN_FAIL_OPEN', false),
     ],
 
+    // The AI learning/teaching assistant (roadmap items 15-16). Off unless both are set: a real key costs money per request.
+    'ai' => [
+        'enabled' => (bool) env('LMS_AI_ENABLED', false),
+        'api_key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('LMS_AI_MODEL', 'claude-sonnet-5'),
+        'base_url' => env('LMS_AI_BASE_URL', 'https://api.anthropic.com/v1/messages'),
+        // Course material is truncated to roughly this many characters total before being sent, to bound cost per request.
+        'max_source_chars' => (int) env('LMS_AI_MAX_SOURCE_CHARS', 12000),
+    ],
+
     // Single sign-on through any OpenID Connect provider (Microsoft Entra ID, Google Workspace, Okta, Keycloak, ...).
     'sso' => [
         'enabled' => (bool) env('LMS_SSO_ENABLED', false),

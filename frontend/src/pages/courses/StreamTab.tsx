@@ -2,9 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
-import type { Announcement, Page } from '../../api/types'
+import type { AiReply, AiStudentMode, AiTeachingMode, Announcement, Page } from '../../api/types'
 import { useMe } from '../../auth/AuthContext'
-import { Avatar, Button, Card, EmptyState, ErrorState, Loading, TextArea, TextField } from '../../components/ui'
+import { Avatar, Button, Card, EmptyState, ErrorState, FormError, Loading, SelectField, TextArea, TextField } from '../../components/ui'
 import { formatDateTime, relativeTime } from '../../lib/format'
 import { fieldError, useApiMutation } from '../../lib/hooks'
 import { useOffering } from './context'
@@ -30,6 +30,7 @@ export function StreamTab() {
 
   return (
     <>
+      <AiAssistantCard offeringId={id} manage={manage} />
       {manage && <Composer offeringId={id} />}
       {withHours.length > 0 && (
         <Card title="Office hours">
@@ -78,6 +79,66 @@ export function StreamTab() {
 }
 
 /** A lightweight "share something with your class" box, posting straight to the same endpoint the Announcements tab uses. */
+const STUDENT_MODES: { value: AiStudentMode; label: string; placeholder: string }[] = [
+  { value: 'ask', label: 'Ask a question', placeholder: 'What is a variable?' },
+  { value: 'summarise', label: 'Summarise a topic', placeholder: 'The topic or material to summarise' },
+  { value: 'revision_questions', label: 'Revision questions', placeholder: 'The topic to generate questions on' },
+  { value: 'flashcards', label: 'Flashcards', placeholder: 'The topic to make flashcards for' },
+  { value: 'study_plan', label: 'Study plan', placeholder: 'What you need to prepare for, and by when' },
+]
+
+const TEACHING_MODES: { value: AiTeachingMode; label: string; placeholder: string }[] = [
+  { value: 'lesson_outline', label: 'Lesson outline', placeholder: 'The topic to outline a lesson for' },
+  { value: 'quiz_draft', label: 'Draft quiz questions', placeholder: 'The topic to draft questions on' },
+  { value: 'rubric', label: 'Draft a rubric', placeholder: 'Describe the assessment to mark' },
+  { value: 'discussion_questions', label: 'Discussion questions', placeholder: 'The topic to discuss' },
+  { value: 'remedial_suggestions', label: 'Remedial suggestions', placeholder: 'What students are struggling with' },
+]
+
+/** The AI learning assistant (students) and teaching assistant (lecturers): grounded in the course's own published material. */
+function AiAssistantCard({ offeringId, manage }: { offeringId: number; manage: boolean }) {
+  const modes = manage ? TEACHING_MODES : STUDENT_MODES
+  const [mode, setMode] = useState(modes[0].value)
+  const [prompt, setPrompt] = useState('')
+  const ask = useApiMutation(() => api.post<AiReply>(`/offerings/${offeringId}/ai/${manage ? 'teaching-assist' : 'assist'}`, { mode, prompt: prompt.trim() }))
+  const current = modes.find((m) => m.value === mode) ?? modes[0]
+
+  return (
+    <Card title={manage ? 'Teaching assistant' : 'Study assistant'}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          ask.mutate()
+        }}
+      >
+        <SelectField label="What do you need?" value={mode} onChange={(e) => setMode(e.target.value as typeof mode)}>
+          {modes.map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label}
+            </option>
+          ))}
+        </SelectField>
+        <TextArea label={current.label} rows={2} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={current.placeholder} error={fieldError(ask.error, 'prompt')} required />
+        {ask.error && !fieldError(ask.error, 'prompt') && <FormError error={ask.error} />}
+        <Button type="submit" variant="primary" loading={ask.isPending} disabled={!prompt.trim()}>
+          {manage ? 'Draft it' : 'Ask'}
+        </Button>
+      </form>
+      {ask.data && (
+        <div className="reading pre">
+          {ask.data.answer}
+          {ask.data.sources.length > 0 && (
+            <p className="muted small">
+              <strong>Sources:</strong> {ask.data.sources.map((s) => s.title).join(', ')}
+            </p>
+          )}
+        </div>
+      )}
+      {!manage && <p className="muted small">Answers are restricted to this course's own published material, and never complete a graded assignment or quiz for you.</p>}
+    </Card>
+  )
+}
+
 function Composer({ offeringId }: { offeringId: number }) {
   const me = useMe()
   const [open, setOpen] = useState(false)

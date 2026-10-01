@@ -1,6 +1,6 @@
 # University LMS
 
-Laravel 13 JSON API for a university learning management system: accounts and roles with single sign-on, the academic catalogue, course content, assignments with rubrics (including level descriptions), quizzes, grading, a gradebook, progress tracking, attendance with self check-in and online-meeting links, a Practical Skills Passport, an industrial attachment workspace, a research/project workspace, a learning intervention centre, student study groups, an academic integrity investigation workspace, announcements, discussions, grade appeals, summary emails, virus scanning, similarity screening, bulk imports, course copying, notifications, and an audit trail. The backend is in `backend/` and the web frontend, which uses every endpoint, is in `frontend/`.
+Laravel 13 JSON API for a university learning management system: accounts and roles with single sign-on, the academic catalogue, course content, assignments with rubrics (including level descriptions), quizzes, grading, a gradebook, progress tracking, attendance with self check-in and online-meeting links, a Practical Skills Passport, an industrial attachment workspace, a research/project workspace, a learning intervention centre, student study groups, an academic integrity investigation workspace, an optional AI learning/teaching assistant, announcements, discussions, grade appeals, summary emails, virus scanning, similarity screening, bulk imports, course copying, notifications, and an audit trail. The backend is in `backend/` and the web frontend, which uses every endpoint, is in `frontend/`.
 
 This document describes what is built and running. `ROADMAP.md` holds the longer-term product vision it was written from; several of its numbered items (or parts of them) have since been built, in which case they're described here instead — this README, not the roadmap, is the source of truth for what exists today.
 
@@ -25,8 +25,8 @@ Do not expose this local HTTP setup on a public network. Configure TLS, producti
 |---|---|
 | Everyone | Sign in (password or single sign-on), forgot and reset password, dashboard ("needs your attention", notifications, courses), notifications, profile (name, password, summary-email preference and preview), footer links to the privacy policy and terms |
 | Anyone with a link, no account | A workplace supervisor's one-time attachment feedback page (`/attachment-feedback/:token`) |
-| Students | Course content with progress ticks and downloads, assignments with submission, rubric, grade breakdown and appeals, quizzes with a timer and results, announcements, discussions, study groups, classes with meeting links and check-in by code, attendance, a Skills Passport logbook with evidence uploads, an attachment placement with a weekly logbook, a project topic with milestones and meeting records, own grades, my appeals |
-| Lecturers and assistants | Modules, items and files; assignments and rubrics with levels; grading (rubric, drafts, reasons for changes); similarity check; quizzes and all five question types; announcements; discussions and moderation; classes, check-in codes and the roll; competencies and logbook review; attachment placements and supervisor feedback requests; project topic review, supervision, milestones and meetings; at-risk signals and intervention plans; academic-integrity cases; gradebook (with weighting and a continuous-assessment total) and CSV download; progress; appeals |
+| Students | Course content with progress ticks and downloads, an AI study assistant grounded in course material, assignments with submission, rubric, grade breakdown and appeals, quizzes with a timer and results, announcements, discussions, study groups, classes with meeting links and check-in by code, attendance, a Skills Passport logbook with evidence uploads, an attachment placement with a weekly logbook, a project topic with milestones and meeting records, own grades, my appeals |
+| Lecturers and assistants | Modules, items and files; assignments and rubrics with levels; grading (rubric, drafts, reasons for changes); similarity check; quizzes and all five question types; announcements; discussions and moderation; classes, check-in codes and the roll; competencies and logbook review; attachment placements and supervisor feedback requests; project topic review, supervision, milestones and meetings; at-risk signals and intervention plans; academic-integrity cases; an AI teaching assistant for drafts; gradebook (with weighting and a continuous-assessment total) and CSV download; progress; appeals |
 | Students (registration) | Register for courses that allow it while the term's registration window is open, see the places left, and drop before the add/drop deadline |
 | Registrars and administrators | Enrolment (one at a time, or from a list or CSV, respecting course capacity); teachers; terms with academic years and registration dates, departments, courses and offerings; publishing, archiving; copying a course to another term; accounts and one page per person (role, sign-in problems, sessions, privacy tools); CSV import with a dry run; usage and enrolment reports; audit log with filters and download; security events; system status |
 | Institution and system administrators | Settings, roles and permissions, notices to everyone, integrations, system and failed jobs, backups: see [System administration](#system-administration) |
@@ -287,6 +287,25 @@ Sign-in through any OpenID Connect provider (Microsoft Entra ID, Google Workspac
 
 The frontend calls `GET /auth/sso`, sends the browser to the returned `url`, and when the provider redirects back it posts the `code` and `state` to `POST /auth/sso/callback`, which returns the same token as a normal login. The ID token's signature (RS256 only), issuer, audience, expiry, and nonce are all checked; each `state` works once and expires after 10 minutes. The first sign-in links the account to the provider's stable user id, so a later change of email at the provider can neither lock a person out nor let someone else take over their account. SAML is not supported.
 
+### AI learning assistant
+
+Off by default, like this repo's other optional integrations — a real Claude API key costs money per request. Set these in `backend/.env`:
+
+| Setting | Purpose |
+|---|---|
+| `LMS_AI_ENABLED=true` | Turns it on (also needs the key below). |
+| `ANTHROPIC_API_KEY` | A real Claude API key. Nothing works without one. |
+| `LMS_AI_MODEL` | Default `claude-sonnet-5`. |
+| `LMS_AI_BASE_URL` | Default the real Claude Messages API; override only for testing. |
+| `LMS_AI_MAX_SOURCE_CHARS` | Default 12000. Caps how much course material is sent per request, to bound cost. |
+
+| Route | Who | Purpose |
+|---|---|---|
+| `POST /offerings/{id}/ai/assist` | enrolled students | Body `{mode, prompt}`, `mode` one of `ask`, `summarise`, `revision_questions`, `flashcards`, `study_plan`. The system prompt is built from the offering's own published, text-type learning items only (file and link items are not read), numbered as sources; the model is instructed to use only that material, say so when it does not cover the question, and never write a complete, submission-ready answer to a specific graded assignment or quiz question. The response is `{answer, sources}`, where `sources` lists the course items the model says it drew on, parsed from a trailing "Sources: " line in its reply. |
+| `POST /offerings/{id}/ai/teaching-assist` | managers | Same shape, for `mode` one of `lesson_outline`, `quiz_draft`, `rubric`, `discussion_questions`, `remedial_suggestions`. Still grounded in the course's own material where relevant, but the model may also use general teaching knowledge, since these are drafts for the lecturer to review before use — the material-only restriction is a student-facing honesty rule, not a lecturer one. |
+
+Both routes return a plain-text validation error on the `prompt` field if the assistant is not configured, so the frontend can show it like any other form error. Identifying commonly failed questions and summarising class performance are better served by the real data already in the gradebook and quiz results than by an AI guess, so they are not part of this feature.
+
 ### Scheduled jobs
 
 Every night (in the institution's time zone) the scheduler makes a backup at 02:30 (`LMS_BACKUPS`, keeping the newest `LMS_BACKUPS_KEEP`) and removes expired records at 03:15. It also writes a heartbeat every minute, which the health check and the System screen read. The scheduler queues email and database reminders at 08:00 UTC for assignments due the next calendar day. At 07:00 UTC it also sends summary emails (daily, and weekly on Mondays) to people who chose that setting: what they missed while unread, unsubmitted work due within a week, and, for teaching staff, work waiting for a published grade and open appeals. Summaries contain counts and titles only, never marks, and nothing is sent when there is nothing to say. New accounts start on `LMS_DIGEST_DEFAULT` (`off`, `daily`, or `weekly`; default `off`). Run one by hand with `podman compose exec app php artisan lms:send-digests daily`.
@@ -302,6 +321,7 @@ Some things a university expects are tied to its own systems, so they are provid
 | Plagiarism checking | Similarity screening within a class | Turnitin or any external service, comparison with the web or earlier terms, and PDF or Word files. |
 | Video meetings | A meeting link on each class session, and attendance | Creating meetings automatically in Zoom, Teams, or Meet. |
 | Virus scanning | ClamAV, opt-in (see Uploads) | Scanning files already stored before it was switched on. |
+| AI assistant | Claude API, opt-in (see "AI learning assistant"), restricted to a course's own published material for students | Any other model provider; a conversation history (each request is answered on its own); citation checking or detecting AI-written submissions. |
 
 Still not built: second-marker moderation of whole cohorts and location-checked attendance. Quiz attempts that expire while a student is offline are closed the next time the attempt is read or started, not by a background job. Run behind TLS with production secrets and tested backups before a pilot (see Security and operations). The Composer lock is resolved for PHP 8.3, including `spatie/laravel-activitylog` 4.x, which supports Laravel 13 and PHP 8.3.
 ## Security and operations
