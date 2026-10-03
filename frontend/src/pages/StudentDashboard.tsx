@@ -216,8 +216,8 @@ function LearningGoalsCard() {
       setTargetDate('')
     },
   })
-  const toggle = useApiMutation((goal: LearningGoal) => api.patch(`/learning-goals/${goal.id}`, { completed: !goal.completed_at }), { invalidate: [['learning-goals', 'me']] })
-  const remove = useApiMutation((id: number) => api.delete(`/learning-goals/${id}`), { invalidate: [['learning-goals', 'me']] })
+  const toggle = useApiMutation((goal: LearningGoal) => api.patch(`/learning-goals/${goal.id}`, { completed: !goal.completed_at }), { invalidate: [['learning-goals', 'me']], toastError: true })
+  const remove = useApiMutation((id: number) => api.delete(`/learning-goals/${id}`), { invalidate: [['learning-goals', 'me']], toastError: true })
 
   return (
     <Card title="My learning goals">
@@ -345,7 +345,7 @@ function MissingRow({ item }: { item: AgendaDeadline }) {
 function CalendarSync() {
   const [url, setUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const get = useApiMutation(() => api.post<{ url: string }>('/me/calendar-token'), { onSuccess: (r) => setUrl(r.url) })
+  const get = useApiMutation(() => api.post<{ url: string }>('/me/calendar-token'), { onSuccess: (r) => setUrl(r.url), toastError: true })
 
   return (
     <Card title="Sync to your calendar">

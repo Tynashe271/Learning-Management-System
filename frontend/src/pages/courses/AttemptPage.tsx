@@ -135,7 +135,11 @@ function Taking({ attempt }: { attempt: AttemptInProgress }) {
         actions={left !== null && <span className={`timer${left <= 60 ? ' timer-low' : ''}`} role="timer" aria-live="off">⏱ {clock(left)}</span>}
       />
       {left !== null && left <= 60 && left > 0 && <Alert tone="warn">Less than a minute left. Your answers will be sent automatically when the time is up.</Alert>}
-      <p className="muted small">{saveDraft.isPending ? 'Saving…' : savedAt ? `Auto-saved ${formatDateTime(savedAt)}` : 'Your answers are auto-saved as you go.'}</p>
+      {saveDraft.isError ? (
+        <Alert tone="warn">Your latest answer could not be auto-saved - check your connection. It will keep retrying as you answer; submit before time runs out either way.</Alert>
+      ) : (
+        <p className="muted small">{saveDraft.isPending ? 'Saving…' : savedAt ? `Auto-saved ${formatDateTime(savedAt)}` : 'Your answers are auto-saved as you go.'}</p>
+      )}
       <form
         onSubmit={async (event) => {
           event.preventDefault()

@@ -359,6 +359,7 @@ function AccommodationDialog({ offeringId, student, existing, onClose }: { offer
     invalidate: [['accommodations', offeringId]],
     success: 'Accommodation removed.',
     onSuccess: onClose,
+    toastError: true,
   })
   return (
     <Modal title={`Extended-time accommodation for ${student.user?.name}`} onClose={onClose}>
