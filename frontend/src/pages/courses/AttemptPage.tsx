@@ -217,7 +217,7 @@ function Result({ attempt, quiz }: { attempt: AttemptResult; quiz?: Quiz }) {
                     <span className="muted small">
                       {formatScore(a.points)} / {formatScore(a.max_points)} pt
                     </span>
-                    {a.needs_manual_grading && quiz && <EssayGradeForm attemptId={attempt.id} answerId={a.id} maxPoints={a.max_points} />}
+                    {a.needs_manual_grading && quiz && <EssayGradeForm attemptId={attempt.id} answerId={a.id} maxPoints={a.max_points} offeringId={quiz.course_offering_id} />}
                   </td>
                 </tr>
               )
@@ -230,10 +230,10 @@ function Result({ attempt, quiz }: { attempt: AttemptResult; quiz?: Quiz }) {
 }
 
 /** A grader's inline form to mark one essay answer; the attempt's overall score updates once saved. */
-function EssayGradeForm({ attemptId, answerId, maxPoints }: { attemptId: number; answerId: number; maxPoints: number }) {
+function EssayGradeForm({ attemptId, answerId, maxPoints, offeringId }: { attemptId: number; answerId: number; maxPoints: number; offeringId: number }) {
   const [points, setPoints] = useState('')
   const grade = useApiMutation(() => api.patch(`/quiz-answers/${answerId}/grade`, { points: Number(points) }), {
-    invalidate: [['attempt', attemptId]],
+    invalidate: [['attempt', attemptId], ['grades', offeringId]],
     success: 'Marked.',
   })
   return (

@@ -77,7 +77,11 @@ export function GradeDialog({ assignment, submission, rubric, studentName, onClo
       form.append('feedback_recording', recording)
       return api.upload(`/submissions/${submission.id}/grades`, form)
     },
-    { invalidate: [['submissions', assignment.id], ['appeals']], success: status === 'published' ? 'Grade published. The student has been notified.' : 'Draft saved.', onSuccess: onClose },
+    {
+      invalidate: [['submissions', assignment.id], ['appeals'], ['grades', assignment.course_offering_id], ['my-grade', assignment.id]],
+      success: status === 'published' ? 'Grade published. The student has been notified.' : 'Draft saved.',
+      onSuccess: onClose,
+    },
   )
 
   const valid = (rubric.length === 0 ? score !== '' && Number(score) >= 0 && Number(score) <= assignment.max_score : complete) && (!hasHistory || reason.trim() !== '')
