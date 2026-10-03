@@ -204,7 +204,7 @@ function FailedJobs({ count }: { count: number }) {
                     </td>
                     <td className="small">{job.error}</td>
                     <td className="actions">
-                      <Button small onClick={() => retry.mutate(job.uuid)}>
+                      <Button small loading={retry.isPending && retry.variables === job.uuid} onClick={() => retry.mutate(job.uuid)}>
                         Retry
                       </Button>
                       <Button small variant="ghost" onClick={() => forget.mutate(job.uuid)}>

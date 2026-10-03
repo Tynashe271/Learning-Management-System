@@ -12,12 +12,15 @@ export function PersonPicker({
   exclude = [],
   actionLabel = 'Choose',
   placeholder = 'Search by name or email',
+  busy = false,
 }: {
   role?: RoleName
   onPick: (person: Person) => void
   exclude?: number[]
   actionLabel?: string
   placeholder?: string
+  /** True while a previous pick is still being processed, so a fast second click cannot fire it twice. */
+  busy?: boolean
 }) {
   const [text, setText] = useState('')
   const q = useDebounced(text.trim())
@@ -48,7 +51,7 @@ export function PersonPicker({
                   {person.roles?.map((r) => ROLE_LABELS[r.name] ?? r.name).join(', ')}
                 </span>
               </span>
-              <button type="button" className="btn btn-secondary btn-small" onClick={() => onPick(person)}>
+              <button type="button" className="btn btn-secondary btn-small" disabled={busy} onClick={() => onPick(person)}>
                 {actionLabel}
               </button>
             </li>
