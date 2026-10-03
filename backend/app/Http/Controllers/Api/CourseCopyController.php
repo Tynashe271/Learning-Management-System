@@ -43,9 +43,14 @@ class CourseCopyController extends Controller
             [$copy, $counts] = DB::transaction(function () use ($offering, $data, $days, $request, &$copiedFiles) {
                 $copy = CourseOffering::create(['course_id' => $offering->course_id, 'academic_term_id' => $data['academic_term_id'], 'section' => $data['section'], 'published' => false, 'capacity' => $offering->capacity, 'self_enrolment' => $offering->self_enrolment]);
                 $counts = ['modules' => 0, 'items' => 0, 'files' => 0, 'assignments' => 0, 'rubric_criteria' => 0, 'quizzes' => 0, 'questions' => 0];
+                // Old module ids mean nothing in the new offering, so an assignment or quiz under one must be
+                // remapped to its copy here - otherwise it silently loses its topic (and drops out of topic-level
+                // analytics) instead of raising an error.
+                $moduleMap = [];
 
                 foreach ($offering->modules as $module) {
                     $newModule = $copy->modules()->create($module->only(['title', 'position', 'published']));
+                    $moduleMap[$module->id] = $newModule->id;
                     $counts['modules']++;
                     foreach ($module->items as $item) {
                         $attributes = $item->only(['title', 'type', 'body', 'position', 'published']);
@@ -68,7 +73,9 @@ class CourseCopyController extends Controller
                     }
                 }
                 foreach ($offering->assignments as $assignment) {
-                    $newAssignment = $copy->assignments()->create($assignment->only(['title', 'instructions', 'max_score', 'allow_late_submissions', 'allow_resubmission', 'is_group_assignment']) + ['due_at' => $assignment->due_at->addDays($days), 'published' => false]);
+                    $newAssignment = $copy->assignments()->create($assignment->only(['title', 'instructions', 'max_score', 'allow_late_submissions', 'allow_resubmission', 'is_group_assignment']) + [
+                        'course_module_id' => $moduleMap[$assignment->course_module_id] ?? null, 'due_at' => $assignment->due_at->addDays($days), 'published' => false,
+                    ]);
                     $counts['assignments']++;
                     foreach ($assignment->rubricCriteria as $criterion) {
                         $newCriterion = $newAssignment->rubricCriteria()->create($criterion->only(['title', 'description', 'max_points', 'position']));
@@ -80,7 +87,7 @@ class CourseCopyController extends Controller
                 }
                 foreach ($offering->quizzes as $quiz) {
                     $newQuiz = $copy->quizzes()->create($quiz->only(['title', 'instructions', 'time_limit_minutes', 'max_attempts', 'is_practice']) + [
-                        'opens_at' => $quiz->opens_at?->addDays($days), 'due_at' => $quiz->due_at->addDays($days), 'published' => false,
+                        'course_module_id' => $moduleMap[$quiz->course_module_id] ?? null, 'opens_at' => $quiz->opens_at?->addDays($days), 'due_at' => $quiz->due_at->addDays($days), 'published' => false,
                     ]);
                     $counts['quizzes']++;
                     foreach ($quiz->questions->sortBy(['position', 'id']) as $question) {

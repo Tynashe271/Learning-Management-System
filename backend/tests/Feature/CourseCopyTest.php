@@ -123,6 +123,23 @@ class CourseCopyTest extends TestCase
         $this->assertSame(3, $question->points);
     }
 
+    public function test_an_assignment_and_quiz_keep_their_topic_after_the_modules_copy_under_new_ids(): void
+    {
+        $module = $this->source->modules()->create(['title' => 'Week 1', 'position' => 1, 'published' => true]);
+        Assignment::create(['course_offering_id' => $this->source->id, 'course_module_id' => $module->id, 'title' => 'Essay', 'due_at' => now()->addMonth(), 'max_score' => 10, 'published' => true]);
+        $this->source->quizzes()->create(['title' => 'Quiz', 'course_module_id' => $module->id, 'due_at' => now()->addMonth(), 'max_attempts' => 1, 'published' => true]);
+        // An assignment with no topic must stay topic-less in the copy too, not fall back to the first module copied.
+        Assignment::create(['course_offering_id' => $this->source->id, 'title' => 'Untopicked', 'due_at' => now()->addMonth(), 'max_score' => 10, 'published' => true]);
+
+        $copy = CourseOffering::findOrFail($this->copy()->assertCreated()->json('offering.id'));
+
+        $newModule = $copy->modules()->sole();
+        $this->assertNotSame($module->id, $newModule->id);
+        $this->assertSame($newModule->id, $copy->assignments()->where('title', 'Essay')->sole()->course_module_id);
+        $this->assertSame($newModule->id, $copy->quizzes()->sole()->course_module_id);
+        $this->assertNull($copy->assignments()->where('title', 'Untopicked')->sole()->course_module_id);
+    }
+
     public function test_people_and_history_are_never_copied(): void
     {
         $this->stock();
