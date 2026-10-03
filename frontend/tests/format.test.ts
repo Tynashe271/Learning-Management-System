@@ -81,6 +81,14 @@ describe('the institution’s date settings', () => {
     configureFormats()
   })
 
+  it('shows a full timestamp on the same calendar day the institution would see with formatDateTime, not the browser’s own', () => {
+    const moment = '2026-09-19T23:30:00Z' // 19th in UTC, but already the 20th in the institution's zone below
+    configureFormats({ locale: 'en-GB', timeZone: 'Africa/Harare' }) // UTC+2
+    expect(formatDate(moment)).toMatch(/20 Sept?\s2026/)
+    expect(formatDateTime(moment)).toMatch(/20 Sept?\s2026/)
+    configureFormats()
+  })
+
   it('describes the new notice from the institution', () => {
     const notice: Notification = { id: '2', type: `App\\Notifications\\SystemAnnouncementPosted`, data: { title: 'Registration closes Friday' }, read_at: null, created_at: '2026-01-01T00:00:00Z' }
     expect(notificationText(notice)).toBe('Notice from the institution: Registration closes Friday')

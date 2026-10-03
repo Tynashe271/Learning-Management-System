@@ -1,6 +1,11 @@
 // Dates are written the way the institution has chosen (Settings > Institution): its language format and its time zone.
 let dateTime: Intl.DateTimeFormat
+// Plain "YYYY-MM-DD" values are built as local-calendar dates (no time zone to convert from), so this one deliberately
+// never applies the institution's time zone - doing so could shift the date shown depending on the viewer's own clock.
 let dateOnly: Intl.DateTimeFormat
+// A full timestamp has no such local-calendar date to preserve, so its date portion follows the institution's time
+// zone like formatDateTime does - otherwise the two could show different calendar days for the same instant.
+let dateOnlyTz: Intl.DateTimeFormat
 let timeOnly: Intl.DateTimeFormat
 
 /** Applies the institution's locale and time zone. An unknown value falls back to the browser's own. */
@@ -10,6 +15,7 @@ export function configureFormats(options: { locale?: string | null; timeZone?: s
       return [
         new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short', timeZone }),
         new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: undefined }),
+        new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone }),
         new Intl.DateTimeFormat(locale, { timeStyle: 'short', timeZone }),
       ] as const
     } catch {
@@ -17,7 +23,7 @@ export function configureFormats(options: { locale?: string | null; timeZone?: s
     }
   }
   const made = build(options.locale ?? undefined, options.timeZone ?? undefined) ?? build(undefined, undefined)
-  ;[dateTime, dateOnly, timeOnly] = made as readonly [Intl.DateTimeFormat, Intl.DateTimeFormat, Intl.DateTimeFormat]
+  ;[dateTime, dateOnly, dateOnlyTz, timeOnly] = made as readonly [Intl.DateTimeFormat, Intl.DateTimeFormat, Intl.DateTimeFormat, Intl.DateTimeFormat]
 }
 configureFormats()
 
@@ -31,8 +37,12 @@ export function formatDateTime(value: string | null | undefined): string {
 export function formatDate(value: string | null | undefined): string {
   if (!value) return '—'
   const plain = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.slice(0, 10))
-  const date = plain && value.length <= 10 ? new Date(Number(plain[1]), Number(plain[2]) - 1, Number(plain[3])) : new Date(value)
-  return Number.isNaN(date.getTime()) ? '—' : dateOnly.format(date)
+  if (plain && value.length <= 10) {
+    const date = new Date(Number(plain[1]), Number(plain[2]) - 1, Number(plain[3]))
+    return Number.isNaN(date.getTime()) ? '—' : dateOnly.format(date)
+  }
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '—' : dateOnlyTz.format(date)
 }
 
 export function formatTime(value: string | null | undefined): string {
