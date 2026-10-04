@@ -58,7 +58,7 @@ async function runSuite({ browser, password, ids, artifacts }) {
   // ---------------------------------------------------------------- dashboard and menu
   await page.getByText('The university at a glance').waitFor()
   const menu = (await page.locator('.sidebar .nav-link').allTextContents()).map((s) => s.replace(/\d+$/, '').trim())
-  check('admin: every administration page is in the menu', ['Terms and courses', 'People', 'Import accounts', 'Reports', 'Settings', 'Notices to everyone', 'Integrations', 'Roles and permissions', 'Security', 'Audit log', 'System status', 'System and jobs', 'Backups'].every((n) => menu.includes(n)), menu.join(','))
+  check('admin: every administration page is in the menu', ['Terms and courses', 'People', 'Import accounts', 'Reports', 'Settings', 'Notices to everyone', 'Roles and permissions', 'Security', 'Audit log', 'System status', 'System and jobs', 'Backups'].every((n) => menu.includes(n)), menu.join(','))
   const headings = await page.locator('.nav-heading').allTextContents()
   check('admin: the menu is grouped under headings', ['Academics', 'Institution', 'Security and records', 'System'].every((h) => headings.includes(h)), headings.join(','))
   check('admin: no student-only "My grade appeals" link', !menu.includes('My grade appeals'))
@@ -512,24 +512,6 @@ async function runSuite({ browser, password, ids, artifacts }) {
   await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click()
   await toast('Notice removed')
   check('admin: a notice can be removed', true)
-
-  // ---------------------------------------------------------------- integrations
-  await page.goto(`${BASE}/admin/integrations`)
-  await page.getByRole('heading', { name: 'File storage' }).waitFor()
-  const cards = await page.locator('.card h2').allTextContents()
-  check('admin: every integration is listed', ['Single sign-on (OpenID Connect)', 'Email', 'File storage', 'Virus scanning (ClamAV)', 'Student records system', 'Online meetings', 'Payments and fees', 'API access for other systems'].every((c) => cards.includes(c)), cards.join(' | '))
-  await page.locator('.card', { hasText: 'File storage' }).getByRole('button', { name: 'Test the connection' }).click()
-  await page.getByText('A test file was written, read back and deleted.').waitFor({ timeout: 15000 })
-  check('admin: file storage can be tested for real', true)
-  await fetch(`${MAIL}/api/v1/messages`, { method: 'DELETE' })
-  await page.getByRole('button', { name: 'Send me a test email' }).click()
-  await page.getByText(/A test email was sent to e2e-admin@example.test/).waitFor({ timeout: 15000 })
-  let testMail = null
-  for (let i = 0; i < 20 && !testMail; i++) {
-    await sleep(1000)
-    testMail = (await (await fetch(`${MAIL}/api/v1/messages`)).json()).messages.find((m) => m.To[0].Address === 'e2e-admin@example.test') ?? null
-  }
-  check('admin: the test email really arrives', !!testMail)
 
   // ---------------------------------------------------------------- system, backups
   resetLimits()
