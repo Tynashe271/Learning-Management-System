@@ -331,6 +331,7 @@ async function runSuite({ browser, password, ids, artifacts }) {
   check('admin: copying reports what came across', /1 module, 3 items \(1 with files\), 1 assignment \(2 rubric criteria\) and 1 quiz \(4 questions\)/.test(summary), summary)
   await page.getByRole('link', { name: 'Open the new offering' }).click()
   await page.getByText('This course is not published').waitFor()
+  await page.getByRole('link', { name: 'Classwork' }).click()
   await page.getByText('Week 1: Getting started').waitFor()
   check('admin: the copy is an unpublished offering with the content in place', true)
 
@@ -397,6 +398,7 @@ async function runSuite({ browser, password, ids, artifacts }) {
   check('admin: and restored', true)
 
   // ---------------------------------------------------------------- settings
+  resetLimits() // everything up to here also counts toward the shared per-minute api limit, and this section saves settings several times in a row
   await page.goto(`${BASE}/admin/settings`)
   const nameSetting = page.locator('.setting', { has: page.getByLabel('Institution name') })
   await page.getByLabel('Institution name').fill('E2E University')
