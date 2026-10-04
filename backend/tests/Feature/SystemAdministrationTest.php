@@ -14,12 +14,11 @@ use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\BuildsCourses;
 use Tests\TestCase;
 
-/** The technical and reporting side of administration: monitoring, failed jobs, backups, integrations, announcements, reports. */
+/** The technical and reporting side of administration: monitoring, failed jobs, backups, announcements, reports. */
 class SystemAdministrationTest extends TestCase
 {
     use BuildsCourses, RefreshDatabase;
@@ -65,10 +64,8 @@ class SystemAdministrationTest extends TestCase
         }
     }
 
-    public function test_integrations_and_announcements_are_for_people_with_the_settings_permission(): void
+    public function test_announcements_are_for_people_with_the_settings_permission(): void
     {
-        $this->as($this->uniAdmin)->getJson('/api/integrations')->assertOk();
-        $this->as($this->registrar)->getJson('/api/integrations')->assertForbidden();
         $this->as($this->registrar)->postJson('/api/system-announcements', ['title' => 'x', 'body' => 'y'])->assertForbidden();
         $this->as($this->userWithRole('student'))->getJson('/api/system-announcements')->assertForbidden();
     }
@@ -175,69 +172,6 @@ class SystemAdministrationTest extends TestCase
         $this->as($this->root)->deleteJson('/api/backups/not-a-backup')->assertNotFound();
         $this->as($this->root)->get('/api/backups/..%2F..%2F.env/download')->assertNotFound();
         $this->as($this->root)->get('/api/backups/backup-20260101-000000.tar.gz/download')->assertNotFound();
-    }
-
-    // ---- integrations -------------------------------------------------------------------------------------------------
-
-    public function test_integrations_show_state_without_revealing_secrets(): void
-    {
-        config(['lms.sso.enabled' => true, 'lms.sso.issuer' => 'https://idp.example.test', 'lms.sso.client_id' => 'abc', 'lms.sso.client_secret' => 'TOP-SECRET-VALUE']);
-
-        $response = $this->as($this->uniAdmin)->getJson('/api/integrations')->assertOk();
-        $byKey = collect($response->json('integrations'))->keyBy('key');
-
-        $this->assertEqualsCanonicalizing(['sso', 'email', 'storage', 'scanner', 'student_records', 'meetings', 'payments', 'api', 'ai'], $byKey->keys()->all());
-        $this->assertSame('ok', $byKey['sso']['status']);
-        $this->assertSame('set', $byKey['sso']['details']['Client secret']);
-        $this->assertStringNotContainsString('TOP-SECRET-VALUE', $response->getContent());
-    }
-
-    public function test_single_sign_on_that_is_switched_on_but_incomplete_is_flagged(): void
-    {
-        config(['lms.sso.enabled' => true, 'lms.sso.issuer' => 'https://idp.example.test', 'lms.sso.client_id' => null, 'lms.sso.client_secret' => null]);
-
-        $sso = collect($this->as($this->uniAdmin)->getJson('/api/integrations')->json('integrations'))->firstWhere('key', 'sso');
-
-        $this->assertSame('error', $sso['status']);
-    }
-
-    public function test_the_email_test_sends_a_message_to_the_person_asking(): void
-    {
-        Mail::fake();
-
-        $this->as($this->uniAdmin)->postJson('/api/integrations/email/test')->assertOk()->assertJsonPath('ok', true);
-
-        Mail::assertSentCount(0); // a raw message is sent, not a mailable
-        $this->assertSame(1, DB::table('activity_log')->where('description', 'integration tested')->count());
-    }
-
-    public function test_the_storage_test_writes_reads_and_removes_a_file(): void
-    {
-        $this->as($this->uniAdmin)->postJson('/api/integrations/storage/test')->assertOk()->assertJsonPath('ok', true);
-
-        $this->assertSame([], Storage::disk('s3')->allFiles('.healthcheck'));
-    }
-
-    public function test_tests_that_cannot_run_say_so_instead_of_failing(): void
-    {
-        config(['lms.virus_scan.enabled' => false, 'lms.sso.enabled' => false, 'lms.ai.enabled' => false]);
-
-        $this->as($this->uniAdmin)->postJson('/api/integrations/scanner/test')->assertOk()->assertJsonPath('ok', false);
-        $this->as($this->uniAdmin)->postJson('/api/integrations/sso/test')->assertOk()->assertJsonPath('ok', false);
-        $this->as($this->uniAdmin)->postJson('/api/integrations/ai/test')->assertOk()->assertJsonPath('ok', false);
-        $this->as($this->uniAdmin)->postJson('/api/integrations/payments/test')->assertNotFound();
-    }
-
-    public function test_the_ai_integration_is_off_until_configured(): void
-    {
-        config(['lms.ai.enabled' => false]);
-        $ai = collect($this->as($this->uniAdmin)->getJson('/api/integrations')->json('integrations'))->firstWhere('key', 'ai');
-        $this->assertSame('off', $ai['status']);
-
-        config(['lms.ai.enabled' => true, 'lms.ai.api_key' => 'test-key']);
-        $ai = collect($this->as($this->uniAdmin)->getJson('/api/integrations')->json('integrations'))->firstWhere('key', 'ai');
-        $this->assertSame('ok', $ai['status']);
-        $this->assertSame('set', $ai['details']['API key']);
     }
 
     // ---- system announcements -------------------------------------------------------------------------------------------

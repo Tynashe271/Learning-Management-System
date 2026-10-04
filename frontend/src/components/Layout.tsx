@@ -50,7 +50,6 @@ export function Layout() {
   const institution: NavItem[] = [
     { to: '/admin/settings', label: 'Settings', show: can('manage-settings') },
     { to: '/admin/announcements', label: 'Notices to everyone', show: can('manage-settings') },
-    { to: '/admin/integrations', label: 'Integrations', show: can('manage-settings') },
     { to: '/admin/roles', label: 'Roles and permissions', show: can('manage-users') || can('manage-system') },
   ]
   const oversight: NavItem[] = [

@@ -23,7 +23,6 @@ use App\Http\Controllers\Api\GradebookController;
 use App\Http\Controllers\Api\HandRaiseController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\ImportController;
-use App\Http\Controllers\Api\IntegrationController;
 use App\Http\Controllers\Api\IntegrityController;
 use App\Http\Controllers\Api\InterventionController;
 use App\Http\Controllers\Api\LearningGoalController;
@@ -107,7 +106,7 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/reports/usage', [AdminReportController::class, 'usage'])->middleware('throttle:heavy');
     Route::get('/reports/enrolments', [AdminReportController::class, 'enrolments'])->middleware('throttle:heavy');
 
-    // System: monitoring, housekeeping, backups, integrations
+    // System: monitoring, housekeeping, backups
     Route::get('/system', [SystemController::class, 'info'])->middleware('throttle:heavy');
     Route::get('/system/failed-jobs', [SystemController::class, 'failedJobs']);
     Route::post('/system/failed-jobs/retry', [SystemController::class, 'retryAllFailedJobs']);
@@ -121,8 +120,6 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::post('/backups/{name}/verify', [BackupController::class, 'verify'])->middleware('throttle:heavy');
     Route::get('/backups/{name}/download', [BackupController::class, 'download'])->middleware('throttle:heavy');
     Route::delete('/backups/{name}', [BackupController::class, 'destroy']);
-    Route::get('/integrations', [IntegrationController::class, 'index']);
-    Route::post('/integrations/{key}/test', [IntegrationController::class, 'test'])->middleware('throttle:heavy');
     Route::get('/system-announcements', [SystemAnnouncementController::class, 'index']);
     Route::get('/system-announcements/active', [SystemAnnouncementController::class, 'active']);
     Route::post('/system-announcements', [SystemAnnouncementController::class, 'store']);

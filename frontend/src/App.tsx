@@ -9,7 +9,6 @@ import { AuditPage, ReportsPage, StatusPage } from './pages/admin/SystemPages'
 import { AnnouncementsPage } from './pages/admin/AnnouncementsPage'
 import { BackupsPage } from './pages/admin/BackupsPage'
 import { CataloguePage } from './pages/admin/CataloguePage'
-import { IntegrationsPage } from './pages/admin/IntegrationsPage'
 import { RolesPage } from './pages/admin/RolesPage'
 import { SecurityPage } from './pages/admin/SecurityPage'
 import { SettingsPage } from './pages/admin/SettingsPage'
@@ -159,7 +158,6 @@ export function App() {
         <Route path="admin/roles" element={guard(['manage-users', 'manage-system'], <RolesPage />)} />
         <Route path="admin/settings" element={guard(['manage-settings'], <SettingsPage />)} />
         <Route path="admin/announcements" element={guard(['manage-settings'], <AnnouncementsPage />)} />
-        <Route path="admin/integrations" element={guard(['manage-settings'], <IntegrationsPage />)} />
         <Route path="admin/system" element={guard(['manage-system'], <SystemPage />)} />
         <Route path="admin/backups" element={guard(['manage-system'], <BackupsPage />)} />
         <Route path="admin/status" element={guard(['manage-users', 'manage-courses', 'manage-enrolments'], <StatusPage />)} />

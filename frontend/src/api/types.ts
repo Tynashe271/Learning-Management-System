@@ -886,16 +886,6 @@ export interface BackupVerification {
   checked: number
 }
 
-export interface Integration {
-  key: string
-  label: string
-  can_test: boolean
-  status: 'ok' | 'warn' | 'error' | 'off' | 'manual' | 'info'
-  summary: string
-  details: Record<string, string | number | null>
-  change: string
-}
-
 export interface SystemAnnouncement {
   id: number
   title: string

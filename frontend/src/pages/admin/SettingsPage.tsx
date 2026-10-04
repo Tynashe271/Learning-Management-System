@@ -60,7 +60,7 @@ function SettingsForm({ data }: { data: SettingsResult }) {
   return (
     <>
       <Alert tone="info">
-        A setting you have not changed follows the server&apos;s configuration. “Use the default” removes your change. Connection details such as email, storage and single sign-on are kept on the server, not here; see Integrations.
+        A setting you have not changed follows the server&apos;s configuration. “Use the default” removes your change. Connection details such as email, storage and single sign-on are kept on the server's configuration, not here.
       </Alert>
       {data.groups.map((group) => (
         <Card key={group.group} title={group.group}>

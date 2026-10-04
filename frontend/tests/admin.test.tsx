@@ -65,7 +65,7 @@ describe('the menu', () => {
     renderApp(<App />, '/')
     const nav = await screen.findByRole('navigation', { name: 'Main' })
     for (const heading of ['Academics', 'Institution', 'Security and records', 'System']) expect(within(nav).getByText(heading)).toBeInTheDocument()
-    for (const name of ['Settings', 'Notices to everyone', 'Integrations', 'Roles and permissions', 'Security', 'Audit log', 'System and jobs', 'Backups']) {
+    for (const name of ['Settings', 'Notices to everyone', 'Roles and permissions', 'Security', 'Audit log', 'System and jobs', 'Backups']) {
       expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
     }
   })
@@ -306,21 +306,6 @@ describe('notices to everyone', () => {
     await user.click(screen.getByLabelText(/Also put it in everyone/))
     await user.click(screen.getByRole('button', { name: 'Post notice' }))
     await waitFor(() => expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ title: 'Exams start Monday', body: 'Bring your card.', severity: 'info', audience: ['student'], starts_at: null, ends_at: null, notify: true }))
-  })
-})
-
-describe('integrations', () => {
-  it('shows each connection’s state and runs a real test on request', async () => {
-    const { calls } = mockApi({
-      ...signedInAs(adminMe),
-      'GET /integrations': () => ({ body: { integrations: [{ key: 'storage', label: 'File storage', can_test: true, status: 'ok', summary: 'Files are kept in private storage.', details: { Bucket: 'lms' }, change: 'AWS_* in backend/.env' }] } }),
-      'POST /integrations/storage/test': () => ({ body: { ok: true, message: 'A test file was written, read back and deleted.' } }),
-    })
-    renderApp(<App />, '/admin/integrations')
-    expect(await screen.findByText('Files are kept in private storage.')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Test the connection' }))
-    expect(await screen.findByText('A test file was written, read back and deleted.')).toBeInTheDocument()
-    expect(calls.some((c) => c.path === '/integrations/storage/test')).toBe(true)
   })
 })
 
