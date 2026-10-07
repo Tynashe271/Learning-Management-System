@@ -84,9 +84,9 @@ export function Stat({ label, value, hint }: { label: string; value: ReactNode; 
   )
 }
 
-export function Tabs({ tabs }: { tabs: { to: string; label: string; end?: boolean }[] }) {
+export function Tabs({ tabs, label = 'Course sections' }: { tabs: { to: string; label: string; end?: boolean }[]; label?: string }) {
   return (
-    <nav className="tabs" aria-label="Course sections">
+    <nav className="tabs" aria-label={label}>
       {tabs.map((tab) => (
         <NavLink key={tab.to} to={tab.to} end={tab.end} className={({ isActive }) => `tab${isActive ? ' tab-active' : ''}`}>
           {tab.label}
