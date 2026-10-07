@@ -7,7 +7,8 @@ RUN apk add --no-cache icu-dev libzip-dev postgresql-dev $PHPIZE_DEPS \
 COPY --from=docker.io/library/composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 COPY composer.json composer.lock ./
-RUN composer install --no-interaction --no-scripts --prefer-dist
+# A generous timeout: slow build networks can still be downloading a large package (e.g. the AWS SDK) past Composer's 300s default.
+RUN COMPOSER_PROCESS_TIMEOUT=1800 composer install --no-interaction --no-scripts --prefer-dist
 COPY . .
 RUN php artisan package:discover --ansi && chown -R www-data:www-data storage bootstrap/cache
 CMD ["php-fpm"]
