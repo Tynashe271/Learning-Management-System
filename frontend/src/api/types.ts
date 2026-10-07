@@ -179,6 +179,7 @@ export interface Offering {
   published: boolean
   capacity?: number | null
   self_enrolment?: boolean
+  join_code?: string | null
   archived_at?: string | null
   course?: Course
   term?: Term

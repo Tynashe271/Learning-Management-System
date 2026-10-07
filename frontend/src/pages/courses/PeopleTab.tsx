@@ -139,7 +139,7 @@ export function OverviewTab() {
 }
 
 export function PeopleTab() {
-  const { id, admin, registrar, manage } = useOffering()
+  const { id, offering, admin, registrar, manage } = useOffering()
   const { can } = useAuth()
   const me = useMe()
   const confirm = useConfirm()
@@ -155,11 +155,22 @@ export function PeopleTab() {
 
   const setStatus = useApiMutation((v: { userId: number; status: 'active' | 'withdrawn' }) => api.post(`/offerings/${id}/enrolments`, { user_id: v.userId, status: v.status }), { invalidate: [['roster', id]], toastError: true, success: 'Enrolment updated.' })
   const removeTeacher = useApiMutation((userId: number) => api.delete(`/offerings/${id}/teachers/${userId}`), { invalidate: [['roster', id], ['offering', id]], success: 'Teacher removed.', toastError: true })
+  const generateCode = useApiMutation(() => api.post<{ join_code: string }>(`/offerings/${id}/join-code`), { invalidate: [['offering', id]], toastError: true })
 
   return (
     <QueryView query={query}>
       {(data) => (
         <>
+          {manage && (
+            <Card title="Course code">
+              <p className="muted small">Share this code with students so they can join directly, without browsing the registration list.</p>
+              {offering.join_code && <p className="join-code">{offering.join_code}</p>}
+              <Button small onClick={() => generateCode.mutate()} loading={generateCode.isPending}>
+                {offering.join_code ? 'Generate a new code' : 'Generate a code'}
+              </Button>
+              {offering.join_code && <p className="muted small">Generating a new one stops the old code from working.</p>}
+            </Card>
+          )}
           <Card
             title="Teaching staff"
             actions={

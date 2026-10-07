@@ -936,6 +936,13 @@ select:disabled {
   font-size: 0.85rem;
   margin-top: 0.25rem;
 }
+.join-code {
+  font-family: monospace;
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: 0.25rem;
+  margin: 0.25rem 0;
+}
 .field-check {
   display: flex;
   gap: 0.6rem;

@@ -80,9 +80,11 @@ class AcademicStructureTest extends TestCase
     public function test_only_catalogue_administrators_change_departments_but_registrars_can_look_at_them(): void
     {
         $this->as($this->registrar)->getJson('/api/departments')->assertOk();
-        foreach (['student', 'lecturer', 'registrar'] as $role) {
+        foreach (['student', 'lecturer'] as $role) {
             $this->as($this->userWithRole($role))->postJson('/api/departments', ['code' => 'X', 'name' => 'X'])->assertForbidden();
         }
+        // A registrar now also manages courses.
+        $this->as($this->registrar)->postJson('/api/departments', ['code' => 'X', 'name' => 'X'])->assertCreated();
         $this->as($this->userWithRole('student'))->getJson('/api/departments')->assertForbidden();
     }
 
@@ -196,7 +198,8 @@ class AcademicStructureTest extends TestCase
         $enrol($this->registrar, $first)->assertOk();
         $enrol($this->registrar, $first)->assertOk(); // already has the place: nothing changes
         $enrol($this->registrar, $second)->assertUnprocessable()->assertJsonValidationErrors('capacity');
-        $enrol($this->registrar, $second, ['override' => true])->assertForbidden();
+        // A registrar now also manages courses, so they can override capacity too.
+        $enrol($this->registrar, $second, ['override' => true])->assertOk();
         $enrol($this->admin, $second, ['override' => true])->assertOk();
 
         $this->assertSame(2, $offering->enrolments()->where('status', 'active')->count());
@@ -308,6 +311,47 @@ class AcademicStructureTest extends TestCase
         $this->assertSame(1, $offering->enrolments()->where('status', 'active')->count());
         $this->as($ada)->getJson("/api/offerings/{$offering->id}")->assertOk();
         $this->assertSame(1, DB::table('activity_log')->where('description', 'student registered')->count(), 'registering twice is recorded once');
+    }
+
+    public function test_a_teacher_generates_a_join_code_students_can_redeem(): void
+    {
+        $offering = $this->offering();
+        $lecturer = $this->userWithRole('lecturer');
+        $this->teach($offering, $lecturer);
+        $student = $this->userWithRole('student');
+
+        $this->as($this->userWithRole('student'))->postJson("/api/offerings/{$offering->id}/join-code")->assertForbidden();
+        $code = $this->as($lecturer)->postJson("/api/offerings/{$offering->id}/join-code")->assertOk()->json('join_code');
+        $this->assertMatchesRegularExpression('/^[A-Z2-9]{6}$/', $code);
+
+        $this->as($student)->postJson('/api/offerings/join', ['code' => strtolower($code)])->assertCreated()->assertJsonPath('enrolment.status', 'active');
+        $this->assertSame(1, $offering->enrolments()->where('status', 'active')->where('user_id', $student->id)->count());
+
+        // generating again revokes the old code
+        $newCode = $this->as($lecturer)->postJson("/api/offerings/{$offering->id}/join-code")->assertOk()->json('join_code');
+        $this->assertNotSame($code, $newCode);
+        $this->as($this->userWithRole('student'))->postJson('/api/offerings/join', ['code' => $code])->assertUnprocessable()->assertJsonValidationErrors('code');
+    }
+
+    public function test_a_join_code_is_refused_for_an_unpublished_or_full_offering(): void
+    {
+        $offering = $this->offering();
+        $this->teach($offering, $this->userWithRole('lecturer'));
+        $offering->update(['published' => false, 'join_code' => 'ABCDEF']);
+
+        $this->as($this->userWithRole('student'))->postJson('/api/offerings/join', ['code' => 'ABCDEF'])->assertUnprocessable()->assertJsonValidationErrors('code');
+
+        $offering->update(['published' => true, 'capacity' => 1]);
+        $this->as($this->userWithRole('student'))->postJson('/api/offerings/join', ['code' => 'ABCDEF'])->assertCreated();
+        $this->as($this->userWithRole('student'))->postJson('/api/offerings/join', ['code' => 'ABCDEF'])->assertUnprocessable()->assertJsonValidationErrors('capacity');
+    }
+
+    public function test_a_lecturer_not_assigned_to_the_offering_cannot_generate_its_join_code(): void
+    {
+        $offering = $this->offering();
+        $stranger = $this->userWithRole('lecturer');
+
+        $this->as($stranger)->postJson("/api/offerings/{$offering->id}/join-code")->assertForbidden();
     }
 
     public function test_registration_is_refused_when_the_window_is_closed_or_the_course_does_not_allow_it(): void

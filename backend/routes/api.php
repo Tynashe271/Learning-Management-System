@@ -147,6 +147,8 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/registration', [RegistrationController::class, 'index']);
     Route::post('/offerings/{offering}/register', [RegistrationController::class, 'register']);
     Route::delete('/offerings/{offering}/register', [RegistrationController::class, 'drop']);
+    Route::post('/offerings/{offering}/join-code', [RegistrationController::class, 'generateJoinCode']);
+    Route::post('/offerings/join', [RegistrationController::class, 'joinByCode'])->middleware('throttle:submissions');
 
     // Offerings, people, and reports
     Route::get('/offerings', [LmsController::class, 'offerings']);

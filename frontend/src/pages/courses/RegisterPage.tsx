@@ -1,11 +1,39 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
-import type { Department, Page, RegistrationOffering } from '../../api/types'
-import { Alert, Badge, Button, Card, EmptyState, PageHeader, Pager, QueryView, SelectField, TextField, pagerFromPage, useConfirm, useDebounced } from '../../components/ui'
+import type { Department, Offering, Page, RegistrationOffering } from '../../api/types'
+import { Alert, Badge, Button, Card, EmptyState, FormError, PageHeader, Pager, QueryView, SelectField, TextField, pagerFromPage, useConfirm, useDebounced } from '../../components/ui'
 import { formatDate } from '../../lib/format'
-import { useApiMutation, useTitle } from '../../lib/hooks'
+import { fieldError, useApiMutation, useTitle } from '../../lib/hooks'
+
+/** A course code a lecturer shared, so a student can join directly without browsing the self-registration list. */
+function JoinByCodeCard() {
+  const navigate = useNavigate()
+  const [code, setCode] = useState('')
+  const join = useApiMutation(() => api.post<{ offering: Offering }>('/offerings/join', { code: code.trim() }), {
+    invalidate: [['registration'], ['offerings']],
+    onSuccess: (r) => navigate(`/courses/${r.offering.id}`),
+  })
+  return (
+    <Card title="Have a course code?">
+      <p className="muted small">Your lecturer can give you a code to join their course directly.</p>
+      <form
+        className="inline-form"
+        onSubmit={(event) => {
+          event.preventDefault()
+          join.mutate()
+        }}
+      >
+        <TextField label="Course code" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} error={fieldError(join.error, 'code')} maxLength={12} placeholder="e.g. 7K9PQR" />
+        <Button type="submit" variant="primary" loading={join.isPending} disabled={!code.trim()}>
+          Join
+        </Button>
+      </form>
+      {join.error && !fieldError(join.error, 'code') && <FormError error={join.error} />}
+    </Card>
+  )
+}
 
 /** Course registration for students: what they may sign up for this term, how many places are left, and dropping before the deadline. */
 export function RegisterPage() {
@@ -29,6 +57,7 @@ export function RegisterPage() {
   return (
     <>
       <PageHeader title="Register for courses" subtitle="Courses you can sign up for yourself. Some courses are enrolled by the registrar and do not appear here." />
+      <JoinByCodeCard />
       <Card>
         <div className="filters">
           <TextField label="Search" type="search" value={text} onChange={(e) => { setText(e.target.value); reset() }} placeholder="Course code or title" />

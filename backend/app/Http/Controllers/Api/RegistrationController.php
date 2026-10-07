@@ -98,6 +98,35 @@ class RegistrationController extends Controller
         return response()->json(['message' => 'You have dropped this course.']);
     }
 
+    /** A teacher (or admin) generates a code for their offering that students can redeem instead of browsing to register. Calling this again replaces the old code, so sharing a new one revokes the last. */
+    public function generateJoinCode(Request $request, CourseOffering $offering): JsonResponse
+    {
+        $this->authorize('manage', $offering);
+        $alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no 0/O or 1/I/L, easy to read aloud
+        do {
+            $code = collect(range(1, 6))->map(fn () => $alphabet[random_int(0, strlen($alphabet) - 1)])->implode('');
+        } while (CourseOffering::where('join_code', $code)->exists());
+        $offering->update(['join_code' => $code]);
+        activity()->causedBy($request->user())->performedOn($offering)->log('course join code generated');
+
+        return response()->json(['join_code' => $code]);
+    }
+
+    /** A student redeems a teacher-shared code to join that offering directly, bypassing the self-registration browse list but still subject to capacity. */
+    public function joinByCode(Request $request): JsonResponse
+    {
+        $this->student($request);
+        $data = $request->validate(['code' => ['required', 'string', 'max:12']]);
+        $offering = CourseOffering::with('course', 'term')->where('join_code', strtoupper(trim($data['code'])))->first();
+        if (! $offering || ! $offering->published || $offering->archived_at !== null) {
+            throw ValidationException::withMessages(['code' => 'That code is not recognised. Check it with your lecturer.']);
+        }
+        $enrolment = $this->enrolments->activate($offering, $request->user()->id);
+        activity()->causedBy($request->user())->performedOn($enrolment)->withProperties(['self' => true, 'via' => 'join_code'])->log('student registered');
+
+        return response()->json(['offering' => $offering, 'enrolment' => $enrolment], 201);
+    }
+
     private function student(Request $request): void
     {
         abort_unless($request->user()->hasRole('student'), 403);
