@@ -75,6 +75,7 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/me/agenda', [DashboardController::class, 'agenda']);
     Route::get('/me/insights', [DashboardController::class, 'insights']);
     Route::post('/me/calendar-token', [DashboardController::class, 'calendarToken']);
+    Route::get('/me/calendar.pdf', [DashboardController::class, 'calendarPdf']);
     Route::get('/me/engagement', [EngagementController::class, 'me']);
     Route::get('/me/learning-goals', [LearningGoalController::class, 'index']);
     Route::post('/me/learning-goals', [LearningGoalController::class, 'store']);

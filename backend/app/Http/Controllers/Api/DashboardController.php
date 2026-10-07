@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\AgendaBuilder;
 use App\Services\StudentInsights;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -63,6 +64,30 @@ class DashboardController extends Controller
             'Content-Type' => 'text/calendar; charset=utf-8',
             'Content-Disposition' => 'inline; filename="agenda.ics"',
         ]);
+    }
+
+    /** The next 60 days of classes and deadlines as a PDF, for printing or keeping offline. */
+    public function calendarPdf(Request $request, AgendaBuilder $agenda)
+    {
+        $user = $request->user();
+        $data = $agenda->build($user, 60);
+        $rows = collect($data['sessions'])->map(fn ($s) => ['at' => $s['at'], 'kind' => 'Class', 'title' => $s['title'], 'course' => $s['course'], 'detail' => $s['location'] ?? ''])
+            ->concat(collect($data['deadlines'])->map(fn ($d) => ['at' => $d['at'], 'kind' => $d['type'] === 'quiz' ? 'Quiz due' : 'Assignment due', 'title' => $d['title'], 'course' => $d['course'], 'detail' => '']))
+            ->sortBy('at')->values();
+
+        $rowsHtml = $rows->isEmpty()
+            ? '<tr><td colspan="4">Nothing in the next 60 days.</td></tr>'
+            : $rows->map(fn ($r) => '<tr><td>'.e(Carbon::parse($r['at'])->format('D, j M Y g:ia')).'</td><td>'.e($r['kind']).'</td><td>'.e($r['course'].': '.$r['title']).'</td><td>'.e($r['detail']).'</td></tr>')->implode('');
+
+        $html = '<html><head><meta charset="utf-8"><style>'
+            .'body{font-family:sans-serif;font-size:12px}h1{font-size:18px}table{width:100%;border-collapse:collapse}'
+            .'th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd}th{background:#f3f4f6}'
+            .'</style></head><body>'
+            .'<h1>'.e($user->name).'&rsquo;s calendar</h1><p>Classes and deadlines for the next 60 days, generated '.e(now()->format('j M Y')).'.</p>'
+            .'<table><thead><tr><th>When</th><th>Type</th><th>What</th><th>Where</th></tr></thead><tbody>'.$rowsHtml.'</tbody></table>'
+            .'</body></html>';
+
+        return Pdf::loadHTML($html)->download('agenda.pdf');
     }
 
     /** @return list<string> */

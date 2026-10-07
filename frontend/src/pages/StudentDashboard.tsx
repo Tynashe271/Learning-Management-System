@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthContext'
 import { CourseCard } from '../components/CourseCard'
 import { Badge, Button, Card, CheckField, EmptyState, ErrorState, FormError, Loading, ProgressRing, TextField } from '../components/ui'
 import { dayLabel, formatDate, formatTime, plural } from '../lib/format'
-import { fieldError, useApiMutation, useTitle } from '../lib/hooks'
+import { DownloadButton, fieldError, useApiMutation, useTitle } from '../lib/hooks'
 
 export function StudentDashboard() {
   useTitle('My learning')
@@ -350,11 +350,16 @@ function CalendarSync() {
   return (
     <Card title="Sync to your calendar">
       <p className="muted small">Add your classes and deadlines to Google Calendar, Outlook or Apple Calendar. It updates on its own — no need to redo this.</p>
-      {!url && (
-        <Button onClick={() => get.mutate()} loading={get.isPending}>
-          Get my calendar link
-        </Button>
-      )}
+      <div className="inline-form">
+        {!url && (
+          <Button onClick={() => get.mutate()} loading={get.isPending}>
+            Get my calendar link
+          </Button>
+        )}
+        <DownloadButton path="/me/calendar.pdf" filename="agenda.pdf">
+          Download as PDF
+        </DownloadButton>
+      </div>
       {url && (
         <div className="inline-form">
           <div className="field grow">

@@ -202,6 +202,19 @@ class DashboardTest extends TestCase
         $this->getJson('/api/me/calendar/not-a-real-token.ics')->assertNotFound();
     }
 
+    public function test_the_calendar_can_be_downloaded_as_a_pdf(): void
+    {
+        $offering = $this->offering();
+        $student = $this->userWithRole('student');
+        $this->enrol($offering, $student);
+        $offering->sessions()->create(['title' => 'Lecture 1', 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHour()]);
+
+        $pdf = $this->actingAs($student)->get('/api/me/calendar.pdf')->assertOk();
+
+        $pdf->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+    }
+
     // ---- overview access and warnings -----------------------------------------------------------------------------
 
     public function test_a_registrar_can_now_see_the_overview_but_a_lecturer_still_cannot(): void
