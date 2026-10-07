@@ -62,9 +62,10 @@ class RoleCapabilitiesTest extends TestCase
         return [
             'student' => ['student', ['submit_work']],
             'lecturer' => ['lecturer', ['build_content', 'post_announcement', 'mark_attendance', 'grade_work', 'decide_appeals']],
-            // An assistant manages the courses they are assigned to and grades, but cannot decide appeals.
-            'teaching assistant' => ['teaching-assistant', ['build_content', 'post_announcement', 'mark_attendance', 'grade_work']],
-            'registrar' => ['registrar', ['enrol_student']],
+            // A teaching assistant's permissions mirror a lecturer's.
+            'teaching assistant' => ['teaching-assistant', ['build_content', 'post_announcement', 'mark_attendance', 'grade_work', 'decide_appeals']],
+            // A registrar's permissions are broadened to match a university administrator's, short of resolving appeals and institution settings.
+            'registrar' => ['registrar', ['create_term', 'copy_course', 'enrol_student', 'build_content', 'post_announcement', 'mark_attendance', 'create_user', 'import_users', 'view_audit_log']],
             // A department admin runs courses and enrolments, but cannot create accounts, import users, or read the audit log.
             'department admin' => ['department-admin', ['create_term', 'copy_course', 'enrol_student', 'build_content', 'post_announcement', 'mark_attendance', 'decide_appeals']],
             'university admin' => ['university-admin', ['create_term', 'copy_course', 'enrol_student', 'build_content', 'post_announcement', 'mark_attendance', 'decide_appeals', 'create_user', 'import_users', 'view_audit_log']],

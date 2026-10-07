@@ -42,9 +42,9 @@ export async function run({ browser, password, ids, artifacts }) {
   await page.locator('.menu-btn').click()
   check('the sidebar opens', await page.locator('.sidebar').isVisible())
   await shot('menu')
-  await page.locator('.sidebar').getByRole('link', { name: 'Courses', exact: true }).click()
+  await page.locator('.sidebar').getByRole('link', { name: 'My courses', exact: true }).click()
   check('the menu closes after choosing a page', !(await page.locator('.sidebar').isVisible()))
-  await page.waitForSelector('table')
+  await page.waitForSelector('.course-grid')
   await overflow('courses')
   await shot('courses')
 
@@ -121,7 +121,7 @@ export async function run({ browser, password, ids, artifacts }) {
     localStorage.clear()
   })
   await uiLogin(page, 'e2e-admin@example.test', password)
-  for (const path of ['/admin/users', '/admin/catalogue', '/admin/audit', '/admin/import', '/admin/reports', '/admin/status']) {
+  for (const path of ['/admin/users', '/admin/catalogue', '/admin/settings/audit', '/admin/import', '/admin/reports', '/admin/settings/status']) {
     await page.goto(`${BASE}${path}`)
     await page.waitForSelector('h1')
     await page.waitForTimeout(700)

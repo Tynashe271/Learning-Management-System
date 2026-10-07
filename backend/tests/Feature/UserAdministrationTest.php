@@ -103,7 +103,7 @@ class UserAdministrationTest extends TestCase
     public function test_only_people_who_manage_users_can_do_any_of_this(): void
     {
         $person = $this->userWithRole('student');
-        foreach (['student', 'lecturer', 'registrar', 'department-admin'] as $role) {
+        foreach (['student', 'lecturer', 'department-admin'] as $role) {
             $user = $this->userWithRole($role);
             $this->as($user)->patchJson("/api/users/{$person->id}", ['role' => 'lecturer'])->assertForbidden();
             $this->as($user)->getJson("/api/users/{$person->id}")->assertForbidden();
@@ -112,6 +112,14 @@ class UserAdministrationTest extends TestCase
             $this->as($user)->getJson("/api/users/{$person->id}/export")->assertForbidden();
             $this->as($user)->getJson('/api/security/events')->assertForbidden();
         }
+    }
+
+    public function test_a_registrar_can_now_manage_users_too(): void
+    {
+        $person = $this->userWithRole('student');
+        $registrar = $this->userWithRole('registrar');
+        $this->as($registrar)->getJson("/api/users/{$person->id}")->assertOk();
+        $this->as($registrar)->patchJson("/api/users/{$person->id}", ['role' => 'lecturer'])->assertOk();
     }
 
     // ---- support -----------------------------------------------------------------------------------------------------
@@ -187,6 +195,21 @@ class UserAdministrationTest extends TestCase
         $this->as($this->uniAdmin)->patchJson("/api/users/{$person->id}", ['role' => 'registrar'])->assertOk();
 
         $this->as($person->fresh())->getJson('/api/users')->assertOk();
+    }
+
+    public function test_the_people_list_can_be_split_into_students_and_staff(): void
+    {
+        $student = $this->userWithRole('student');
+        $lecturer = $this->userWithRole('lecturer');
+
+        $studentIds = collect($this->as($this->uniAdmin)->getJson('/api/users?classification=student')->json('data'))->pluck('id');
+        $this->assertTrue($studentIds->contains($student->id));
+        $this->assertFalse($studentIds->contains($lecturer->id));
+
+        $staffIds = collect($this->as($this->uniAdmin)->getJson('/api/users?classification=staff')->json('data'))->pluck('id');
+        $this->assertTrue($staffIds->contains($lecturer->id));
+        $this->assertTrue($staffIds->contains($this->uniAdmin->id));
+        $this->assertFalse($staffIds->contains($student->id));
     }
 
     // ---- delete, export, anonymise -----------------------------------------------------------------------------------
@@ -332,18 +355,19 @@ class UserAdministrationTest extends TestCase
 
     public function test_a_super_administrator_can_change_what_a_role_may_do_and_it_applies_at_once(): void
     {
-        $registrar = $this->userWithRole('registrar');
-        $this->as($registrar)->postJson('/api/terms', ['name' => 'T', 'starts_on' => '2027-01-01', 'ends_on' => '2027-06-01'])->assertForbidden();
+        $ta = $this->userWithRole('teaching-assistant');
+        $this->as($ta)->postJson('/api/terms', ['name' => 'T', 'starts_on' => '2027-01-01', 'ends_on' => '2027-06-01'])->assertForbidden();
 
-        $this->as($this->root)->putJson('/api/roles/registrar/permissions', ['permissions' => ['manage-enrolments', 'manage-courses']])->assertOk()->assertJsonPath('permissions', ['manage-courses', 'manage-enrolments']);
+        $this->as($this->root)->putJson('/api/roles/teaching-assistant/permissions', ['permissions' => ['teach-courses', 'grade-submissions', 'resolve-appeals', 'manage-courses']])
+            ->assertOk()->assertJsonPath('permissions', ['grade-submissions', 'manage-courses', 'resolve-appeals', 'teach-courses']);
 
-        $this->as($registrar->fresh())->postJson('/api/terms', ['name' => 'T', 'starts_on' => '2027-01-01', 'ends_on' => '2027-06-01'])->assertCreated();
+        $this->as($ta->fresh())->postJson('/api/terms', ['name' => 'T', 'starts_on' => '2027-01-01', 'ends_on' => '2027-06-01'])->assertCreated();
         $entry = DB::table('activity_log')->where('description', 'role permissions changed')->first();
         $this->assertSame(['manage-courses'], json_decode($entry->properties, true)['added']);
         $this->assertSame(1, DB::table('security_events')->where('event', 'role.permissions_changed')->count());
 
-        $this->as($this->root)->postJson('/api/roles/registrar/reset')->assertOk()->assertJsonPath('permissions', ['manage-enrolments']);
-        $this->as($registrar->fresh())->postJson('/api/terms', ['name' => 'T2', 'starts_on' => '2027-01-01', 'ends_on' => '2027-06-01'])->assertForbidden();
+        $this->as($this->root)->postJson('/api/roles/teaching-assistant/reset')->assertOk()->assertJsonPath('permissions', ['grade-submissions', 'resolve-appeals', 'teach-courses']);
+        $this->as($ta->fresh())->postJson('/api/terms', ['name' => 'T2', 'starts_on' => '2027-01-01', 'ends_on' => '2027-06-01'])->assertForbidden();
     }
 
     public function test_role_permissions_are_protected(): void

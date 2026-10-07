@@ -190,7 +190,8 @@ class ManagementTest extends TestCase
         $this->actingAs($this->admin)->getJson('/api/audit-log?q=%25')->assertJsonCount(0, 'data');
         $this->actingAs($this->admin)->getJson('/api/audit-log?causer_id='.$this->lecturer->id)->assertJsonCount(0, 'data');
         $this->actingAs($this->lecturer)->getJson('/api/audit-log')->assertForbidden();
-        $this->actingAs($this->userWithRole('registrar'))->getJson('/api/audit-log')->assertForbidden();
+        // A registrar now also manages users, so they can read the audit log.
+        $this->actingAs($this->userWithRole('registrar'))->getJson('/api/audit-log')->assertOk();
     }
 
     public function test_the_overview_report_counts_the_whole_institution(): void

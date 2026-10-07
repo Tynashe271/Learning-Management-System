@@ -220,7 +220,7 @@ class DigestTest extends TestCase
         $this->assertSame(1, $summary['open_appeals']);
     }
 
-    public function test_assistants_see_work_to_grade_but_not_appeals_and_students_see_neither(): void
+    public function test_assistants_see_work_to_grade_and_now_appeals_too_but_students_see_neither(): void
     {
         $assistant = $this->userWithRole('teaching-assistant');
         $this->teach($this->offering, $assistant);
@@ -231,7 +231,8 @@ class DigestTest extends TestCase
         $essay->submissions()->create(['user_id' => $this->ben->id, 'body' => 'y', 'submitted_at' => now()]);
 
         $this->assertSame(1, $this->build($assistant)['to_grade'][0]['awaiting']);
-        $this->assertArrayNotHasKey('open_appeals', $this->build($assistant));
+        // A teaching assistant can now decide appeals too, so they are told about open ones.
+        $this->assertSame(1, $this->build($assistant)['open_appeals']);
         $this->assertArrayNotHasKey('to_grade', $this->build($this->ben) ?? []);
     }
 

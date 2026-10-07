@@ -1,11 +1,36 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
+import { Outlet } from 'react-router-dom'
 import { api } from '../../api/client'
-import type { SettingDef, SettingsResult } from '../../api/types'
-import { Alert, Badge, Button, Card, CheckField, FormError, PageHeader, QueryView, SelectField, TextField, useConfirm } from '../../components/ui'
+import type { Permission, SettingDef, SettingsResult } from '../../api/types'
+import { useAuth } from '../../auth/AuthContext'
+import { Alert, Badge, Button, Card, CheckField, FormError, PageHeader, QueryView, SelectField, Tabs, TextField, useConfirm } from '../../components/ui'
 import { fieldError, useApiMutation, useTitle } from '../../lib/hooks'
 
 type Value = SettingDef['value']
+
+/** Every administration page that isn't about courses or people lives here as a tab, so only one link sits on the sidebar; each tab keeps its own permission, so only the tabs a person can open are shown. */
+export function SettingsLayout() {
+  useTitle('Settings')
+  const { can } = useAuth()
+  const has = (perms: Permission[]) => perms.some(can)
+  const tabs = [
+    ...(has(['manage-settings']) ? [{ to: '/admin/settings', label: 'General', end: true }] : []),
+    ...(has(['manage-settings']) ? [{ to: '/admin/settings/notices', label: 'Notices to everyone' }] : []),
+    ...(has(['manage-users']) ? [{ to: '/admin/settings/security', label: 'Security' }] : []),
+    ...(has(['manage-system']) ? [{ to: '/admin/settings/system', label: 'System and jobs' }] : []),
+    ...(has(['manage-users', 'manage-system']) ? [{ to: '/admin/settings/roles', label: 'Roles and permissions' }] : []),
+    ...(has(['manage-users']) ? [{ to: '/admin/settings/audit', label: 'Audit log' }] : []),
+    ...(has(['manage-users', 'manage-courses', 'manage-enrolments']) ? [{ to: '/admin/settings/status', label: 'System status' }] : []),
+    ...(has(['manage-system']) ? [{ to: '/admin/settings/backups', label: 'Backups' }] : []),
+  ]
+  return (
+    <>
+      <Tabs tabs={tabs} label="Settings sections" />
+      <Outlet />
+    </>
+  )
+}
 
 const GROUP_HELP: Record<string, string> = {
   Institution: 'Who you are. This appears on the sign-in page, in the header, in emails and in every date shown.',

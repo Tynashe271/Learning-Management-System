@@ -47,25 +47,10 @@ export function Layout() {
     { to: '/admin/import', label: 'Import accounts', show: can('manage-users') },
     { to: '/admin/reports', label: 'Reports', show: can('manage-courses') || can('manage-enrolments') },
   ]
-  const institution: NavItem[] = [
-    { to: '/admin/settings', label: 'Settings', show: can('manage-settings') },
-    { to: '/admin/announcements', label: 'Notices to everyone', show: can('manage-settings') },
-    { to: '/admin/roles', label: 'Roles and permissions', show: can('manage-users') || can('manage-system') },
-  ]
-  const oversight: NavItem[] = [
-    { to: '/admin/security', label: 'Security', show: can('manage-users') },
-    { to: '/admin/audit', label: 'Audit log', show: can('manage-users') },
-  ]
-  const system: NavItem[] = [
-    { to: '/admin/status', label: 'System status', show: staffAdmin },
-    { to: '/admin/system', label: 'System and jobs', show: can('manage-system') },
-    { to: '/admin/backups', label: 'Backups', show: can('manage-system') },
-  ]
+  const institution: NavItem[] = [{ to: '/admin/settings', label: 'Settings', show: can('manage-settings') || staffAdmin || can('manage-system') }]
   const adminGroups: [string, NavItem[]][] = [
     ['Academics', academics],
     ['Institution', institution],
-    ['Security and records', oversight],
-    ['System', system],
   ]
 
   const renderNav = (items: NavItem[]) =>

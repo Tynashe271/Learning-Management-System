@@ -250,13 +250,20 @@ class GradeAppealTest extends TestCase
     {
         $this->appeal()->assertCreated();
 
-        $this->resolve('rejected', $this->assistant)->assertForbidden();            // assistants can grade but not decide appeals
         $this->resolve('rejected', $this->ada)->assertForbidden();
         $this->resolve('rejected', $this->userWithRole('lecturer'))->assertForbidden(); // not their course
         $this->resolve('rejected', $this->userWithRole('registrar'))->assertForbidden();
         $this->assertSame('open', GradeAppeal::first()->status);
 
-        $this->resolve('rejected', $this->userWithRole('university-admin'))->assertOk(); // an administrator can mediate
+        // A teaching assistant assigned to the course can now decide appeals too, like a lecturer.
+        $this->resolve('rejected', $this->assistant)->assertOk();
+
+        // An administrator not assigned to the course can still mediate.
+        $ben = $this->userWithRole('student', ['name' => 'Ben']);
+        $this->enrol($this->offering, $ben);
+        $second = $this->gradedSubmission($ben, 60);
+        $this->appeal($ben, $second)->assertCreated();
+        $this->actingAs($this->userWithRole('university-admin'))->postJson('/api/appeals/'.GradeAppeal::latest('id')->first()->id.'/resolve', ['outcome' => 'rejected', 'response' => 'Reviewed against the rubric.'])->assertOk();
     }
 
     public function test_a_decided_appeal_is_final(): void
@@ -297,10 +304,10 @@ class GradeAppealTest extends TestCase
 
     public function test_the_permission_to_resolve_appeals_goes_to_the_right_roles(): void
     {
-        foreach (['lecturer', 'university-admin', 'department-admin', 'super-admin'] as $role) {
+        foreach (['lecturer', 'teaching-assistant', 'university-admin', 'department-admin', 'super-admin'] as $role) {
             $this->assertTrue(Role::findByName($role)->hasPermissionTo('resolve-appeals'), "$role should be able to resolve appeals");
         }
-        foreach (['teaching-assistant', 'registrar', 'student'] as $role) {
+        foreach (['registrar', 'student'] as $role) {
             $this->assertFalse(Role::findByName($role)->hasPermissionTo('resolve-appeals'), "$role should not be able to resolve appeals");
         }
     }

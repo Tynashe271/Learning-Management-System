@@ -18,11 +18,15 @@ class UserController extends Controller
     {
         $actor = $request->user();
         abort_unless($actor->can('manage-users') || $actor->can('manage-enrolments'), 403);
-        $data = $request->validate(['role' => ['sometimes', Rule::in(User::ROLES)], 'q' => ['sometimes', 'string', 'max:100'], 'status' => ['sometimes', Rule::in(['active', 'inactive'])]]);
+        $data = $request->validate(['role' => ['sometimes', Rule::in(User::ROLES)], 'classification' => ['sometimes', Rule::in(['student', 'staff'])], 'q' => ['sometimes', 'string', 'max:100'], 'status' => ['sometimes', Rule::in(['active', 'inactive'])]]);
 
         $query = User::with('roles:id,name')->orderBy('name')->orderBy('id');
         if (isset($data['role'])) {
             $query->role($data['role']);
+        } elseif (($data['classification'] ?? null) === 'student') {
+            $query->role('student');
+        } elseif (($data['classification'] ?? null) === 'staff') {
+            $query->withoutRole('student');
         }
         if (isset($data['status'])) {
             $query->where('is_active', $data['status'] === 'active');

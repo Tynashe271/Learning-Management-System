@@ -199,9 +199,12 @@ class ImportTest extends TestCase
         $csv = "name,email,role\nAda,ada@uni.test,student\n";
 
         $this->importUsers($csv, [], $this->userWithRole('lecturer'))->assertForbidden();
-        $this->importUsers($csv, [], $this->userWithRole('registrar'))->assertForbidden();
         $this->importUsers($csv, [], $this->userWithRole('student'))->assertForbidden();
-        $this->assertSame(4, User::count());
+        $this->assertSame(3, User::count());
+
+        // A registrar now also manages users, so they can import too.
+        $this->importUsers($csv, [], $this->userWithRole('registrar'))->assertOk();
+        $this->assertSame(5, User::count());
     }
 
     public function test_enrolments_can_be_imported_from_a_csv_with_an_email_column(): void

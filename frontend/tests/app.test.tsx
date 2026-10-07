@@ -137,9 +137,10 @@ describe('what each person sees', () => {
     })
     renderApp(<App />, '/')
     const nav = await screen.findByRole('navigation', { name: 'Main' })
-    for (const name of ['Terms and courses', 'People', 'Import accounts', 'Reports', 'Audit log', 'System status']) {
+    for (const name of ['Terms and courses', 'People', 'Import accounts', 'Reports', 'Settings']) {
       expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
     }
+    expect(within(nav).queryByRole('link', { name: 'Audit log' })).not.toBeInTheDocument()
     expect(within(nav).queryByRole('link', { name: 'My grade appeals' })).not.toBeInTheDocument()
     expect(await screen.findByText('The university at a glance')).toBeInTheDocument()
   })
@@ -147,7 +148,7 @@ describe('what each person sees', () => {
   it('keeps a student out of an administration page even if they type the address', async () => {
     tokenStore.set('t', false)
     mockApi({ ...shared, 'GET /me': () => ({ body: studentMe }) })
-    renderApp(<App />, '/admin/audit')
+    renderApp(<App />, '/admin/settings/audit')
     expect(await screen.findByText(/do not have access to this page/i)).toBeInTheDocument()
   })
 

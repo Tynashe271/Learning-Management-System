@@ -197,7 +197,7 @@ function Account({ detail }: { detail: UserDetail }) {
           </Table>
         )}
         <p className="muted small">
-          <Link to="/admin/audit">Audit log</Link> shows what this person changed.
+          <Link to="/admin/settings/audit">Audit log</Link> shows what this person changed.
         </p>
       </Card>
 

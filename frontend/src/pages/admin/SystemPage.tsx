@@ -137,7 +137,7 @@ export function SystemPage() {
             </Card>
             <Card title="Backups">
               <p>
-                {s.backups.count === 0 ? 'No backup has been made.' : `${plural(s.backups.count, 'backup')} kept. The latest is ${s.backups.age_hours === null ? '' : `${s.backups.age_hours} hours old`}.`} <Link to="/admin/backups">Open Backups</Link>
+                {s.backups.count === 0 ? 'No backup has been made.' : `${plural(s.backups.count, 'backup')} kept. The latest is ${s.backups.age_hours === null ? '' : `${s.backups.age_hours} hours old`}.`} <Link to="/admin/settings/backups">Open Backups</Link>
               </p>
             </Card>
             <FailedJobs count={s.queue.failed} />

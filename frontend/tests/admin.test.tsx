@@ -35,7 +35,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 const signedInAs = (me: unknown) => ({ ...shared, 'GET /me': () => ({ body: me }) })
-const registrarMe = { id: 9, name: 'Reg Istrar', email: 'reg@example.test', roles: [{ id: 3, name: 'registrar' }], permissions: ['manage-enrolments'] }
+const registrarMe = { id: 9, name: 'Reg Istrar', email: 'reg@example.test', roles: [{ id: 3, name: 'registrar' }], permissions: ['manage-users', 'manage-courses', 'manage-enrolments'] }
 
 describe('the institution', () => {
   it('shows its name in the header and names what is missing from a new password', () => {
@@ -64,18 +64,21 @@ describe('the menu', () => {
     mockApi(signedInAs(adminMe))
     renderApp(<App />, '/')
     const nav = await screen.findByRole('navigation', { name: 'Main' })
-    for (const heading of ['Academics', 'Institution', 'Security and records', 'System']) expect(within(nav).getByText(heading)).toBeInTheDocument()
-    for (const name of ['Settings', 'Notices to everyone', 'Roles and permissions', 'Security', 'Audit log', 'System and jobs', 'Backups']) {
+    for (const heading of ['Academics', 'Institution']) expect(within(nav).getByText(heading)).toBeInTheDocument()
+    for (const name of ['Terms and courses', 'People', 'Import accounts', 'Reports', 'Settings']) {
       expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
+    }
+    // Notices, Security, System, Roles and permissions, Audit log and Backups live as tabs under Settings, not on the sidebar.
+    for (const name of ['Notices to everyone', 'Security', 'Roles and permissions', 'Audit log', 'System and jobs', 'Backups']) {
+      expect(within(nav).queryByRole('link', { name })).not.toBeInTheDocument()
     }
   })
 
-  it('shows a registrar the enrolment work and nothing technical', async () => {
+  it('shows a registrar the enrolment and account work, but nothing settings-only', async () => {
     mockApi(signedInAs(registrarMe))
     renderApp(<App />, '/')
     const nav = await screen.findByRole('navigation', { name: 'Main' })
-    for (const name of ['Terms and courses', 'People', 'Reports']) expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
-    for (const name of ['Settings', 'Backups', 'System and jobs', 'Audit log', 'Security', 'Roles and permissions', 'Import accounts']) expect(within(nav).queryByRole('link', { name })).not.toBeInTheDocument()
+    for (const name of ['Terms and courses', 'People', 'Import accounts', 'Reports', 'Settings']) expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
   })
 
   it('offers students course registration', async () => {
@@ -178,7 +181,7 @@ describe('roles and permissions', () => {
   it('lets a super administrator change what a role may do', async () => {
     const { calls } = mockApi({ ...signedInAs(adminMe), 'GET /roles': () => ({ body: roles }), 'PUT /roles/registrar/permissions': () => ({ body: { name: 'registrar', permissions: ['manage-users'] } }) })
     const user = userEvent.setup()
-    renderApp(<App />, '/admin/roles')
+    renderApp(<App />, '/admin/settings/roles')
     const box = await screen.findByRole('checkbox', { name: /manage-users/ })
     await user.click(box)
     await user.click(screen.getByRole('button', { name: 'Save Registrar' }))
@@ -188,7 +191,7 @@ describe('roles and permissions', () => {
   it('shows the roles to someone who may look but not change them', async () => {
     const readOnly = { ...adminMe, permissions: ['manage-users'] }
     mockApi({ ...signedInAs(readOnly), 'GET /roles': () => ({ body: roles }) })
-    renderApp(<App />, '/admin/roles')
+    renderApp(<App />, '/admin/settings/roles')
     expect(await screen.findByText(/Only a super administrator can change it/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save Registrar' })).not.toBeInTheDocument()
     expect(await screen.findByRole('checkbox', { name: /manage-users/ })).toBeDisabled()
@@ -265,7 +268,7 @@ describe('system and backups', () => {
       'GET /system/failed-jobs': () => ({ body: { ...emptyPage, total: 1, data: [{ id: 1, uuid: 'abc', queue: 'default', job: 'App\\Jobs\\SendThing', error: 'RuntimeException: boom', failed_at: '2026-09-19T09:00:00Z' }] } }),
       'POST /system/failed-jobs/abc/retry': () => ({ body: { message: 'ok' } }),
     })
-    renderApp(<App />, '/admin/system')
+    renderApp(<App />, '/admin/settings/system')
     expect(await screen.findByText('No backup has been made yet.')).toBeInTheDocument()
     expect(await screen.findByText('SendThing')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -279,7 +282,7 @@ describe('system and backups', () => {
       'POST /backups': () => ({ status: 202, body: { message: 'started' } }),
     })
     const user = userEvent.setup()
-    renderApp(<App />, '/admin/backups')
+    renderApp(<App />, '/admin/settings/backups')
     expect(await screen.findByText('php artisan lms:restore <backup file name>')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /restore/i })).not.toBeInTheDocument()
     await user.click(screen.getByLabelText(/Include uploaded files/))
@@ -289,7 +292,7 @@ describe('system and backups', () => {
 
   it('keeps the technical pages from someone without the system permission', async () => {
     mockApi(signedInAs({ ...adminMe, permissions: ['manage-users', 'manage-settings'] }))
-    renderApp(<App />, '/admin/backups')
+    renderApp(<App />, '/admin/settings/backups')
     expect(await screen.findByText(/do not have access to this page/i)).toBeInTheDocument()
   })
 })
@@ -298,7 +301,7 @@ describe('notices to everyone', () => {
   it('posts a notice for chosen roles and can ask for a notification too', async () => {
     const { calls } = mockApi({ ...signedInAs(adminMe), 'GET /system-announcements': () => ({ body: emptyPage }), 'POST /system-announcements': () => ({ status: 201, body: { id: 1 } }) })
     const user = userEvent.setup()
-    renderApp(<App />, '/admin/announcements')
+    renderApp(<App />, '/admin/settings/notices')
     await user.click(await screen.findByRole('button', { name: 'New notice' }))
     await user.type(screen.getByLabelText('Headline'), 'Exams start Monday')
     await user.type(screen.getByLabelText('Message'), 'Bring your card.')
@@ -417,7 +420,7 @@ describe('security', () => {
       }),
       'GET /security/events': () => ({ body: { ...emptyPage, total: 1, data: [{ id: 1, event: 'login.failed', level: 'warning', ip: '203.0.113.9', created_at: '2026-09-19T09:00:00Z', user_id: null, user_name: null }] } }),
     })
-    renderApp(<App />, '/admin/security')
+    renderApp(<App />, '/admin/settings/security')
     expect((await screen.findAllByText('203.0.113.9', { selector: 'code' })).length).toBeGreaterThan(0)
     expect(screen.getAllByText('Wrong password or unknown email').length).toBeGreaterThan(0)
   })

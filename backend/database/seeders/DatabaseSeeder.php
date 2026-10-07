@@ -26,10 +26,10 @@ class DatabaseSeeder extends Seeder
     public const DEFAULTS = [
         'super-admin' => ['manage-users', 'manage-courses', 'manage-enrolments', 'teach-courses', 'submit-assignments', 'grade-submissions', 'resolve-appeals', 'manage-settings', 'manage-system'],
         'university-admin' => ['manage-users', 'manage-courses', 'manage-enrolments', 'resolve-appeals', 'manage-settings'],
-        'registrar' => ['manage-enrolments'],
+        'registrar' => ['manage-users', 'manage-courses', 'manage-enrolments'],
         'department-admin' => ['manage-courses', 'manage-enrolments', 'resolve-appeals'],
         'lecturer' => ['teach-courses', 'grade-submissions', 'resolve-appeals'],
-        'teaching-assistant' => ['teach-courses', 'grade-submissions'],
+        'teaching-assistant' => ['teach-courses', 'grade-submissions', 'resolve-appeals'],
         'student' => ['submit-assignments'],
     ];
 

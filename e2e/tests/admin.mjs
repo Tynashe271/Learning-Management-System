@@ -58,9 +58,14 @@ async function runSuite({ browser, password, ids, artifacts }) {
   // ---------------------------------------------------------------- dashboard and menu
   await page.getByText('The university at a glance').waitFor()
   const menu = (await page.locator('.sidebar .nav-link').allTextContents()).map((s) => s.replace(/\d+$/, '').trim())
-  check('admin: every administration page is in the menu', ['Terms and courses', 'People', 'Import accounts', 'Reports', 'Settings', 'Notices to everyone', 'Roles and permissions', 'Security', 'Audit log', 'System status', 'System and jobs', 'Backups'].every((n) => menu.includes(n)), menu.join(','))
+  check('admin: every administration page is in the menu', ['Terms and courses', 'People', 'Import accounts', 'Reports', 'Settings'].every((n) => menu.includes(n)), menu.join(','))
+  check(
+    'admin: notices, security, system, roles, audit and backups live under Settings, not as top-level menu links',
+    !['Notices to everyone', 'Security', 'System and jobs', 'Roles and permissions', 'Audit log', 'System status', 'Backups'].some((n) => menu.includes(n)),
+    menu.join(','),
+  )
   const headings = await page.locator('.nav-heading').allTextContents()
-  check('admin: the menu is grouped under headings', ['Academics', 'Institution', 'Security and records', 'System'].every((h) => headings.includes(h)), headings.join(','))
+  check('admin: the menu is grouped under headings', ['Academics', 'Institution'].every((h) => headings.includes(h)), headings.join(','))
   check('admin: no student-only "My grade appeals" link', !menu.includes('My grade appeals'))
   check('admin: the dashboard shows real counts', /Accounts\s*\d+/.test((await page.locator('.stats').first().innerText()).replace(/\n/g, ' ')) || (await page.locator('.stat-value').first().innerText()).match(/\d+/) !== null)
 
@@ -168,6 +173,7 @@ async function runSuite({ browser, password, ids, artifacts }) {
   await modal().getByLabel('Role').selectOption('lecturer')
   await modal().getByRole('button', { name: 'Create account' }).click()
   await toast('Account created')
+  await page.getByRole('button', { name: 'Staff', exact: true }).click() // a lecturer is staff, not a student
   await page.getByLabel('Search').fill('zed')
   await row('E2E Zed').waitFor()
   await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 1)
@@ -400,6 +406,13 @@ async function runSuite({ browser, password, ids, artifacts }) {
   // ---------------------------------------------------------------- settings
   resetLimits() // everything up to here also counts toward the shared per-minute api limit, and this section saves settings several times in a row
   await page.goto(`${BASE}/admin/settings`)
+  await page.locator('.tabs').waitFor()
+  const settingsTabs = await page.locator('.tabs .tab').allTextContents()
+  check(
+    'admin: Notices, Security, System, Roles, Audit log, System status and Backups are tabs under Settings',
+    ['General', 'Notices to everyone', 'Security', 'System and jobs', 'Roles and permissions', 'Audit log', 'System status', 'Backups'].every((t) => settingsTabs.includes(t)),
+    settingsTabs.join(','),
+  )
   const nameSetting = page.locator('.setting', { has: page.getByLabel('Institution name') })
   await page.getByLabel('Institution name').fill('E2E University')
   await page.getByRole('button', { name: 'Save settings' }).click()
@@ -468,17 +481,17 @@ async function runSuite({ browser, password, ids, artifacts }) {
 
   // ---------------------------------------------------------------- roles and permissions
   resetLimits()
-  await page.goto(`${BASE}/admin/roles`)
+  await page.goto(`${BASE}/admin/settings/roles`)
   await page.getByRole('heading', { name: 'At a glance' }).waitFor()
   check('admin: the roles page lists every permission for every role', (await page.locator('.card', { hasText: 'At a glance' }).locator('tbody tr').count()) >= 9)
-  await page.getByRole('tab', { name: 'Registrar' }).click()
-  const regToken = await apiLogin('e2e-reg@example.test', password)
-  const usageStatus = async () => (await fetch(`${API}/reports/usage`, { headers: { Accept: 'application/json', Authorization: `Bearer ${regToken}` } })).status
-  check('admin: a registrar cannot see the usage report to begin with', (await usageStatus()) === 403)
+  await page.getByRole('tab', { name: 'Teaching assistant' }).click()
+  const taToken = await apiLogin('e2e-ta@example.test', password)
+  const usageStatus = async () => (await fetch(`${API}/reports/usage`, { headers: { Accept: 'application/json', Authorization: `Bearer ${taToken}` } })).status
+  check('admin: a teaching assistant cannot see the usage report to begin with', (await usageStatus()) === 403)
   try {
     await page.locator('.perm', { hasText: 'manage-courses' }).getByRole('checkbox').check()
-    await page.getByRole('button', { name: 'Save Registrar' }).click()
-    await toast('Registrar saved')
+    await page.getByRole('button', { name: 'Save Teaching assistant' }).click()
+    await toast('Teaching assistant saved')
     check('admin: giving a role a permission takes effect straight away', (await usageStatus()) === 200)
   } finally {
     await page.getByRole('button', { name: 'Back to the starting permissions' }).click()
@@ -488,7 +501,7 @@ async function runSuite({ browser, password, ids, artifacts }) {
   check('admin: the super administrator role is not offered for editing', (await page.getByRole('tab', { name: 'Super administrator' }).count()) === 0)
 
   // ---------------------------------------------------------------- notices to everyone
-  await page.goto(`${BASE}/admin/announcements`)
+  await page.goto(`${BASE}/admin/settings/notices`)
   await page.getByRole('button', { name: 'New notice' }).click()
   await modal().getByLabel('Headline').fill('E2E Exams start Monday')
   await modal().getByLabel('Message').fill('Bring your student card.')
@@ -515,7 +528,7 @@ async function runSuite({ browser, password, ids, artifacts }) {
 
   // ---------------------------------------------------------------- system, backups
   resetLimits()
-  await page.goto(`${BASE}/admin/system`)
+  await page.goto(`${BASE}/admin/settings/system`)
   await page.getByRole('heading', { name: 'Software' }).waitFor()
   const systemCards = await page.locator('.card h2').allTextContents()
   check('admin: the system page shows software, capacity, records and background work', ['Software', 'Capacity', 'Records held', 'Background work', 'Database updates'].every((t) => systemCards.includes(t)), systemCards.join(' | '))
@@ -526,7 +539,7 @@ async function runSuite({ browser, password, ids, artifacts }) {
   await toast('refreshed')
   check('admin: saved copies of reports and settings can be refreshed', true)
 
-  await page.goto(`${BASE}/admin/backups`)
+  await page.goto(`${BASE}/admin/settings/backups`)
   await page.getByRole('heading', { name: 'Restoring a backup' }).waitFor()
   check('admin: restoring is explained as a server command, not offered as a button', (await page.getByText('php artisan lms:restore').count()) > 0 && (await page.getByRole('button', { name: /^restore/i }).count()) === 0)
   const backupCard = page.locator('.card', { has: page.getByRole('heading', { name: 'Backups', exact: true }) })
@@ -548,7 +561,7 @@ async function runSuite({ browser, password, ids, artifacts }) {
   check('admin: a backup can be deleted', true)
 
   // ---------------------------------------------------------------- security events
-  await page.goto(`${BASE}/admin/security`)
+  await page.goto(`${BASE}/admin/settings/security`)
   await page.getByRole('heading', { name: 'Last 24 hours', exact: true }).waitFor()
   const security = await page.locator('main').innerText()
   check('admin: the security page counts sign-ins and lockouts', /Sign-ins\s*\d+/.test(security.replace(/\n/g, ' ')) && /Lockouts/.test(security))
@@ -586,7 +599,7 @@ async function runSuite({ browser, password, ids, artifacts }) {
   check('admin: the report breaks accounts down by role', ['Student', 'Lecturer', 'Registrar'].every((r) => roles.includes(r)), roles)
   check('admin: the report counts accounts', Number((await page.locator('.stat-value').first().innerText()).trim()) >= 10)
 
-  await page.goto(`${BASE}/admin/audit`)
+  await page.goto(`${BASE}/admin/settings/audit`)
   await page.locator('tbody tr').first().waitFor()
   // Look each description up and read the answer itself (the screen is slow to redraw, and the log is too long to read from its first page).
   const searchAudit = async (text) => {
@@ -628,7 +641,7 @@ async function runSuite({ browser, password, ids, artifacts }) {
   const auditText = readFileSync(await auditCsv.path(), 'utf8')
   check('admin: the audit log downloads as a spreadsheet', /^audit-log-.*\.csv$/.test(auditCsv.suggestedFilename()) && /"When \(UTC\)",Who,Email,What/.test(auditText) && /E2E Admin/.test(auditText), auditText.slice(0, 200))
 
-  await page.goto(`${BASE}/admin/status`)
+  await page.goto(`${BASE}/admin/settings/status`)
   await page.getByText('Everything is working.').waitFor({ timeout: 100000 }) // clearing the cache above removed the scheduler's heartbeat; it is back within a minute, and this page looks again every 30 seconds
   const services = await page.locator('tbody tr').allInnerTexts()
   check('admin: system status shows every service healthy', services.length === 5 && services.every((s) => /ok/.test(s)), services.join(' | '))

@@ -93,8 +93,8 @@ All routes are under `/api`. `POST /login` returns a Sanctum bearer token; send 
 |---|---|
 | `student` | In courses they are actively enrolled in: read published material, submit assignments, take quizzes, see their own grades, appeal a published grade, check in to class, and discuss. Nothing else. |
 | `lecturer` | In the courses they are assigned to: build content, set assignments and quizzes, grade with rubrics, post announcements, take attendance, and decide grade appeals. |
-| `teaching-assistant` | Manage and grade the courses they are assigned to, like a lecturer, except they **cannot decide grade appeals**. |
-| `registrar` | Enrol students (one at a time or from a file), and look up users and offerings. They do not touch course content. |
+| `teaching-assistant` | The same as a lecturer, in the courses they are assigned to: build content, set assignments and quizzes, grade with rubrics, post announcements, take attendance, and decide grade appeals. |
+| `registrar` | The same as a university administrator, except they **cannot decide grade appeals or change institution settings**: create terms and courses, assign teachers, copy courses, enrol students, edit any course's content, take attendance, create and deactivate accounts, import users from a file, and read the audit log. They do not grade. |
 | `department-admin` | Run the catalogue and every course: create terms and courses, assign teachers, copy courses, enrol students, edit any course's content, take attendance, decide appeals. They **cannot create accounts, import users, or read the audit log**, and they do not grade. |
 | `university-admin` | Everything a department admin can do, plus create and deactivate accounts, import users from a file, and read the audit log. They do not grade. |
 | `super-admin` | Everything, including grading. The one thing a super-admin cannot do is act as a student: submitting work or taking a quiz still needs an active enrolment. |

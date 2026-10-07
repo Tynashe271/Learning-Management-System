@@ -11,7 +11,7 @@ import { BackupsPage } from './pages/admin/BackupsPage'
 import { CataloguePage } from './pages/admin/CataloguePage'
 import { RolesPage } from './pages/admin/RolesPage'
 import { SecurityPage } from './pages/admin/SecurityPage'
-import { SettingsPage } from './pages/admin/SettingsPage'
+import { SettingsLayout, SettingsPage } from './pages/admin/SettingsPage'
 import { SystemPage } from './pages/admin/SystemPage'
 import { UserPage } from './pages/admin/UserPage'
 import { ImportUsersPage, UsersPage } from './pages/admin/UsersPage'
@@ -65,6 +65,20 @@ function CourseIndex() {
   const { enrolmentOnly } = useOffering()
   const location = useLocation()
   return <Navigate to={enrolmentOnly ? 'people' : 'stream'} replace state={location.state} />
+}
+
+/** The Settings landing tab needs manage-settings; people who only hold a narrower permission are sent straight to the first tab they can open. */
+function SettingsIndex() {
+  const { can } = useAuth()
+  if (can('manage-settings')) return <SettingsPage />
+  if (can('manage-users')) return <Navigate to="security" replace />
+  if (can('manage-system')) return <Navigate to="system" replace />
+  if (can('manage-courses') || can('manage-enrolments')) return <Navigate to="status" replace />
+  return (
+    <Alert tone="warn">
+      You do not have access to this page. <Link to="/">Back to the dashboard</Link>
+    </Alert>
+  )
 }
 
 /** A tab only some people may open; anyone else is sent to the course's front page. */
@@ -153,14 +167,16 @@ export function App() {
         <Route path="admin/users/:id" element={guard(['manage-users'], <UserPage />)} />
         <Route path="admin/import" element={guard(['manage-users'], <ImportUsersPage />)} />
         <Route path="admin/reports" element={guard(['manage-courses', 'manage-enrolments'], <ReportsPage />)} />
-        <Route path="admin/audit" element={guard(['manage-users'], <AuditPage />)} />
-        <Route path="admin/security" element={guard(['manage-users'], <SecurityPage />)} />
-        <Route path="admin/roles" element={guard(['manage-users', 'manage-system'], <RolesPage />)} />
-        <Route path="admin/settings" element={guard(['manage-settings'], <SettingsPage />)} />
-        <Route path="admin/announcements" element={guard(['manage-settings'], <AnnouncementsPage />)} />
-        <Route path="admin/system" element={guard(['manage-system'], <SystemPage />)} />
-        <Route path="admin/backups" element={guard(['manage-system'], <BackupsPage />)} />
-        <Route path="admin/status" element={guard(['manage-users', 'manage-courses', 'manage-enrolments'], <StatusPage />)} />
+        <Route path="admin/settings" element={<SettingsLayout />}>
+          <Route index element={<SettingsIndex />} />
+          <Route path="notices" element={guard(['manage-settings'], <AnnouncementsPage />)} />
+          <Route path="security" element={guard(['manage-users'], <SecurityPage />)} />
+          <Route path="system" element={guard(['manage-system'], <SystemPage />)} />
+          <Route path="roles" element={guard(['manage-users', 'manage-system'], <RolesPage />)} />
+          <Route path="audit" element={guard(['manage-users'], <AuditPage />)} />
+          <Route path="status" element={guard(['manage-users', 'manage-courses', 'manage-enrolments'], <StatusPage />)} />
+          <Route path="backups" element={guard(['manage-system'], <BackupsPage />)} />
+        </Route>
         <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="*" element={<Alert>Page not found</Alert>} />

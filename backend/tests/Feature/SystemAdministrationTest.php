@@ -245,7 +245,8 @@ class SystemAdministrationTest extends TestCase
 
     public function test_the_audit_log_is_for_administrators_who_manage_accounts(): void
     {
-        $this->as($this->registrar)->getJson('/api/audit-log')->assertForbidden();
+        // A registrar now also manages accounts.
+        $this->as($this->registrar)->getJson('/api/audit-log')->assertOk();
         $this->as($this->userWithRole('lecturer'))->getJson('/api/audit-log?format=csv')->assertForbidden();
     }
 
@@ -269,7 +270,8 @@ class SystemAdministrationTest extends TestCase
         DB::table('security_events')->insert(['event' => 'login.success', 'user_id' => $ada->id, 'level' => 'info', 'created_at' => now()->subDays(20)]);
         DB::table('security_events')->insert(['event' => 'login.failed', 'user_id' => $ben->id, 'level' => 'info', 'created_at' => now()]);
 
-        $this->as($this->registrar)->getJson('/api/reports/usage')->assertForbidden();
+        // A registrar now also manages accounts.
+        $this->as($this->registrar)->getJson('/api/reports/usage')->assertOk();
         $usage = $this->as($this->uniAdmin)->getJson('/api/reports/usage')->assertOk();
 
         $this->assertCount(30, $usage->json('sign_ins_per_day'));

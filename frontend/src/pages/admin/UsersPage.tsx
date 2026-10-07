@@ -10,22 +10,40 @@ import { plural, relativeTime } from '../../lib/format'
 import { describePolicy, policyProblems, useAuthConfig } from '../../lib/institution'
 import { bool, fieldError, useApiMutation, useTitle } from '../../lib/hooks'
 
+/** Groups the seven roles into the three kinds of person this screen lists, for a quick visual scan. */
+const roleTone = (role: string): 'neutral' | 'info' | 'warn' =>
+  role === 'student' ? 'neutral' : role === 'lecturer' || role === 'teaching-assistant' ? 'info' : 'warn'
+
+const STAFF_ROLES = ROLES.filter((r) => r !== 'student')
+
 export function UsersPage() {
-  useTitle('People')
   const { can } = useAuth()
   const admin = can('manage-users')
+  const [classification, setClassification] = useState<'student' | 'staff'>('student')
   const [page, setPage] = useState(1)
   const [role, setRole] = useState<'' | RoleName>('')
   const [text, setText] = useState('')
   const q = useDebounced(text.trim())
   const [creating, setCreating] = useState(false)
-  const query = useQuery({ queryKey: ['users', role, q, page], queryFn: () => api.get<Page<User>>('/users', { role: role || undefined, q: q || undefined, page }), placeholderData: (previous) => previous })
+  const title = classification === 'student' ? 'Students' : 'Staff'
+  useTitle(title)
+  const query = useQuery({
+    queryKey: ['users', classification, role, q, page],
+    queryFn: () => api.get<Page<User>>('/users', { classification, role: role || undefined, q: q || undefined, page }),
+    placeholderData: (previous) => previous,
+  })
+
+  const chooseClassification = (next: 'student' | 'staff') => {
+    setClassification(next)
+    setRole('')
+    setPage(1)
+  }
 
   return (
     <>
       <PageHeader
-        title="People"
-        subtitle={admin ? 'Every account in the system' : 'Look up students and staff'}
+        title={title}
+        subtitle={admin ? (classification === 'student' ? 'Every student account' : 'Lecturers, administrators and other staff') : 'Look up students and staff'}
         actions={
           admin && (
             <>
@@ -39,22 +57,32 @@ export function UsersPage() {
           )
         }
       />
+      <nav className="tabs" aria-label="Classify people">
+        <button type="button" className={`tab${classification === 'student' ? ' tab-active' : ''}`} onClick={() => chooseClassification('student')}>
+          Students
+        </button>
+        <button type="button" className={`tab${classification === 'staff' ? ' tab-active' : ''}`} onClick={() => chooseClassification('staff')}>
+          Staff
+        </button>
+      </nav>
       <Card>
         <div className="filters">
           <TextField label="Search" type="search" value={text} onChange={(e) => { setText(e.target.value); setPage(1) }} placeholder="Name or email" />
-          <SelectField label="Role" value={role} onChange={(e) => { setRole(e.target.value as '' | RoleName); setPage(1) }}>
-            <option value="">Everyone</option>
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABELS[r]}
-              </option>
-            ))}
-          </SelectField>
+          {classification === 'staff' && (
+            <SelectField label="Role" value={role} onChange={(e) => { setRole(e.target.value as '' | RoleName); setPage(1) }}>
+              <option value="">All staff</option>
+              {STAFF_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABELS[r]}
+                </option>
+              ))}
+            </SelectField>
+          )}
         </div>
         <QueryView query={query} isEmpty={(d) => d.data.length === 0} empty={<EmptyState title="No one matches">Try a different name or role.</EmptyState>}>
           {(data) => (
             <>
-              <Table caption="People">
+              <Table caption={title}>
                 <thead>
                   <tr>
                     <th>Name</th>
@@ -70,7 +98,15 @@ export function UsersPage() {
                     <tr key={u.id}>
                       <td>{u.name}</td>
                       <td>{u.email}</td>
-                      <td>{(u.roles ?? []).map((r) => ROLE_LABELS[r.name] ?? r.name).join(', ')}</td>
+                      <td>
+                        <div className="badges">
+                          {(u.roles ?? []).map((r) => (
+                            <Badge key={r.name} tone={roleTone(r.name)}>
+                              {ROLE_LABELS[r.name] ?? r.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      </td>
                       <td>{u.is_active === false ? <Badge tone="bad">Deactivated</Badge> : <Badge tone="good">Active</Badge>}</td>
                       <td className="muted small">{u.last_login_at ? relativeTime(u.last_login_at) : 'never'}</td>
                       <td className="actions">
