@@ -75,6 +75,13 @@ export function AssignmentPage() {
           <div className="reading pre">{a.instructions}</div>
         </Card>
       )}
+      {a.storage_path && (
+        <Card title="Question paper">
+          <DownloadButton path={`/assignments/${a.id}/file`} filename="question-paper">
+            Download
+          </DownloadButton>
+        </Card>
+      )}
       <Card
         title="Grading rubric"
         actions={
@@ -206,8 +213,10 @@ function SubmitForm({ assignment, resubmission, onDone }: { assignment: Assignme
       if (body.trim()) form.append('body', body)
       if (file) form.append('file', file)
       if (late) form.append('late_explanation', lateExplanation.trim())
-      form.append('used_ai', String(usedAi))
-      if (usedAi) form.append('ai_use_description', aiUseDescription.trim())
+      if (usedAi) {
+        form.append('used_ai', '1')
+        form.append('ai_use_description', aiUseDescription.trim())
+      }
       return api.upload(`/assignments/${assignment.id}/submissions`, form)
     },
     { invalidate: [['my-grade', assignment.id]], success: resubmission ? 'Resubmitted.' : 'Submitted. Good luck!', onSuccess: onDone },

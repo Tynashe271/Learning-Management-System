@@ -276,6 +276,7 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     // Assignments and grading
     Route::post('/offerings/{offering}/assignments', [LmsController::class, 'assignment']);
     Route::get('/assignments/{assignment}', [LmsController::class, 'showAssignment']);
+    Route::get('/assignments/{assignment}/file', [LmsController::class, 'downloadAssignmentFile']);
     Route::patch('/assignments/{assignment}', [LmsController::class, 'updateAssignment']);
     Route::delete('/assignments/{assignment}', [ManagementController::class, 'deleteAssignment']);
     Route::get('/assignments/{assignment}/rubric', [RubricController::class, 'show']);
@@ -312,6 +313,7 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     // Quizzes
     Route::post('/offerings/{offering}/quizzes', [QuizController::class, 'store']);
     Route::get('/quizzes/{quiz}', [QuizController::class, 'show']);
+    Route::get('/quizzes/{quiz}/file', [QuizController::class, 'downloadFile']);
     Route::patch('/quizzes/{quiz}', [QuizController::class, 'update']);
     Route::delete('/quizzes/{quiz}', [QuizController::class, 'destroy']);
     Route::post('/quizzes/{quiz}/questions', [QuizController::class, 'addQuestion']);

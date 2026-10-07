@@ -294,6 +294,7 @@ export interface Assignment {
   course_module_id?: number | null
   title: string
   instructions: string | null
+  storage_path?: string | null
   due_at: string
   max_score: number
   weight: number | null
@@ -524,6 +525,8 @@ export interface Quiz {
   course_module_id?: number | null
   title: string
   instructions: string | null
+  storage_path?: string | null
+  has_file?: boolean
   opens_at: string | null
   due_at: string
   time_limit_minutes: number | null

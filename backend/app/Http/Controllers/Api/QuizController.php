@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\CourseOffering;
 use App\Models\Quiz;
 use App\Models\QuizQuestion;
+use App\Rules\CleanFile;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -21,6 +23,7 @@ class QuizController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'instructions' => ['nullable', 'string'],
+            'file' => ['bail', 'nullable', 'file', 'max:'.(int) config('lms.limits.upload_mb') * 1024, 'mimes:'.config('lms.upload_mimes'), new CleanFile],
             'opens_at' => ['nullable', 'date'],
             'due_at' => ['required', 'date', 'after:now'],
             'time_limit_minutes' => ['nullable', 'integer', 'min:1', 'max:600'],
@@ -37,6 +40,10 @@ class QuizController extends Controller
         $this->assertWindow($data['opens_at'] ?? null, $data['due_at']);
         $targetIds = $data['target_user_ids'] ?? null;
         unset($data['target_user_ids']);
+        if ($request->hasFile('file')) {
+            $data['storage_path'] = $request->file('file')->store('quiz-files/'.$offering->id, 's3');
+        }
+        unset($data['file']);
 
         $quiz = $offering->quizzes()->create($data);
         if ($targetIds !== null) {
@@ -59,10 +66,19 @@ class QuizController extends Controller
 
         // Students never receive questions here; they arrive with an attempt.
         return response()->json($quiz->only(['id', 'course_offering_id', 'title', 'instructions', 'opens_at', 'due_at', 'time_limit_minutes', 'max_attempts', 'is_practice', 'questions_per_attempt', 'is_open_book', 'weight']) + [
+            'has_file' => $quiz->storage_path !== null,
             'questions_count' => $quiz->questions()->count(),
             'total_points' => $quiz->totalPoints(),
             'attempts_used' => $quiz->attempts()->where('user_id', $request->user()->id)->count(),
         ]);
+    }
+
+    public function downloadFile(Request $request, Quiz $quiz)
+    {
+        $this->authorize('view', $quiz);
+        abort_unless($quiz->storage_path, 404);
+
+        return Storage::disk('s3')->download($quiz->storage_path);
     }
 
     public function update(Request $request, Quiz $quiz): JsonResponse

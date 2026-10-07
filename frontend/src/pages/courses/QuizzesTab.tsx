@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { api } from '../../api/client'
 import type { Module, Quiz } from '../../api/types'
-import { Button, CheckField, FormError, Modal, SelectField, TextArea, TextField } from '../../components/ui'
+import { Button, CheckField, FileField, FormError, Modal, SelectField, TextArea, TextField } from '../../components/ui'
 import { fromLocalInput, toLocalInput } from '../../lib/format'
-import { fieldError, useApiMutation } from '../../lib/hooks'
+import { DownloadButton, bool, fieldError, useApiMutation } from '../../lib/hooks'
 import { TargetPicker } from './TargetPicker'
 
 export function QuizDialog({
@@ -35,10 +35,30 @@ export function QuizDialog({
   const [reason, setReason] = useState('')
   const [targetMode, setTargetMode] = useState<'everyone' | 'specific'>((quiz?.target_user_ids?.length ?? 0) > 0 ? 'specific' : 'everyone')
   const [targetIds, setTargetIds] = useState<number[]>(quiz?.target_user_ids ?? [])
+  const [file, setFile] = useState<File | null>(null)
 
   const dueChanged = editing && dueAt !== toLocalInput(quiz.due_at)
   const save = useApiMutation(
     () => {
+      const targetUserIds = targetMode === 'specific' ? targetIds : []
+      if (!editing) {
+        const form = new FormData()
+        form.append('title', title.trim())
+        if (instructions) form.append('instructions', instructions)
+        if (opensAt) form.append('opens_at', fromLocalInput(opensAt))
+        form.append('due_at', fromLocalInput(dueAt))
+        if (limit) form.append('time_limit_minutes', limit)
+        form.append('max_attempts', String(Number(attempts) || 1))
+        form.append('published', bool(published))
+        form.append('is_practice', bool(isPractice))
+        if (questionsPerAttempt) form.append('questions_per_attempt', questionsPerAttempt)
+        form.append('is_open_book', bool(openBook))
+        if (weight) form.append('weight', weight)
+        if (topicId) form.append('course_module_id', topicId)
+        targetUserIds.forEach((id) => form.append('target_user_ids[]', String(id)))
+        if (file) form.append('file', file)
+        return api.upload(`/offerings/${offeringId}/quizzes`, form)
+      }
       const body: Record<string, unknown> = {
         title: title.trim(),
         instructions: instructions || null,
@@ -51,15 +71,17 @@ export function QuizDialog({
         is_open_book: openBook,
         weight: weight ? Number(weight) : null,
         course_module_id: topicId ? Number(topicId) : null,
-        target_user_ids: targetMode === 'specific' ? targetIds : [],
+        target_user_ids: targetUserIds,
       }
-      if (!editing || dueChanged) body.due_at = fromLocalInput(dueAt)
-      if (dueChanged) body.change_reason = reason.trim()
-      return editing ? api.patch(`/quizzes/${quiz.id}`, body) : api.post(`/offerings/${offeringId}/quizzes`, body)
+      if (dueChanged) {
+        body.due_at = fromLocalInput(dueAt)
+        body.change_reason = reason.trim()
+      }
+      return api.patch(`/quizzes/${quiz.id}`, body)
     },
     { invalidate: [['offering', offeringId], ['quiz']], success: editing ? 'Quiz saved.' : 'Quiz created.', onSuccess: onClose },
   )
-  const known = ['title', 'instructions', 'opens_at', 'due_at', 'time_limit_minutes', 'max_attempts', 'change_reason', 'course_module_id', 'is_practice', 'questions_per_attempt', 'weight']
+  const known = ['title', 'instructions', 'opens_at', 'due_at', 'time_limit_minutes', 'max_attempts', 'change_reason', 'course_module_id', 'is_practice', 'questions_per_attempt', 'weight', 'file']
 
   return (
     <Modal title={editing ? 'Edit quiz' : 'New quiz'} onClose={onClose} wide>
@@ -101,6 +123,15 @@ export function QuizDialog({
           error={fieldError(save.error, 'questions_per_attempt')}
           hint="Leave empty to give every attempt all the questions. Otherwise each attempt draws this many at random from the full pool below, so students can see different questions."
         />
+        {!editing && <FileField label="Question paper" optional hint="A file students can download once this is published, such as the exam paper." onChange={(e) => setFile(e.target.files?.[0] ?? null)} error={fieldError(save.error, 'file')} />}
+        {editing && quiz.storage_path && (
+          <div className="setting">
+            <span className="muted small">Question paper</span>
+            <DownloadButton path={`/quizzes/${quiz.id}/file`} filename="question-paper">
+              Download
+            </DownloadButton>
+          </div>
+        )}
         {dueChanged && <TextArea label="Reason for changing the deadline" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} error={fieldError(save.error, 'change_reason')} hint="Recorded in the audit log." required />}
         <TargetPicker offeringId={offeringId} mode={targetMode} ids={targetIds} onModeChange={setTargetMode} onIdsChange={setTargetIds} />
         <CheckField

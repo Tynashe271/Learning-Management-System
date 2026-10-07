@@ -383,6 +383,7 @@ class LmsController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'instructions' => ['nullable', 'string'],
+            'file' => ['bail', 'nullable', 'file', 'max:'.(int) config('lms.limits.upload_mb') * 1024, 'mimes:'.config('lms.upload_mimes'), new CleanFile],
             'due_at' => ['required', 'date', 'after:now'],
             'max_score' => ['required', 'integer', 'min:1'],
             'weight' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100'],
@@ -396,6 +397,10 @@ class LmsController extends Controller
         ]);
         $targetIds = $data['target_user_ids'] ?? null;
         unset($data['target_user_ids']);
+        if ($request->hasFile('file')) {
+            $data['storage_path'] = $request->file('file')->store('assignment-files/'.$offering->id, 's3');
+        }
+        unset($data['file']);
 
         $assignment = $offering->assignments()->create($data);
         if ($targetIds !== null) {
@@ -438,6 +443,14 @@ class LmsController extends Controller
         $assignment->target_user_ids = $assignment->targetedUsers()->pluck('users.id')->all();
 
         return response()->json($assignment);
+    }
+
+    public function downloadAssignmentFile(Request $request, Assignment $assignment)
+    {
+        $this->authorize('view', $assignment);
+        abort_unless($assignment->storage_path, 404);
+
+        return Storage::disk('s3')->download($assignment->storage_path);
     }
 
     /** The groups for a group assignment, with their members, so a manager can see who is (and isn't) placed. */

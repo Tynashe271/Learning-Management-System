@@ -6,7 +6,7 @@ import type { AttemptInProgress, AttemptSummary, Module, Offering, Page, Questio
 import { QUESTION_TYPE_LABELS } from '../../api/types'
 import { Alert, Badge, Button, Card, EmptyState, ErrorState, FormError, Loading, Modal, PageHeader, Pager, PublishedBadge, QueryView, SelectField, Table, TextArea, TextField, pagerFromPage, useConfirm } from '../../components/ui'
 import { formatDateTime, formatScore, isPast, plural } from '../../lib/format'
-import { fieldError, useApiMutation, useTitle } from '../../lib/hooks'
+import { DownloadButton, fieldError, useApiMutation, useTitle } from '../../lib/hooks'
 import { QuizDialog } from './QuizzesTab'
 
 export function QuizPage() {
@@ -70,6 +70,11 @@ function StudentView({ quiz }: { quiz: Quiz }) {
       />
       <Card>
         {quiz.instructions && <div className="reading pre">{quiz.instructions}</div>}
+        {quiz.has_file && (
+          <DownloadButton path={`/quizzes/${quiz.id}/file`} filename="question-paper">
+            Download the question paper
+          </DownloadButton>
+        )}
         <dl className="details">
           <dt>Questions</dt>
           <dd>{quiz.questions_per_attempt ? `${quiz.questions_per_attempt} of ${quiz.questions_count}, chosen at random` : quiz.questions_count}</dd>
@@ -170,6 +175,11 @@ function ManagerView({ quiz, modules }: { quiz: Quiz; modules: Module[] }) {
       />
       <Card>
         {quiz.instructions && <div className="reading pre">{quiz.instructions}</div>}
+        {quiz.storage_path && (
+          <DownloadButton path={`/quizzes/${quiz.id}/file`} filename="question-paper">
+            Download the question paper
+          </DownloadButton>
+        )}
         <dl className="details">
           <dt>Time limit</dt>
           <dd>{quiz.time_limit_minutes ? `${quiz.time_limit_minutes} minutes` : 'None'}</dd>
