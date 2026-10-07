@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ClassSession extends Model
 {
-    protected $fillable = ['course_offering_id', 'title', 'starts_at', 'ends_at', 'join_url', 'location'];
+    protected $fillable = ['course_offering_id', 'title', 'starts_at', 'ends_at', 'join_url', 'video_room_url', 'location'];
 
     // The check-in code is shown only to the teacher who opens check-in, never in a session listing.
     protected $hidden = ['checkin_code'];

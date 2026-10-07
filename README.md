@@ -1,6 +1,6 @@
 # University LMS
 
-Laravel 13 JSON API for a university learning management system: accounts and roles with single sign-on, the academic catalogue, course content, assignments with rubrics (including level descriptions), quizzes, grading, a gradebook, progress tracking, attendance with self check-in and online-meeting links, a Practical Skills Passport, an industrial attachment workspace, a research/project workspace, a learning intervention centre, student study groups, an academic integrity investigation workspace, an optional AI learning/teaching assistant, extended-time assessment accommodations, streaks/badges/participation points and personal learning goals, course-level learning analytics, announcements, discussions, grade appeals, summary emails, virus scanning, similarity screening, bulk imports, course copying, notifications, and an audit trail. The backend is in `backend/` and the web frontend, which uses every endpoint, is in `frontend/`.
+Laravel 13 JSON API for a university learning management system: accounts and roles with single sign-on, the academic catalogue, course content, assignments with rubrics (including level descriptions), quizzes, grading, a gradebook, progress tracking, attendance with self check-in and optional in-app video (otherwise a plain meeting link), a Practical Skills Passport, an industrial attachment workspace, a research/project workspace, a learning intervention centre, student study groups, an academic integrity investigation workspace, an optional AI learning/teaching assistant, extended-time assessment accommodations, streaks/badges/participation points and personal learning goals, course-level learning analytics, announcements, discussions, grade appeals, summary emails, virus scanning, similarity screening, bulk imports, course copying, notifications, and an audit trail. The backend is in `backend/` and the web frontend, which uses every endpoint, is in `frontend/`.
 
 This document describes what is built and running. `ROADMAP.md` holds the longer-term product vision it was written from; several of its numbered items (or parts of them) have since been built, in which case they're described here instead — this README, not the roadmap, is the source of truth for what exists today.
 
@@ -304,6 +304,23 @@ Off by default, like this repo's other optional integrations — a real Claude A
 
 Both routes return a plain-text validation error on the `prompt` field if the assistant is not configured, so the frontend can show it like any other form error. Identifying commonly failed questions and summarising class performance are better served by the real data already in the gradebook and quiz results than by an AI guess, so they are not part of this feature.
 
+### In-app video
+
+Off by default, like this repo's other optional integrations. When configured, a class session opens inside the app itself, through [Daily.co](https://www.daily.co), instead of linking out to Google Meet, Zoom, or Teams. When not configured, a session falls back to a plain `join_url` link the lecturer pastes in, exactly as before. Set these in `backend/.env`:
+
+| Setting | Purpose |
+|---|---|
+| `LMS_VIDEO_ENABLED=true` | Turns it on (also needs the key below). |
+| `DAILY_API_KEY` | A real Daily.co API key, from your dashboard's Developers page. A free tier is available. Nothing works without one. |
+| `LMS_VIDEO_BASE_URL` | Default the real Daily.co API; override only for testing. |
+| `LMS_VIDEO_ROOM_GRACE_MINUTES` | Default 30. How long after a class ends its room stays reachable before Daily expires it. |
+
+| Route | Who | Purpose |
+|---|---|---|
+| `POST /sessions/{id}/join` | managers, and actively enrolled students | Creates the session's video room the first time anyone joins (reused after that — one room per session, not one per person) and returns `{url}` to embed. Refused (`403`) for anyone not managing or enrolled in the course; a `503` with a plain-text `message` if video is not configured or Daily's API fails. |
+
+`GET /auth/config` reports `video_enabled`, so the frontend can show an in-app "Join class" link instead of an external one without a failed request first. The room itself is a plain iframe embed of the URL Daily returns (`allow="camera; microphone; fullscreen; display-capture; autoplay"`) — no separate client-side SDK or per-person access token, so anyone with the room's URL could join; that is an acceptable trade for a classroom setting where the lecturer shares the link only with their own students, the same trust model as the `join_url` link it replaces.
+
 ### Accessibility and inclusion
 
 | Route | Who | Purpose |
@@ -356,7 +373,7 @@ Some things a university expects are tied to its own systems, so they are provid
 | Single sign-on | OpenID Connect (see above) | SAML. Not tested against a live Microsoft, Google, or Okta tenant; it was tested against a stand-in provider that signs real tokens and enforces the client secret and PKCE. Point it at your provider and try it before relying on it. |
 | Student-record system | CSV import of users and enrolments; most registration systems can export one | A live connection to a specific vendor's system, and automatic nightly sync. |
 | Plagiarism checking | Similarity screening within a class | Turnitin or any external service, comparison with the web or earlier terms, and PDF or Word files. |
-| Video meetings | A meeting link on each class session, and attendance | Creating meetings automatically in Zoom, Teams, or Meet. |
+| Video meetings | In-app video rooms through Daily.co (see above), created automatically per class session; falls back to a plain meeting link when not configured | Zoom, Teams, or Google Meet rooms created automatically; recording; per-person access tokens. |
 | Virus scanning | ClamAV, opt-in (see Uploads) | Scanning files already stored before it was switched on. |
 | AI assistant | Claude API, opt-in (see "AI learning assistant"), restricted to a course's own published material for students | Any other model provider; a conversation history (each request is answered on its own); citation checking or detecting AI-written submissions. |
 

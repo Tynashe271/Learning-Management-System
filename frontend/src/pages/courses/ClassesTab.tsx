@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import type { AttendanceStatus, AttendanceSummary, CheckinStatus, ClassSession, HandRaise, RollEntry, SessionQuestion } from '../../api/types'
 import { ATTENDANCE_STATUSES } from '../../api/types'
 import { Alert, Badge, Button, Card, EmptyState, FormError, Modal, Pager, QueryView, SelectField, Stat, Table, TextArea, TextField, pagerFromMeta, useConfirm, useToast } from '../../components/ui'
 import { useAuth } from '../../auth/AuthContext'
 import { formatDateTime, formatPercent, formatTime, fromLocalInput, isPast, toLocalInput } from '../../lib/format'
+import { useAuthConfig } from '../../lib/institution'
 import { fieldError, useApiMutation } from '../../lib/hooks'
 import { useOffering } from './context'
 
@@ -15,6 +17,7 @@ const isLive = (s: ClassSession) => new Date(s.starts_at) <= new Date() && new D
 
 export function ClassesTab() {
   const { id, manage, student } = useOffering()
+  const videoEnabled = useAuthConfig().data?.video_enabled ?? false
   const [editing, setEditing] = useState<ClassSession | 'new' | null>(null)
   const [running, setRunning] = useState<ClassSession | null>(null)
   const [checkingIn, setCheckingIn] = useState<ClassSession | null>(null)
@@ -55,12 +58,16 @@ export function ClassesTab() {
                     </td>
                     <td>
                       {s.location && <div>{s.location}</div>}
-                      {s.join_url && (
-                        <a href={s.join_url} target="_blank" rel="noreferrer noopener">
-                          Join online
-                        </a>
+                      {videoEnabled ? (
+                        <Link to={`/sessions/${s.id}/join`}>Join class</Link>
+                      ) : (
+                        s.join_url && (
+                          <a href={s.join_url} target="_blank" rel="noreferrer noopener">
+                            Join online
+                          </a>
+                        )
                       )}
-                      {!s.location && !s.join_url && <span className="muted">—</span>}
+                      {!s.location && !videoEnabled && !s.join_url && <span className="muted">—</span>}
                     </td>
                     {student && <td>{s.my_status ? <Badge tone={STATUS_TONE[s.my_status]}>{statusLabel(s.my_status)}</Badge> : isPast(s.ends_at) ? <Badge>Not recorded</Badge> : '—'}</td>}
                     <td className="actions">
@@ -103,6 +110,7 @@ export function ClassesTab() {
 
 function SessionDialog({ offeringId, session, onClose }: { offeringId: number; session: ClassSession | null; onClose: () => void }) {
   const confirm = useConfirm()
+  const videoEnabled = useAuthConfig().data?.video_enabled ?? false
   const editing = session !== null
   const [title, setTitle] = useState(session?.title ?? '')
   const [startsAt, setStartsAt] = useState(toLocalInput(session?.starts_at))
@@ -134,7 +142,11 @@ function SessionDialog({ offeringId, session, onClose }: { offeringId: number; s
           <TextField label="Ends" type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} error={fieldError(save.error, 'ends_at')} required />
         </div>
         <TextField label="Location" optional value={location} onChange={(e) => setLocation(e.target.value)} error={fieldError(save.error, 'location')} maxLength={255} placeholder="Room 204" />
-        <TextField label="Online meeting link" optional type="url" value={joinUrl} onChange={(e) => setJoinUrl(e.target.value)} error={fieldError(save.error, 'join_url')} placeholder="https://" hint="A Zoom, Teams or Meet address. Students see it on this page." />
+        {videoEnabled ? (
+          <p className="hint">This class opens in a video room inside the app — no meeting link needed.</p>
+        ) : (
+          <TextField label="Online meeting link" optional type="url" value={joinUrl} onChange={(e) => setJoinUrl(e.target.value)} error={fieldError(save.error, 'join_url')} placeholder="https://" hint="A Zoom, Teams or Meet address. Students see it on this page." />
+        )}
         {save.error && !known.some((f) => fieldError(save.error, f)) && <FormError error={save.error} />}
         <div className="form-actions">
           {editing && (

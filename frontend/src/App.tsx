@@ -38,6 +38,7 @@ import { OverviewTab, PeopleTab } from './pages/courses/PeopleTab'
 import { QuizPage } from './pages/courses/QuizPage'
 import { SettingsTab } from './pages/courses/SettingsTab'
 import { StreamTab } from './pages/courses/StreamTab'
+import { VideoSessionPage } from './pages/courses/VideoSessionPage'
 
 function RequireAuth() {
   const { user, loading, checkError, retryCheck, logout } = useAuth()
@@ -155,6 +156,7 @@ export function App() {
         <Route path="assignments/:id" element={<AssignmentPage />} />
         <Route path="quizzes/:id" element={<QuizPage />} />
         <Route path="attempts/:id" element={<AttemptPage />} />
+        <Route path="sessions/:id/join" element={<VideoSessionPage />} />
         <Route path="discussions/:id" element={<DiscussionPage />} />
         <Route path="appeals/:id" element={<AppealPage />} />
         <Route path="my-appeals" element={<MyAppealsPage />} />

@@ -8,6 +8,8 @@ use App\Models\ClassSession;
 use App\Models\CourseOffering;
 use App\Models\Enrolment;
 use App\Models\HandRaise;
+use App\Services\VideoRooms;
+use App\Services\VideoUnavailable;
 use App\Support\Paging;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -66,6 +68,22 @@ class SessionController extends Controller
         $session->update($data);
 
         return response()->json($session);
+    }
+
+    /** The in-app video room for this session, created the first time anyone joins. Open to anyone enrolled, not just managers. */
+    public function join(Request $request, ClassSession $session, VideoRooms $video): JsonResponse
+    {
+        $this->authorize('view', $session->offering);
+        $manages = $request->user()->can('manage', $session->offering);
+        $enrolled = Enrolment::where('course_offering_id', $session->course_offering_id)->where('user_id', $request->user()->id)->where('status', 'active')->exists();
+        abort_unless($manages || $enrolled, 403);
+        try {
+            $url = $video->roomUrlFor($session);
+        } catch (VideoUnavailable $e) {
+            return response()->json(['message' => $e->getMessage()], 503);
+        }
+
+        return response()->json(['url' => $url]);
     }
 
     public function destroy(Request $request, ClassSession $session): JsonResponse

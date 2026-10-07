@@ -100,6 +100,7 @@ export interface AuthConfig {
   institution: Institution
   password_policy: PasswordPolicy
   maintenance: { enabled: boolean; message: string | null }
+  video_enabled: boolean
 }
 
 export type DigestFrequency = 'off' | 'daily' | 'weekly'

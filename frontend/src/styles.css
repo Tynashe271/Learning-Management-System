@@ -943,6 +943,18 @@ select:disabled {
   letter-spacing: 0.25rem;
   margin: 0.25rem 0;
 }
+.video-session {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 8rem);
+}
+.video-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #000;
+}
 .field-check {
   display: flex;
   gap: 0.6rem;

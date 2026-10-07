@@ -172,6 +172,7 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/offerings/{offering}/sessions', [SessionController::class, 'index']);
     Route::post('/offerings/{offering}/sessions', [SessionController::class, 'store']);
     Route::patch('/sessions/{session}', [SessionController::class, 'update']);
+    Route::post('/sessions/{session}/join', [SessionController::class, 'join'])->middleware('throttle:heavy');
     Route::delete('/sessions/{session}', [SessionController::class, 'destroy']);
     Route::get('/sessions/{session}/attendance', [SessionController::class, 'roll']);
     Route::put('/sessions/{session}/attendance', [SessionController::class, 'mark']);

@@ -106,6 +106,16 @@ return [
         'max_source_chars' => (int) env('LMS_AI_MAX_SOURCE_CHARS', 12000),
     ],
 
+    // In-app video for class sessions and in-class tests, through Daily.co, instead of linking out to an external meeting
+    // tool. Off unless both are set. Get an API key at https://dashboard.daily.co/developers (free tier available).
+    'video' => [
+        'enabled' => (bool) env('LMS_VIDEO_ENABLED', false),
+        'api_key' => env('DAILY_API_KEY'),
+        'base_url' => env('LMS_VIDEO_BASE_URL', 'https://api.daily.co/v1'),
+        // How long after a session/test ends its room stays reachable, in minutes, before Daily expires it.
+        'room_grace_minutes' => (int) env('LMS_VIDEO_ROOM_GRACE_MINUTES', 30),
+    ],
+
     // Single sign-on through any OpenID Connect provider (Microsoft Entra ID, Google Workspace, Okta, Keycloak, ...).
     'sso' => [
         'enabled' => (bool) env('LMS_SSO_ENABLED', false),

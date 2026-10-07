@@ -38,6 +38,7 @@ class SsoController extends Controller
             ],
             'password_policy' => PasswordPolicy::describe(),
             'maintenance' => ['enabled' => (bool) config('lms.maintenance.enabled'), 'message' => config('lms.maintenance.message')],
+            'video_enabled' => (bool) config('lms.video.enabled') && filled(config('lms.video.api_key')),
         ]);
     }
 
