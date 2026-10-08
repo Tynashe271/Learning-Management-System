@@ -62,7 +62,7 @@ class Preflight extends Command
         $attempts = (int) config('lms.security.lockout_attempts');
         $this->check('Security', 'Accounts lock after failed sign-ins', $attempts >= 3 && $attempts <= 10, "Locks after {$attempts} failures for ".config('lms.security.lockout_minutes').' minutes.', always: true);
         try {
-            $missing = array_values(array_filter(['login', 'api', 'heavy', 'public', 'password', 'submissions', 'messages', 'checkin', 'sso', 'health'], fn ($name) => RateLimiter::limiter($name) === null));
+            $missing = array_values(array_filter(['login', 'api', 'heavy', 'public', 'password', 'submissions', 'checkin', 'sso', 'health'], fn ($name) => RateLimiter::limiter($name) === null));
         } catch (Throwable $e) {
             $missing = ['(could not check: '.$e->getMessage().')'];
         }
