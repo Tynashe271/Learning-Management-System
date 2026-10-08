@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import type { Gradebook, MyGrades, Progress } from '../../api/types'
-import { Card, EmptyState, Pager, QueryView, Stat, Table, pagerFromMeta } from '../../components/ui'
+import { Card, EmptyState, Pager, QueryView, Table, pagerFromMeta } from '../../components/ui'
 import { formatPercent, formatScore } from '../../lib/format'
 import { DownloadButton } from '../../lib/hooks'
 import { useOffering } from './context'
@@ -20,15 +20,6 @@ function MyGradesView() {
     <QueryView query={query} isEmpty={(d) => d.columns.length === 0} empty={<Card><EmptyState title="No graded work yet">Published assignments and quizzes will show your marks here.</EmptyState></Card>}>
       {(data) => (
         <>
-          <Card>
-            <div className="stats">
-              <Stat label="Overall" value={formatPercent(data.grades?.percent)} hint="of the work marked so far" />
-              <Stat label="Points" value={`${formatScore(data.grades?.total ?? 0)} / ${formatScore(data.grades?.possible ?? 0)}`} />
-              {data.grades?.weighted_percent !== null && data.grades?.weighted_percent !== undefined && (
-                <Stat label="Continuous assessment total" value={formatPercent(data.grades.weighted_percent)} hint={`weighted over ${data.grades.weight_used}% of the course`} />
-              )}
-            </div>
-          </Card>
           <Card title="Marks">
             <Table caption="Your marks">
               <thead>
@@ -55,7 +46,7 @@ function MyGradesView() {
                 })}
               </tbody>
             </Table>
-            <p className="muted small">Assignments show your latest published grade; quizzes show your best attempt. Unmarked work does not lower your percentage.</p>
+            <p className="muted small">Assignments show your latest published grade; quizzes show your best attempt.</p>
           </Card>
         </>
       )}
