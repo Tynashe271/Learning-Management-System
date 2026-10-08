@@ -3,11 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\CourseOffering;
-use App\Models\SecurityEvent;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Carbon;
 use Tests\Concerns\BuildsCourses;
 use Tests\TestCase;
 
@@ -32,75 +30,6 @@ class EngagementTest extends TestCase
         $this->enrol($this->offering, $this->student);
     }
 
-    private function loginOn(User $user, string $date): void
-    {
-        // created_at is not mass-assignable on this model, and must be backdated for this test, so set and save it directly.
-        $event = new SecurityEvent(['event' => 'login.success', 'user_id' => $user->id]);
-        $event->created_at = Carbon::parse($date);
-        $event->save();
-    }
-
-    public function test_a_streak_counts_consecutive_days_ending_today_and_keeps_the_longest_ever_run(): void
-    {
-        $this->loginOn($this->student, now()->subDays(10)->toDateString());
-        $this->loginOn($this->student, now()->subDays(9)->toDateString());
-        $this->loginOn($this->student, now()->subDays(8)->toDateString());
-        $this->loginOn($this->student, now()->subDay()->toDateString());
-        $this->loginOn($this->student, now()->toDateString());
-
-        $data = $this->actingAs($this->student)->getJson('/api/me/engagement')->assertOk()->json();
-        $this->assertSame(2, $data['streak']['current_days']);
-        $this->assertSame(3, $data['streak']['longest_days']);
-    }
-
-    public function test_no_logins_means_no_streak(): void
-    {
-        $data = $this->actingAs($this->student)->getJson('/api/me/engagement')->assertOk()->json();
-        $this->assertSame(0, $data['streak']['current_days']);
-        $this->assertSame(0, $data['streak']['longest_days']);
-    }
-
-    public function test_a_skill_signed_off_competent_earns_a_skill_badge(): void
-    {
-        $competency = $this->offering->competencies()->create(['title' => 'Solder a joint']);
-        $competency->statuses()->create(['user_id' => $this->student->id, 'status' => 'competent', 'updated_by' => $this->lecturer->id]);
-
-        $data = $this->actingAs($this->student)->getJson('/api/me/engagement')->assertOk()->json();
-        $this->assertContains("skill:{$competency->id}", array_column($data['badges'], 'key'));
-    }
-
-    public function test_crossing_a_course_content_milestone_earns_a_badge_but_not_the_ones_still_ahead(): void
-    {
-        $module = $this->offering->modules()->create(['title' => 'Topic 1', 'published' => true]);
-        $items = collect(range(1, 4))->map(fn ($i) => $module->items()->create(['title' => "Item $i", 'type' => 'text', 'body' => 'x', 'published' => true]));
-        $items->take(2)->each(fn ($item) => $this->actingAs($this->student)->postJson("/api/items/{$item->id}/complete")->assertOk());
-
-        $data = $this->actingAs($this->student)->getJson('/api/me/engagement')->assertOk()->json();
-        $keys = array_column($data['badges'], 'key');
-        $this->assertContains("milestone:{$this->offering->id}:25", $keys);
-        $this->assertContains("milestone:{$this->offering->id}:50", $keys);
-        $this->assertNotContains("milestone:{$this->offering->id}:75", $keys);
-        $this->assertNotContains("milestone:{$this->offering->id}:100", $keys);
-    }
-
-    public function test_a_perfect_quiz_score_earns_a_badge(): void
-    {
-        $quiz = $this->offering->quizzes()->create(['title' => 'Quiz', 'due_at' => now()->addDay(), 'max_attempts' => 1, 'published' => true]);
-        $quiz->attempts()->create(['user_id' => $this->student->id, 'started_at' => now(), 'submitted_at' => now(), 'score' => 5, 'max_score' => 5]);
-
-        $data = $this->actingAs($this->student)->getJson('/api/me/engagement')->assertOk()->json();
-        $this->assertContains("quiz_ace:{$quiz->id}", array_column($data['badges'], 'key'));
-    }
-
-    public function test_a_less_than_perfect_quiz_score_does_not_earn_the_ace_badge(): void
-    {
-        $quiz = $this->offering->quizzes()->create(['title' => 'Quiz', 'due_at' => now()->addDay(), 'max_attempts' => 1, 'published' => true]);
-        $quiz->attempts()->create(['user_id' => $this->student->id, 'started_at' => now(), 'submitted_at' => now(), 'score' => 3, 'max_score' => 5]);
-
-        $data = $this->actingAs($this->student)->getJson('/api/me/engagement')->assertOk()->json();
-        $this->assertNotContains("quiz_ace:{$quiz->id}", array_column($data['badges'], 'key'));
-    }
-
     public function test_participation_points_are_tallied_from_real_actions_in_the_course(): void
     {
         $session = $this->offering->sessions()->create(['title' => 'Lecture', 'starts_at' => now(), 'ends_at' => now()->addHour()]);
@@ -117,9 +46,6 @@ class EngagementTest extends TestCase
         $assignment->submissions()->create(['user_id' => $this->student->id, 'body' => 'x', 'submitted_at' => now()]);
 
         // attendance (1) + thread (2) + reply (1) + quiz attempt (1) + submission (2) = 7
-        $mine = $this->actingAs($this->student)->getJson('/api/me/engagement')->assertOk()->json();
-        $this->assertSame(7, $mine['participation'][0]['points']);
-
         $forManager = $this->actingAs($this->lecturer)->getJson('/api/offerings/'.$this->offering->id.'/engagement')->assertOk()->json();
         $this->assertSame(7, $forManager['students'][0]['points']);
     }

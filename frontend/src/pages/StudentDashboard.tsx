@@ -2,12 +2,12 @@ import { useQueries, useQuery } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import type { Agenda, AgendaDeadline, AgendaSession, Engagement, Insights, Offering, Page, Progress } from '../api/types'
+import type { Agenda, AgendaDeadline, AgendaSession, Insights, Offering, Page, Progress } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { CourseCard } from '../components/CourseCard'
-import { Badge, Button, Card, EmptyState, ErrorState, Loading, ProgressRing, Stat } from '../components/ui'
+import { Badge, Button, Card, EmptyState, ErrorState, Loading, ProgressRing } from '../components/ui'
 import { dayLabel, formatTime, plural } from '../lib/format'
-import { DownloadButton, useApiMutation, useTitle } from '../lib/hooks'
+import { useTitle } from '../lib/hooks'
 
 export function StudentDashboard() {
   useTitle('My learning')
@@ -164,42 +164,7 @@ export function StudentDashboard() {
           </Card>
         </div>
       )}
-
-      <EngagementCard />
-
-      <CalendarSync />
     </>
-  )
-}
-
-function EngagementCard() {
-  const engagement = useQuery({ queryKey: ['engagement', 'me'], queryFn: () => api.get<Engagement>('/me/engagement') })
-  return (
-    <Card title="Streak and badges">
-      {engagement.isPending && <Loading />}
-      {engagement.isError && <p className="muted">We could not load this just now.</p>}
-      {engagement.data && (
-        <>
-          <div className="stats">
-            <Stat label="Current streak" value={`🔥 ${plural(engagement.data.streak.current_days, 'day')}`} />
-            <Stat label="Longest streak" value={plural(engagement.data.streak.longest_days, 'day')} />
-            <Stat label="Badges earned" value={engagement.data.badges.length} />
-          </div>
-          {engagement.data.badges.length === 0 ? (
-            <p className="muted small">Badges celebrate what you have already done. Sign in regularly, work through your course content and ace a quiz to start earning them.</p>
-          ) : (
-            <div className="badges">
-              {engagement.data.badges.map((b) => (
-                <Badge key={b.key} tone="info">
-                  {b.label}
-                </Badge>
-              ))}
-            </div>
-          )}
-          <p className="muted small">Badges are encouragement, not an academic result — they never affect a grade.</p>
-        </>
-      )}
-    </Card>
   )
 }
 
@@ -290,42 +255,3 @@ function MissingRow({ item }: { item: AgendaDeadline }) {
   )
 }
 
-function CalendarSync() {
-  const [url, setUrl] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
-  const get = useApiMutation(() => api.post<{ url: string }>('/me/calendar-token'), { onSuccess: (r) => setUrl(r.url), toastError: true })
-
-  return (
-    <Card title="Sync to your calendar">
-      <p className="muted small">Add your classes and deadlines to Google Calendar, Outlook or Apple Calendar. It updates on its own — no need to redo this.</p>
-      <div className="inline-form">
-        {!url && (
-          <Button onClick={() => get.mutate()} loading={get.isPending}>
-            Get my calendar link
-          </Button>
-        )}
-        <DownloadButton path="/me/calendar.pdf" filename="agenda.pdf">
-          Download as PDF
-        </DownloadButton>
-      </div>
-      {url && (
-        <div className="inline-form">
-          <div className="field grow">
-            <label htmlFor="ics-url">Subscribe URL</label>
-            <input id="ics-url" type="text" readOnly value={url} onFocus={(e) => e.currentTarget.select()} />
-          </div>
-          <Button
-            onClick={async () => {
-              await navigator.clipboard.writeText(url)
-              setCopied(true)
-              setTimeout(() => setCopied(false), 2000)
-            }}
-          >
-            {copied ? 'Copied' : 'Copy'}
-          </Button>
-        </div>
-      )}
-      {url && <p className="hint">In Google Calendar: Other calendars → + → From URL, then paste this in. Outlook and Apple Calendar have a similar &quot;subscribe by URL&quot; option.</p>}
-    </Card>
-  )
-}

@@ -170,51 +170,6 @@ class DashboardTest extends TestCase
         $insights->assertJsonCount(1, 'weak_topics')->assertJsonPath('weak_topics.0.title', 'Loops')->assertJsonPath('weak_topics.0.percent', 60);
     }
 
-    // ---- calendar -----------------------------------------------------------------------------------------------
-
-    public function test_the_calendar_token_is_created_once_and_reused(): void
-    {
-        $student = $this->userWithRole('student');
-
-        $first = $this->actingAs($student)->postJson('/api/me/calendar-token')->assertOk()->json('url');
-        $second = $this->actingAs($student)->postJson('/api/me/calendar-token')->assertOk()->json('url');
-
-        $this->assertSame($first, $second);
-        $this->assertNotNull($student->fresh()->calendar_token);
-    }
-
-    public function test_the_calendar_feed_is_a_valid_ics_for_a_real_token_and_a_404_for_a_bad_one(): void
-    {
-        $offering = $this->offering();
-        $student = $this->userWithRole('student');
-        $this->enrol($offering, $student);
-        $offering->sessions()->create(['title' => 'Lecture 1', 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHour()]);
-        $token = $this->actingAs($student)->postJson('/api/me/calendar-token')->json('url');
-        $path = parse_url($token, PHP_URL_PATH);
-
-        $feed = $this->getJson($path)->assertOk();
-
-        $feed->assertHeader('Content-Type', 'text/calendar; charset=utf-8');
-        $this->assertStringContainsString('BEGIN:VCALENDAR', $feed->getContent());
-        $this->assertStringContainsString('SUMMARY:CSC101: Lecture 1', $feed->getContent());
-        $this->assertStringContainsString('END:VCALENDAR', $feed->getContent());
-
-        $this->getJson('/api/me/calendar/not-a-real-token.ics')->assertNotFound();
-    }
-
-    public function test_the_calendar_can_be_downloaded_as_a_pdf(): void
-    {
-        $offering = $this->offering();
-        $student = $this->userWithRole('student');
-        $this->enrol($offering, $student);
-        $offering->sessions()->create(['title' => 'Lecture 1', 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHour()]);
-
-        $pdf = $this->actingAs($student)->get('/api/me/calendar.pdf')->assertOk();
-
-        $pdf->assertHeader('Content-Type', 'application/pdf');
-        $this->assertStringStartsWith('%PDF', $pdf->getContent());
-    }
-
     // ---- overview access and warnings -----------------------------------------------------------------------------
 
     public function test_a_registrar_can_now_see_the_overview_but_a_lecturer_still_cannot(): void

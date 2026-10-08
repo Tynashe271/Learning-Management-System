@@ -59,7 +59,6 @@ Route::get('/auth/sso', [SsoController::class, 'redirect'])->middleware('throttl
 Route::post('/auth/sso/callback', [SsoController::class, 'callback'])->middleware('throttle:sso');
 Route::post('/forgot-password', [AccountController::class, 'forgotPassword'])->middleware('throttle:password');
 Route::post('/reset-password', [AccountController::class, 'resetPassword'])->middleware('throttle:password');
-Route::get('/me/calendar/{token}.ics', [DashboardController::class, 'calendarFeed'])->where('token', '[A-Za-z0-9]+')->middleware('throttle:public');
 Route::get('/attachment-feedback/{token}', [AttachmentController::class, 'showFeedbackForm'])->middleware('throttle:password');
 Route::post('/attachment-feedback/{token}', [AttachmentController::class, 'submitFeedback'])->middleware('throttle:password');
 
@@ -73,9 +72,6 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/me/digest-preview', [DigestController::class, 'preview'])->middleware('throttle:heavy');
     Route::get('/me/agenda', [DashboardController::class, 'agenda']);
     Route::get('/me/insights', [DashboardController::class, 'insights']);
-    Route::post('/me/calendar-token', [DashboardController::class, 'calendarToken']);
-    Route::get('/me/calendar.pdf', [DashboardController::class, 'calendarPdf']);
-    Route::get('/me/engagement', [EngagementController::class, 'me']);
     Route::post('/logout', [LmsController::class, 'logout']);
     Route::get('/notifications', [LmsController::class, 'notifications']);
     Route::post('/notifications/{notification}/read', [LmsController::class, 'readNotification']);
