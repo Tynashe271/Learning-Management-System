@@ -2,12 +2,12 @@ import { useQueries, useQuery } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import type { Agenda, AgendaDeadline, AgendaSession, Engagement, Insights, LearningGoal, Offering, Page, Progress } from '../api/types'
+import type { Agenda, AgendaDeadline, AgendaSession, Engagement, Insights, Offering, Page, Progress } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { CourseCard } from '../components/CourseCard'
-import { Badge, Button, Card, CheckField, EmptyState, ErrorState, FormError, Loading, ProgressRing, TextField } from '../components/ui'
-import { dayLabel, formatDate, formatTime, plural } from '../lib/format'
-import { DownloadButton, fieldError, useApiMutation, useTitle } from '../lib/hooks'
+import { Badge, Button, Card, EmptyState, ErrorState, Loading, ProgressRing } from '../components/ui'
+import { dayLabel, formatTime, plural } from '../lib/format'
+import { DownloadButton, useApiMutation, useTitle } from '../lib/hooks'
 
 export function StudentDashboard() {
   useTitle('My learning')
@@ -165,10 +165,7 @@ export function StudentDashboard() {
         </div>
       )}
 
-      <div className="grid-2">
-        <EngagementCard />
-        <LearningGoalsCard />
-      </div>
+      <EngagementCard />
 
       <CalendarSync />
     </>
@@ -201,56 +198,6 @@ function EngagementCard() {
           <p className="muted small">Badges are encouragement, not an academic result — they never affect a grade.</p>
         </>
       )}
-    </Card>
-  )
-}
-
-function LearningGoalsCard() {
-  const [title, setTitle] = useState('')
-  const [targetDate, setTargetDate] = useState('')
-  const goals = useQuery({ queryKey: ['learning-goals', 'me'], queryFn: () => api.get<LearningGoal[]>('/me/learning-goals') })
-  const add = useApiMutation(() => api.post<LearningGoal>('/me/learning-goals', { title: title.trim(), target_date: targetDate || null }), {
-    invalidate: [['learning-goals', 'me']],
-    onSuccess: () => {
-      setTitle('')
-      setTargetDate('')
-    },
-  })
-  const toggle = useApiMutation((goal: LearningGoal) => api.patch(`/learning-goals/${goal.id}`, { completed: !goal.completed_at }), { invalidate: [['learning-goals', 'me']], toastError: true })
-  const remove = useApiMutation((id: number) => api.delete(`/learning-goals/${id}`), { invalidate: [['learning-goals', 'me']], toastError: true })
-
-  return (
-    <Card title="My learning goals">
-      {goals.isPending && <Loading />}
-      {goals.isError && <p className="muted">We could not load this just now.</p>}
-      {goals.data && goals.data.length === 0 && <p className="muted small">Nothing set yet — a goal can be as small as &quot;finish Module 3 this week&quot;.</p>}
-      {goals.data && goals.data.length > 0 && (
-        <ul className="list">
-          {goals.data.map((g) => (
-            <li key={g.id}>
-              <CheckField label={g.title} checked={!!g.completed_at} onChange={() => toggle.mutate(g)} />
-              <span className="grow">{g.target_date && <span className="muted small block">Target: {formatDate(g.target_date)}</span>}</span>
-              <Button small variant="danger" onClick={() => remove.mutate(g.id)}>
-                Remove
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <form
-        className="inline-form"
-        onSubmit={(event) => {
-          event.preventDefault()
-          add.mutate()
-        }}
-      >
-        <TextField label="New goal" value={title} onChange={(e) => setTitle(e.target.value)} error={fieldError(add.error, 'title')} maxLength={255} placeholder="e.g. Finish the React course" required />
-        <TextField label="Target date" optional type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} error={fieldError(add.error, 'target_date')} />
-        {add.error && !fieldError(add.error, 'title') && !fieldError(add.error, 'target_date') && <FormError error={add.error} />}
-        <Button type="submit" variant="primary" loading={add.isPending} disabled={!title.trim()}>
-          Add goal
-        </Button>
-      </form>
     </Card>
   )
 }

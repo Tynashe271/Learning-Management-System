@@ -25,7 +25,6 @@ use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\IntegrityController;
 use App\Http\Controllers\Api\InterventionController;
-use App\Http\Controllers\Api\LearningGoalController;
 use App\Http\Controllers\Api\LmsController;
 use App\Http\Controllers\Api\ManagementController;
 use App\Http\Controllers\Api\ProgressController;
@@ -77,10 +76,6 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::post('/me/calendar-token', [DashboardController::class, 'calendarToken']);
     Route::get('/me/calendar.pdf', [DashboardController::class, 'calendarPdf']);
     Route::get('/me/engagement', [EngagementController::class, 'me']);
-    Route::get('/me/learning-goals', [LearningGoalController::class, 'index']);
-    Route::post('/me/learning-goals', [LearningGoalController::class, 'store']);
-    Route::patch('/learning-goals/{goal}', [LearningGoalController::class, 'update']);
-    Route::delete('/learning-goals/{goal}', [LearningGoalController::class, 'destroy']);
     Route::post('/logout', [LmsController::class, 'logout']);
     Route::get('/notifications', [LmsController::class, 'notifications']);
     Route::post('/notifications/{notification}/read', [LmsController::class, 'readNotification']);

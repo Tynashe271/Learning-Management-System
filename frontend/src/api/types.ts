@@ -280,13 +280,6 @@ export interface OfferingEngagement {
   students: { user: { id: number; name: string; email: string }; points: number }[]
 }
 
-export interface LearningGoal {
-  id: number
-  title: string
-  target_date: string | null
-  completed_at: string | null
-}
-
 // ---- assignments -----------------------------------------------------------------------------------------------
 export interface Assignment {
   id: number

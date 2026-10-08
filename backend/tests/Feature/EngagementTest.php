@@ -128,28 +128,4 @@ class EngagementTest extends TestCase
     {
         $this->actingAs($this->student)->getJson('/api/offerings/'.$this->offering->id.'/engagement')->assertForbidden();
     }
-
-    public function test_a_student_can_manage_their_own_learning_goals(): void
-    {
-        $id = $this->actingAs($this->student)->postJson('/api/me/learning-goals', ['title' => 'Finish the React course', 'target_date' => now()->addMonth()->toDateString()])->assertCreated()->json('id');
-
-        $list = $this->actingAs($this->student)->getJson('/api/me/learning-goals')->assertOk()->json();
-        $this->assertCount(1, $list);
-        $this->assertNull($list[0]['completed_at']);
-
-        $updated = $this->actingAs($this->student)->patchJson("/api/learning-goals/{$id}", ['completed' => true])->assertOk()->json();
-        $this->assertNotNull($updated['completed_at']);
-
-        $this->actingAs($this->student)->deleteJson("/api/learning-goals/{$id}")->assertOk();
-        $this->assertCount(0, $this->actingAs($this->student)->getJson('/api/me/learning-goals')->json());
-    }
-
-    public function test_a_student_cannot_manage_another_students_learning_goal(): void
-    {
-        $other = $this->userWithRole('student');
-        $id = $this->actingAs($other)->postJson('/api/me/learning-goals', ['title' => 'Not yours'])->assertCreated()->json('id');
-
-        $this->actingAs($this->student)->patchJson("/api/learning-goals/{$id}", ['completed' => true])->assertForbidden();
-        $this->actingAs($this->student)->deleteJson("/api/learning-goals/{$id}")->assertForbidden();
-    }
 }
