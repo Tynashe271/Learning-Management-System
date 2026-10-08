@@ -77,15 +77,16 @@ class AcademicStructureTest extends TestCase
         $this->assertSame(1, DB::table('activity_log')->where('description', 'department created')->count());
     }
 
-    public function test_only_catalogue_administrators_change_departments_but_registrars_can_look_at_them(): void
+    public function test_only_catalogue_administrators_change_departments_but_registrars_and_students_can_look_at_them(): void
     {
         $this->as($this->registrar)->getJson('/api/departments')->assertOk();
+        $this->as($this->userWithRole('student'))->getJson('/api/departments')->assertOk();
         foreach (['student', 'lecturer'] as $role) {
             $this->as($this->userWithRole($role))->postJson('/api/departments', ['code' => 'X', 'name' => 'X'])->assertForbidden();
         }
         // A registrar now also manages courses.
         $this->as($this->registrar)->postJson('/api/departments', ['code' => 'X', 'name' => 'X'])->assertCreated();
-        $this->as($this->userWithRole('student'))->getJson('/api/departments')->assertForbidden();
+        $this->as($this->userWithRole('lecturer'))->getJson('/api/departments')->assertForbidden();
     }
 
     public function test_courses_carry_a_department_credits_and_level_and_can_be_searched_and_archived(): void

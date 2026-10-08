@@ -83,6 +83,6 @@ class DepartmentController extends Controller
     private function authorizeCatalog(Request $request, bool $write = true): void
     {
         $user = $request->user();
-        abort_unless($user->can('manage-courses') || (! $write && $user->can('manage-enrolments')), 403);
+        abort_unless($user->can('manage-courses') || (! $write && ($user->can('manage-enrolments') || $user->can('submit-assignments'))), 403);
     }
 }
