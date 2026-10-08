@@ -5,7 +5,7 @@ import { api } from '../api/client'
 import type { Agenda, AgendaDeadline, AgendaSession, Engagement, Insights, Offering, Page, Progress } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { CourseCard } from '../components/CourseCard'
-import { Badge, Button, Card, EmptyState, ErrorState, Loading, ProgressRing } from '../components/ui'
+import { Badge, Button, Card, EmptyState, ErrorState, Loading, ProgressRing, Stat } from '../components/ui'
 import { dayLabel, formatTime, plural } from '../lib/format'
 import { DownloadButton, useApiMutation, useTitle } from '../lib/hooks'
 
@@ -180,10 +180,11 @@ function EngagementCard() {
       {engagement.isError && <p className="muted">We could not load this just now.</p>}
       {engagement.data && (
         <>
-          <p>
-            🔥 {plural(engagement.data.streak.current_days, 'day')} streak
-            {engagement.data.streak.longest_days > engagement.data.streak.current_days && <span className="muted small"> · best was {plural(engagement.data.streak.longest_days, 'day')}</span>}
-          </p>
+          <div className="stats">
+            <Stat label="Current streak" value={`🔥 ${plural(engagement.data.streak.current_days, 'day')}`} />
+            <Stat label="Longest streak" value={plural(engagement.data.streak.longest_days, 'day')} />
+            <Stat label="Badges earned" value={engagement.data.badges.length} />
+          </div>
           {engagement.data.badges.length === 0 ? (
             <p className="muted small">Badges celebrate what you have already done. Sign in regularly, work through your course content and ace a quiz to start earning them.</p>
           ) : (
