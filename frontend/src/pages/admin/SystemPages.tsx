@@ -2,13 +2,13 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { AuditEntry, EnrolmentReport, Health, Overview, Page, Person, Term, UsageReport, WorkloadReport } from '../../api/types'
+import type { AuditEntry, EnrolmentReport, Health, Overview, Page, Person, SupportRequest, SupportRequestCategory, SupportRequestStatus, Term, UsageReport, WorkloadReport } from '../../api/types'
 import { ROLE_LABELS } from '../../api/types'
 import { useAuth } from '../../auth/AuthContext'
 import { PersonPicker } from '../../components/PersonPicker'
-import { Alert, Badge, Button, Card, EmptyState, Modal, PageHeader, Pager, QueryView, SelectField, Stat, Table, TextField, pagerFromPage, useDebounced } from '../../components/ui'
+import { Alert, Badge, Button, Card, EmptyState, Modal, PageHeader, Pager, QueryView, SelectField, Stat, Table, TextArea, TextField, pagerFromPage, useDebounced } from '../../components/ui'
 import { formatDate, formatDateTime } from '../../lib/format'
-import { DownloadButton, useTitle } from '../../lib/hooks'
+import { DownloadButton, useApiMutation, useTitle } from '../../lib/hooks'
 
 export function AuditPage() {
   useTitle('Audit log')
@@ -105,6 +105,104 @@ export function AuditPage() {
           />
         </Modal>
       )}
+    </>
+  )
+}
+
+const SUPPORT_TONE = { open: 'warn', in_progress: 'info', resolved: 'good' } as const
+const SUPPORT_STATUS_LABELS: Record<SupportRequestStatus, string> = { open: 'Open', in_progress: 'In progress', resolved: 'Resolved' }
+const SUPPORT_CATEGORY_LABELS: Record<SupportRequestCategory, string> = { sign_in: 'Sign-in problem', submission: 'Submission failure', technical: 'Technical issue', other: 'Other' }
+
+/** Where an administrator triages support requests filed from the "Get help" page: login problems, submission failures, and anything else. */
+export function SupportRequestsPage() {
+  useTitle('Support centre')
+  const [page, setPage] = useState(1)
+  const [status, setStatus] = useState<SupportRequestStatus | ''>('')
+  const [category, setCategory] = useState<SupportRequestCategory | ''>('')
+  const [notes, setNotes] = useState<Record<number, string>>({})
+  const filters = { status: status || undefined, category: category || undefined }
+  const query = useQuery({ queryKey: ['support-requests', status, category, page], queryFn: () => api.get<Page<SupportRequest>>('/support-requests', { ...filters, page }), placeholderData: (previous) => previous })
+  const triage = useApiMutation(
+    (vars: { id: number; status: SupportRequestStatus }) => api.patch(`/support-requests/${vars.id}`, { status: vars.status, resolution_note: notes[vars.id]?.trim() || null }),
+    { invalidate: [['support-requests']], toastError: true },
+  )
+
+  return (
+    <>
+      <PageHeader title="Support centre" subtitle="Requests filed from the 'Get help' page: sign-in problems, submission failures and anything else." />
+      <Card>
+        <div className="filters">
+          <SelectField label="Status" value={status} onChange={(e) => { setStatus(e.target.value as SupportRequestStatus | ''); setPage(1) }}>
+            <option value="">Any</option>
+            {Object.entries(SUPPORT_STATUS_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="Category" value={category} onChange={(e) => { setCategory(e.target.value as SupportRequestCategory | ''); setPage(1) }}>
+            <option value="">Any</option>
+            {Object.entries(SUPPORT_CATEGORY_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+        <QueryView query={query} isEmpty={(d) => d.data.length === 0} empty={<EmptyState title="No matching requests" />}>
+          {(data) => (
+            <>
+              <Table caption="Support requests">
+                <thead>
+                  <tr>
+                    <th>From</th>
+                    <th>Category</th>
+                    <th>Subject</th>
+                    <th>Status</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.data.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.user?.name ?? `User #${r.user_id}`}</td>
+                      <td>{SUPPORT_CATEGORY_LABELS[r.category]}</td>
+                      <td>
+                        {r.subject}
+                        <span className="muted small block">{r.description}</span>
+                        {r.resolution_note && (
+                          <span className="muted small block">
+                            <strong>Resolution:</strong> {r.resolution_note}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <Badge tone={SUPPORT_TONE[r.status]}>{SUPPORT_STATUS_LABELS[r.status]}</Badge>
+                      </td>
+                      <td className="actions">
+                        {r.status !== 'resolved' && (
+                          <form className="inline-form" onSubmit={(event) => event.preventDefault()}>
+                            <TextArea label="Resolution note" optional rows={1} value={notes[r.id] ?? ''} onChange={(e) => setNotes((n) => ({ ...n, [r.id]: e.target.value }))} />
+                            {r.status === 'open' && (
+                              <Button small onClick={() => triage.mutate({ id: r.id, status: 'in_progress' })} loading={triage.isPending && triage.variables?.id === r.id && triage.variables.status === 'in_progress'}>
+                                Start working on it
+                              </Button>
+                            )}
+                            <Button small variant="primary" onClick={() => triage.mutate({ id: r.id, status: 'resolved' })} loading={triage.isPending && triage.variables?.id === r.id && triage.variables.status === 'resolved'}>
+                              Mark resolved
+                            </Button>
+                          </form>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+              <Pager {...pagerFromPage(data)} onPage={setPage} />
+            </>
+          )}
+        </QueryView>
+      </Card>
     </>
   )
 }

@@ -40,6 +40,7 @@ export function Layout() {
     { to: '/notifications', label: 'Notifications', show: true },
     { to: '/register', label: 'Register for courses', show: hasRole('student') },
     { to: '/my-appeals', label: 'My grade appeals', show: can('submit-assignments') && !hasRole('super-admin') },
+    { to: '/help', label: 'Get help', show: true },
   ]
   const academics: NavItem[] = [
     { to: '/admin/catalogue', label: 'Terms and courses', show: can('manage-courses') || can('manage-enrolments') },
@@ -47,7 +48,10 @@ export function Layout() {
     { to: '/admin/import', label: 'Import accounts', show: can('manage-users') },
     { to: '/admin/reports', label: 'Reports', show: can('manage-courses') || can('manage-enrolments') },
   ]
-  const institution: NavItem[] = [{ to: '/admin/settings', label: 'Settings', show: can('manage-settings') || staffAdmin || can('manage-system') }]
+  const institution: NavItem[] = [
+    { to: '/admin/settings', label: 'Settings', show: can('manage-settings') || staffAdmin || can('manage-system') },
+    { to: '/admin/support-requests', label: 'Support centre', show: can('manage-users') },
+  ]
   const adminGroups: [string, NavItem[]][] = [
     ['Academics', academics],
     ['Institution', institution],

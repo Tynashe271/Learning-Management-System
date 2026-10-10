@@ -216,6 +216,7 @@ class UserSupportController extends Controller
             'discussion_posts' => DB::table('discussion_posts')->where('user_id', $id)->count(),
             'announcements' => DB::table('announcements')->where('user_id', $id)->count(),
             'attendance_marks' => DB::table('attendance_records')->where('marked_by', $id)->count(),
+            'support_requests' => DB::table('support_requests')->where('user_id', $id)->count(),
         ];
     }
 }

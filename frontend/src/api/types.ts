@@ -371,6 +371,25 @@ export interface IntegrityCase {
   created_at: string
 }
 
+export type SupportRequestStatus = 'open' | 'in_progress' | 'resolved'
+
+export type SupportRequestCategory = 'sign_in' | 'submission' | 'technical' | 'other'
+
+export interface SupportRequest {
+  id: number
+  user_id: number
+  user?: { id: number; name: string; email: string }
+  category: SupportRequestCategory
+  subject: string
+  description: string
+  status: SupportRequestStatus
+  assigned_to: number | null
+  assignee?: { id: number; name: string } | null
+  resolution_note: string | null
+  resolved_at: string | null
+  created_at: string
+}
+
 export interface AssignmentGroup {
   id: number
   name: string

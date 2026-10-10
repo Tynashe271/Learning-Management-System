@@ -346,6 +346,45 @@ describe('reports', () => {
   })
 })
 
+describe('support requests', () => {
+  it('lets anyone file a request from the Get help page', async () => {
+    const { calls } = mockApi({
+      ...signedInAs(studentMe),
+      'POST /support-requests': () => ({ status: 201, body: { id: 1, user_id: 4, category: 'technical', subject: 'Upload fails', description: 'The upload button does nothing.', status: 'open', assigned_to: null, resolution_note: null, resolved_at: null, created_at: '2026-01-01T00:00:00Z' } }),
+    })
+    const user = userEvent.setup()
+    renderApp(<App />, '/help')
+    await user.type(await screen.findByLabelText('Subject'), 'Upload fails')
+    await user.type(screen.getByLabelText('What happened?'), 'The upload button does nothing.')
+    await user.click(screen.getByRole('button', { name: 'Send request' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.path === '/support-requests')).toBe(true))
+    const posted = calls.find((c) => c.method === 'POST' && c.path === '/support-requests')?.body as Record<string, unknown>
+    expect(posted.subject).toBe('Upload fails')
+    expect(posted.description).toBe('The upload button does nothing.')
+  })
+
+  it('lets an administrator triage and resolve a request', async () => {
+    const { calls } = mockApi({
+      ...signedInAs(adminMe),
+      'GET /support-requests': () => ({
+        body: {
+          data: [{ id: 7, user_id: 4, user: { id: 4, name: 'Ada Student', email: 'ada@example.test' }, category: 'sign_in', subject: 'Cannot sign in', description: 'Password keeps failing.', status: 'open', assigned_to: null, resolution_note: null, resolved_at: null, created_at: '2026-01-01T00:00:00Z' }],
+          current_page: 1, last_page: 1, per_page: 20, total: 1, from: 1, to: 1,
+        },
+      }),
+      'PATCH /support-requests/7': () => ({ body: { id: 7, user_id: 4, category: 'sign_in', subject: 'Cannot sign in', description: 'Password keeps failing.', status: 'resolved', assigned_to: null, resolution_note: 'Reset their password.', resolved_at: '2026-01-02T00:00:00Z', created_at: '2026-01-01T00:00:00Z' } }),
+    })
+    const user = userEvent.setup()
+    renderApp(<App />, '/admin/support-requests')
+    expect(await screen.findByText('Ada Student')).toBeInTheDocument()
+    expect(screen.getByText('Cannot sign in')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Mark resolved' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'PATCH' && c.path === '/support-requests/7')).toBe(true))
+    const patched = calls.find((c) => c.method === 'PATCH' && c.path === '/support-requests/7')?.body as Record<string, unknown>
+    expect(patched.status).toBe('resolved')
+  })
+})
+
 describe('course registration by students', () => {
   const offering = (id: number, registration: Record<string, unknown>) => ({
     id,

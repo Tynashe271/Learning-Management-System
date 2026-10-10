@@ -5,7 +5,7 @@ import { useInstitutionSettings } from './lib/institution'
 import { Layout } from './components/Layout'
 import { Alert, Button, ErrorState, Loading } from './components/ui'
 import { AdminGuard } from './components/guards'
-import { AuditPage, ReportsPage, StatusPage } from './pages/admin/SystemPages'
+import { AuditPage, ReportsPage, StatusPage, SupportRequestsPage } from './pages/admin/SystemPages'
 import { AnnouncementsPage } from './pages/admin/AnnouncementsPage'
 import { BackupsPage } from './pages/admin/BackupsPage'
 import { CataloguePage } from './pages/admin/CataloguePage'
@@ -17,6 +17,7 @@ import { UserPage } from './pages/admin/UserPage'
 import { ImportUsersPage, UsersPage } from './pages/admin/UsersPage'
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SsoCallbackPage } from './pages/auth'
 import { Dashboard } from './pages/Dashboard'
+import { HelpPage } from './pages/HelpPage'
 import { NotificationsPage, ProfilePage } from './pages/account'
 import { AppealPage, AppealsTab, MyAppealsPage } from './pages/courses/Appeals'
 import { AssignmentPage } from './pages/courses/AssignmentPage'
@@ -163,12 +164,14 @@ export function App() {
         <Route path="register" element={<RegisterPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="help" element={<HelpPage />} />
 
         <Route path="admin/catalogue" element={guard(['manage-courses', 'manage-enrolments'], <CataloguePage />)} />
         <Route path="admin/users" element={guard(['manage-users', 'manage-enrolments'], <UsersPage />)} />
         <Route path="admin/users/:id" element={guard(['manage-users'], <UserPage />)} />
         <Route path="admin/import" element={guard(['manage-users'], <ImportUsersPage />)} />
         <Route path="admin/reports" element={guard(['manage-courses', 'manage-enrolments'], <ReportsPage />)} />
+        <Route path="admin/support-requests" element={guard(['manage-users'], <SupportRequestsPage />)} />
         <Route path="admin/settings" element={<SettingsLayout />}>
           <Route index element={<SettingsIndex />} />
           <Route path="notices" element={guard(['manage-settings'], <AnnouncementsPage />)} />

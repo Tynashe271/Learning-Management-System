@@ -41,6 +41,7 @@ use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SimilarityController;
 use App\Http\Controllers\Api\SsoController;
 use App\Http\Controllers\Api\StudyGroupController;
+use App\Http\Controllers\Api\SupportRequestController;
 use App\Http\Controllers\Api\SystemAnnouncementController;
 use App\Http\Controllers\Api\SystemController;
 use App\Http\Controllers\Api\UserController;
@@ -241,6 +242,12 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/offerings/{offering}/integrity-cases', [IntegrityController::class, 'index']);
     Route::post('/offerings/{offering}/integrity-cases', [IntegrityController::class, 'store']);
     Route::patch('/integrity-cases/{case}', [IntegrityController::class, 'update']);
+
+    // Support centre
+    Route::get('/support-requests', [SupportRequestController::class, 'index']);
+    Route::post('/support-requests', [SupportRequestController::class, 'store']);
+    Route::get('/support-requests/{supportRequest}', [SupportRequestController::class, 'show']);
+    Route::patch('/support-requests/{supportRequest}', [SupportRequestController::class, 'update']);
 
     // AI learning assistant and lecturer teaching assistant
     Route::post('/offerings/{offering}/ai/assist', [AiAssistantController::class, 'assist'])->middleware('throttle:heavy');
