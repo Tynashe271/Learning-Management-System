@@ -13,6 +13,7 @@ import { RolesPage } from './pages/admin/RolesPage'
 import { SecurityPage } from './pages/admin/SecurityPage'
 import { SettingsLayout, SettingsPage } from './pages/admin/SettingsPage'
 import { SystemPage } from './pages/admin/SystemPage'
+import { TransferStudentsPage } from './pages/admin/TransferStudentsPage'
 import { UserPage } from './pages/admin/UserPage'
 import { ImportUsersPage, UsersPage } from './pages/admin/UsersPage'
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SsoCallbackPage } from './pages/auth'
@@ -172,6 +173,7 @@ export function App() {
         <Route path="admin/import" element={guard(['manage-users'], <ImportUsersPage />)} />
         <Route path="admin/reports" element={guard(['manage-courses', 'manage-enrolments'], <ReportsPage />)} />
         <Route path="admin/support-requests" element={guard(['manage-users'], <SupportRequestsPage />)} />
+        <Route path="admin/transfer-students" element={guard(['manage-enrolments'], <TransferStudentsPage />)} />
         <Route path="admin/settings" element={<SettingsLayout />}>
           <Route index element={<SettingsIndex />} />
           <Route path="notices" element={guard(['manage-settings'], <AnnouncementsPage />)} />

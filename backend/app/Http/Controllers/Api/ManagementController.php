@@ -7,6 +7,7 @@ use App\Models\Assignment;
 use App\Models\Course;
 use App\Models\CourseModule;
 use App\Models\CourseOffering;
+use App\Models\Enrolment;
 use App\Models\LearningItem;
 use App\Models\TeachingAssignment;
 use App\Models\User;
@@ -16,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /** Edit and remove operations for the academic catalogue and course content. */
@@ -66,6 +68,58 @@ class ManagementController extends Controller
         activity()->causedBy($request->user())->performedOn($offering)->withProperties(['enrolled' => $enrolled, 'not_found' => $notFound->count(), 'no_place' => count($full)])->log('enrolments imported');
 
         return response()->json(['enrolled' => $enrolled, 'not_found' => $notFound, 'invalid' => $invalid, 'full' => $full]);
+    }
+
+    /**
+     * Moves (or copies) a bulk list of students from one offering into this one: enrol, transfer and promote, with a duplicate
+     * check (someone already active in the destination is skipped, not re-enrolled or reported as an error). `mode: transfer`
+     * (the default) withdraws the student from the source offering once they have a place here; `mode: copy` leaves the
+     * source enrolment alone, for a student taking both at once.
+     */
+    public function transferEnrolments(Request $request, CourseOffering $offering, EnrolmentService $enrolments): JsonResponse
+    {
+        abort_unless($request->user()->can('manage-enrolments'), 403);
+        $data = $request->validate([
+            'source_offering_id' => ['required', 'integer', Rule::exists('course_offerings', 'id')],
+            'user_ids' => ['sometimes', 'array', 'max:500'],
+            'user_ids.*' => ['integer'],
+            'mode' => ['sometimes', Rule::in(['transfer', 'copy'])],
+        ]);
+        if ((int) $data['source_offering_id'] === $offering->id) {
+            throw ValidationException::withMessages(['source_offering_id' => 'The source and destination offerings must be different.']);
+        }
+        $mode = $data['mode'] ?? 'transfer';
+        $source = CourseOffering::findOrFail($data['source_offering_id']);
+
+        $activeInSource = Enrolment::where('course_offering_id', $source->id)->where('status', 'active')->pluck('user_id');
+        $requested = collect($data['user_ids'] ?? $activeInSource->all())->unique()->values();
+        $notFound = $requested->diff($activeInSource)->values();
+        $students = $requested->intersect($activeInSource)->values();
+
+        $alreadyEnrolled = Enrolment::where('course_offering_id', $offering->id)->where('status', 'active')->whereIn('user_id', $students)->pluck('user_id');
+        $toEnrol = $students->diff($alreadyEnrolled)->values();
+
+        $transferred = 0;
+        $full = [];
+        DB::transaction(function () use ($toEnrol, $offering, $source, $mode, $enrolments, &$transferred, &$full) {
+            foreach ($toEnrol as $userId) {
+                try {
+                    $enrolments->activate($offering, $userId);
+                    $transferred++;
+                    if ($mode === 'transfer') {
+                        $enrolments->withdraw($source, $userId);
+                    }
+                } catch (ValidationException $e) {
+                    if (! isset($e->errors()['capacity'])) {
+                        throw $e;
+                    }
+                    $full[] = $userId;
+                }
+            }
+        });
+        activity()->causedBy($request->user())->performedOn($offering)->withProperties(['source_offering_id' => $source->id, 'mode' => $mode, 'transferred' => $transferred, 'already_enrolled' => $alreadyEnrolled->count(), 'full' => count($full)])->log('enrolments transferred');
+
+        return response()->json(['transferred' => $transferred, 'already_enrolled' => $alreadyEnrolled->values(), 'full' => $full, 'not_found' => $notFound]);
     }
 
     public function deleteModule(Request $request, CourseModule $module): JsonResponse

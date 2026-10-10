@@ -119,6 +119,66 @@ class ManagementTest extends TestCase
         $this->actingAs($registrar)->postJson('/api/offerings/'.$this->offering->id.'/enrolments/import', ['emails' => ['not-an-email']])->assertJsonValidationErrors('emails.0');
     }
 
+    public function test_registrars_can_transfer_students_between_offerings_with_a_duplicate_check(): void
+    {
+        $registrar = $this->userWithRole('registrar');
+        $destination = $this->offering('B');
+        $ada = $this->userWithRole('student');
+        $ben = $this->userWithRole('student');
+        $cy = $this->userWithRole('student');
+        $this->enrol($this->offering, $ada);
+        $this->enrol($this->offering, $ben);
+        $this->enrol($this->offering, $cy);
+        $this->enrol($destination, $ben); // already there - a duplicate
+
+        $response = $this->actingAs($registrar)->postJson('/api/offerings/'.$destination->id.'/transfer-in', [
+            'source_offering_id' => $this->offering->id,
+        ])->assertOk();
+
+        $response->assertJsonPath('transferred', 2);
+        $this->assertEqualsCanonicalizing([$ben->id], $response->json('already_enrolled'));
+        $this->assertDatabaseHas('enrolments', ['course_offering_id' => $destination->id, 'user_id' => $ada->id, 'status' => 'active']);
+        $this->assertDatabaseHas('enrolments', ['course_offering_id' => $destination->id, 'user_id' => $cy->id, 'status' => 'active']);
+        $this->assertDatabaseHas('enrolments', ['course_offering_id' => $this->offering->id, 'user_id' => $ada->id, 'status' => 'withdrawn']); // transfer withdraws from the source
+        $this->assertDatabaseHas('enrolments', ['course_offering_id' => $this->offering->id, 'user_id' => $ben->id, 'status' => 'active']); // untouched: skipped as a duplicate
+
+        $this->actingAs($this->lecturer)->postJson('/api/offerings/'.$destination->id.'/transfer-in', ['source_offering_id' => $this->offering->id])->assertForbidden();
+        $this->actingAs($registrar)->postJson('/api/offerings/'.$destination->id.'/transfer-in', ['source_offering_id' => $destination->id])->assertJsonValidationErrors('source_offering_id');
+    }
+
+    public function test_copy_mode_leaves_the_source_enrolment_in_place(): void
+    {
+        $registrar = $this->userWithRole('registrar');
+        $destination = $this->offering('B');
+        $ada = $this->userWithRole('student');
+        $this->enrol($this->offering, $ada);
+
+        $this->actingAs($registrar)->postJson('/api/offerings/'.$destination->id.'/transfer-in', [
+            'source_offering_id' => $this->offering->id, 'mode' => 'copy',
+        ])->assertOk()->assertJsonPath('transferred', 1);
+
+        $this->assertDatabaseHas('enrolments', ['course_offering_id' => $destination->id, 'user_id' => $ada->id, 'status' => 'active']);
+        $this->assertDatabaseHas('enrolments', ['course_offering_id' => $this->offering->id, 'user_id' => $ada->id, 'status' => 'active']);
+    }
+
+    public function test_transferring_specific_students_only_moves_those_named(): void
+    {
+        $registrar = $this->userWithRole('registrar');
+        $destination = $this->offering('B');
+        $ada = $this->userWithRole('student');
+        $ben = $this->userWithRole('student');
+        $this->enrol($this->offering, $ada);
+        $this->enrol($this->offering, $ben);
+
+        $response = $this->actingAs($registrar)->postJson('/api/offerings/'.$destination->id.'/transfer-in', [
+            'source_offering_id' => $this->offering->id, 'user_ids' => [$ada->id, 999999],
+        ])->assertOk();
+
+        $response->assertJsonPath('transferred', 1)->assertJsonPath('not_found', [999999]);
+        $this->assertDatabaseHas('enrolments', ['course_offering_id' => $destination->id, 'user_id' => $ada->id, 'status' => 'active']);
+        $this->assertDatabaseMissing('enrolments', ['course_offering_id' => $destination->id, 'user_id' => $ben->id]);
+    }
+
     public function test_deleting_a_module_or_item_also_removes_its_files(): void
     {
         Storage::fake('s3');

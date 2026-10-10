@@ -385,6 +385,41 @@ describe('support requests', () => {
   })
 })
 
+describe('transferring students between offerings', () => {
+  it('moves students from a chosen source offering into the destination and reports the result', async () => {
+    const { calls } = mockApi({
+      ...signedInAs(adminMe),
+      'GET /terms': () => ({ body: { data: [{ id: 1, name: 'Semester 1' }, { id: 2, name: 'Semester 2' }], current_page: 1, last_page: 1, per_page: 50, total: 2, from: 1, to: 2 } }),
+      'GET /offerings': (call) => {
+        const termId = call.query.get('term_id')
+        const offerings = termId === '1'
+          ? [{ id: 10, course_id: 1, academic_term_id: 1, section: 'A', published: true, course: { id: 1, code: 'CSC101', title: 'Computing' } }]
+          : [{ id: 20, course_id: 1, academic_term_id: 2, section: 'A', published: true, course: { id: 1, code: 'CSC101', title: 'Computing' } }]
+        return { body: { data: offerings, current_page: 1, last_page: 1, per_page: 50, total: offerings.length, from: 1, to: offerings.length } }
+      },
+      'POST /offerings/20/transfer-in': () => ({ body: { transferred: 2, already_enrolled: [5], full: [], not_found: [] } }),
+    })
+    const user = userEvent.setup()
+    renderApp(<App />, '/admin/transfer-students')
+
+    await waitFor(() => expect(screen.getAllByText('Semester 1').length).toBeGreaterThan(0))
+    await user.selectOptions(await screen.findByLabelText('From: term'), '1')
+    await waitFor(() => expect(screen.getAllByText(/CSC101/).length).toBeGreaterThan(0))
+    await user.selectOptions(screen.getByLabelText('From: offering'), '10')
+    await user.selectOptions(screen.getByLabelText('To: term'), '2')
+    await waitFor(() => expect(screen.getAllByText(/CSC101/).length).toBeGreaterThan(1))
+    await user.selectOptions(screen.getByLabelText('To: offering'), '20')
+    await user.click(screen.getByRole('button', { name: 'Move students' }))
+
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.path === '/offerings/20/transfer-in')).toBe(true))
+    const posted = calls.find((c) => c.method === 'POST' && c.path === '/offerings/20/transfer-in')?.body as Record<string, unknown>
+    expect(posted.source_offering_id).toBe(10)
+    expect(posted.mode).toBe('transfer')
+    expect(await screen.findByText(/2 students moved/)).toBeInTheDocument()
+    expect(screen.getByText(/1 already had a place/)).toBeInTheDocument()
+  })
+})
+
 describe('course registration by students', () => {
   const offering = (id: number, registration: Record<string, unknown>) => ({
     id,

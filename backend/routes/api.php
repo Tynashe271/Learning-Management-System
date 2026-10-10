@@ -158,6 +158,7 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/offerings/{offering}/analytics', [CourseAnalyticsController::class, 'show']);
     Route::post('/offerings/{offering}/enrolments', [LmsController::class, 'enrol']);
     Route::post('/offerings/{offering}/enrolments/import', [ManagementController::class, 'importEnrolments'])->middleware('throttle:heavy');
+    Route::post('/offerings/{offering}/transfer-in', [ManagementController::class, 'transferEnrolments'])->middleware('throttle:heavy');
     Route::post('/offerings/{offering}/teachers', [LmsController::class, 'teacher']);
     Route::patch('/offerings/{offering}/teachers/{user}', [LmsController::class, 'updateTeacher']);
     Route::delete('/offerings/{offering}/teachers/{user}', [ManagementController::class, 'removeTeacher']);
