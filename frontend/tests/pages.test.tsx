@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { tokenStore } from '../src/api/client'
 import type { Assignment, RubricCriterion, Submission } from '../src/api/types'
 import type { Quiz } from '../src/api/types'
+import { ImportGradesDialog } from '../src/pages/courses/AssignmentPage'
 import { AttemptPage } from '../src/pages/courses/AttemptPage'
 import { GradeDialog } from '../src/pages/courses/GradeDialog'
 import { QuizPage } from '../src/pages/courses/QuizPage'
@@ -94,6 +95,26 @@ describe('grading', () => {
     renderApp(<GradeDialog assignment={assignment} submission={submission} rubric={[]} studentName="Ada" onClose={() => undefined} />)
     await user.type(screen.getByLabelText(/Score/), '25')
     expect(screen.getByRole('button', { name: 'Publish grade' })).toBeDisabled()
+  })
+})
+
+describe('offline marking import', () => {
+  it('previews row errors with a dry run, then commits on confirmation', async () => {
+    const { calls } = mockApi({
+      'POST /assignments/5/grades/import': (req) => {
+        const dryRun = req.body instanceof FormData && req.body.get('dry_run') === '1'
+        return { body: dryRun ? { dry_run: true, created: 0, would_create: 1, errors: [{ line: 3, submission_id: '9999', errors: ['There is no submission with this id on this assignment.'] }] } : { dry_run: false, created: 1, would_create: 1, errors: [] } }
+      },
+    })
+    const user = userEvent.setup()
+    renderApp(<ImportGradesDialog assignment={assignment} onClose={() => undefined} />)
+    const file = new File(['submission_id,score,feedback\n9,18,Nice\n9999,10,\n'], 'grades.csv', { type: 'text/csv' })
+    await user.upload(screen.getByLabelText('Spreadsheet'), file)
+    await user.click(screen.getByRole('button', { name: 'Check the file' }))
+    await waitFor(() => expect(screen.getByText(/1 grade ready to import/)).toBeInTheDocument())
+    expect(screen.getByText('There is no submission with this id on this assignment.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Import 1 grade/ }))
+    await waitFor(() => expect(calls.filter((c) => c.method === 'POST')).toHaveLength(2))
   })
 })
 

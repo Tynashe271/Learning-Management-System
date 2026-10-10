@@ -20,6 +20,7 @@ use App\Notifications\GradePublished;
 use App\Rules\CleanFile;
 use App\Services\EnrolmentService;
 use App\Services\LoginGuard;
+use App\Support\CsvReader;
 use App\Support\PasswordPolicy;
 use App\Support\SecurityLog;
 use Closure;
@@ -725,6 +726,122 @@ class LmsController extends Controller
         }
 
         return response()->json($grade, 201);
+    }
+
+    /**
+     * A zip of everything needed to mark this assignment offline: each ungraded submission's text and file, plus a
+     * grades.csv template to fill in and bring back through importGrades().
+     */
+    public function markingPack(Request $request, Assignment $assignment)
+    {
+        $this->authorize('grade', $assignment);
+
+        $submissions = Submission::where('assignment_id', $assignment->id)
+            ->whereDoesntHave('gradeRecords', fn ($q) => $q->where('status', 'published'))
+            ->with('user:id,name,email')
+            ->orderBy('id')
+            ->get();
+
+        $zipPath = tempnam(sys_get_temp_dir(), 'marking').'.zip';
+        $zip = new ZipArchive;
+        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+        $csv = "submission_id,student_name,student_email,score,feedback\n";
+        foreach ($submissions as $submission) {
+            $slug = Str::slug($submission->user->name) ?: 'student';
+            if ($submission->body) {
+                $zip->addFromString("{$submission->id}-{$slug}.txt", $submission->body);
+            }
+            if ($submission->storage_path) {
+                $extension = pathinfo($submission->storage_path, PATHINFO_EXTENSION);
+                $filename = "{$submission->id}-{$slug}".($extension ? ".{$extension}" : '');
+                $zip->addFromString($filename, Storage::disk('s3')->get($submission->storage_path));
+            }
+            $csv .= sprintf(
+                "%d,%s,%s,,\n",
+                $submission->id,
+                str_replace(',', ' ', $submission->user->name),
+                $submission->user->email
+            );
+        }
+        $zip->addFromString('grades.csv', $csv);
+        $zip->close();
+
+        return response()->download($zipPath, Str::slug($assignment->title).'-marking-pack.zip')->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Brings grades marked offline back in, from a grades.csv (or similar) with submission_id, score, feedback
+     * columns, as produced by markingPack(). Every created grade is a draft - publishing is still a deliberate,
+     * separate step through the normal grading screen. Pass dry_run=1 to check the file without creating anything.
+     */
+    public function importGrades(Request $request, Assignment $assignment): JsonResponse
+    {
+        $this->authorize('grade', $assignment);
+        $request->validate(['file' => ['required', 'file', 'mimes:csv,txt', 'max:2048'], 'dry_run' => ['sometimes', 'boolean']]);
+        $dryRun = $request->boolean('dry_run');
+
+        $rows = CsvReader::rows($request->file('file')->getRealPath(), 1000);
+        if ($rows === []) {
+            return response()->json(['message' => 'The file has no data rows.', 'errors' => ['file' => ['The file has no data rows.']]], 422);
+        }
+        $headers = array_keys($rows[0]);
+        if (array_diff(['submission_id', 'score'], $headers) !== []) {
+            return response()->json(['message' => 'The first row must name the columns: submission_id, score, feedback.', 'errors' => ['file' => ['The first row must name the columns: submission_id, score, feedback.']]], 422);
+        }
+
+        $submissions = Submission::where('assignment_id', $assignment->id)->get()->keyBy('id');
+        $valid = [];
+        $errors = [];
+        $seen = [];
+        foreach ($rows as $i => $row) {
+            $line = $i + 2;
+            $id = (int) $row['submission_id'];
+            $problems = [];
+            $submission = $submissions->get($id);
+            if (! $submission) {
+                $problems[] = 'There is no submission with this id on this assignment.';
+            } elseif (isset($seen[$id])) {
+                $problems[] = 'This submission appears more than once in the file (first on line '.$seen[$id].').';
+            } elseif ($submission->gradeRecords()->exists()) {
+                $problems[] = 'This submission already has a grade; change it from the grading screen instead.';
+            }
+            if ($row['score'] === '' || ! is_numeric($row['score'])) {
+                $problems[] = 'The score must be a number.';
+            } elseif ((float) $row['score'] < 0 || (float) $row['score'] > $assignment->max_score) {
+                $problems[] = "The score must be between 0 and {$assignment->max_score}.";
+            }
+            if ($problems) {
+                $errors[] = ['line' => $line, 'submission_id' => $row['submission_id'], 'errors' => $problems];
+
+                continue;
+            }
+            $seen[$id] = $line;
+            $valid[] = ['submission' => $submission, 'score' => (float) $row['score'], 'feedback' => $row['feedback'] ?? ''];
+        }
+
+        $created = 0;
+        if (! $dryRun && $valid !== []) {
+            DB::transaction(function () use ($valid, $request, &$created) {
+                foreach ($valid as $entry) {
+                    $entry['submission']->gradeRecords()->create([
+                        'score' => $entry['score'],
+                        'status' => 'draft',
+                        'feedback' => $entry['feedback'] !== '' ? $entry['feedback'] : null,
+                        'graded_by' => $request->user()->id,
+                    ]);
+                    $created++;
+                }
+            });
+            activity()->causedBy($request->user())->performedOn($assignment)->withProperties(['created' => $created, 'rejected' => count($errors)])->log('grades imported from offline marking');
+        }
+
+        return response()->json([
+            'dry_run' => $dryRun,
+            'created' => $dryRun ? 0 : $created,
+            'would_create' => count($valid),
+            'errors' => $errors,
+        ]);
     }
 
     /**

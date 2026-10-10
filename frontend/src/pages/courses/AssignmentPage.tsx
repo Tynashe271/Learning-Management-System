@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { Appeal, Assignment, AssignmentGroup, MyGrade, Offering, Page, PeerReviewReceived, PeerReviewTask, Roster, RubricCriterion, SimilarityReport, Submission, SubmissionFeedback, SubmissionVersion } from '../../api/types'
+import type { Appeal, Assignment, AssignmentGroup, GradeImportResult, MyGrade, Offering, Page, PeerReviewReceived, PeerReviewTask, Roster, RubricCriterion, SimilarityReport, Submission, SubmissionFeedback, SubmissionVersion } from '../../api/types'
 import { Alert, Badge, Button, Card, CheckField, EmptyState, ErrorState, FileField, FormError, Loading, Modal, PageHeader, Pager, PublishedBadge, QueryView, SelectField, Table, TextArea, TextField, pagerFromPage, useConfirm } from '../../components/ui'
 import { formatDateTime, formatScore, isPast, plural } from '../../lib/format'
 import { DownloadButton, fieldError, useApiMutation, useTitle } from '../../lib/hooks'
@@ -494,6 +494,7 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
   const [similarity, setSimilarity] = useState(false)
   const [managingGroups, setManagingGroups] = useState(false)
   const [assigningPeerReview, setAssigningPeerReview] = useState(false)
+  const [importingGrades, setImportingGrades] = useState(false)
   const canGrade = assignment.abilities.grade
   const query = useQuery({ queryKey: ['submissions', assignment.id, page], queryFn: () => api.get<Page<Submission & { user?: { id: number; name: string; email: string } }>>(`/assignments/${assignment.id}/submissions`, { page }), enabled: canGrade, placeholderData: (previous) => previous })
 
@@ -519,6 +520,12 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
               </Link>
               <Button small onClick={() => setSimilarity(true)}>
                 Check similarity
+              </Button>
+              <DownloadButton path={`/assignments/${assignment.id}/marking-pack`} filename={`${assignment.title}-marking-pack.zip`}>
+                Download marking pack
+              </DownloadButton>
+              <Button small onClick={() => setImportingGrades(true)}>
+                Upload marks from spreadsheet
               </Button>
             </>
           )
@@ -599,7 +606,88 @@ function StaffSection({ assignment, rubric }: { assignment: AssignmentDetail; ru
       {managingGroups && <GroupsDialog assignment={assignment} onClose={() => setManagingGroups(false)} />}
       {assigningPeerReview && <PeerReviewAssignDialog assignment={assignment} onClose={() => setAssigningPeerReview(false)} />}
       {flagging && <IntegrityCaseDialog offeringId={assignment.course_offering_id} submission={flagging} onClose={() => setFlagging(null)} />}
+      {importingGrades && <ImportGradesDialog assignment={assignment} onClose={() => setImportingGrades(false)} />}
     </>
+  )
+}
+
+/**
+ * Brings grades marked offline back in, from the grades.csv in a downloaded marking pack. Previews row errors with a
+ * dry run before anything is created, same two-step idea as the enrolment import.
+ */
+export function ImportGradesDialog({ assignment, onClose }: { assignment: Assignment; onClose: () => void }) {
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<GradeImportResult | null>(null)
+  const check = useApiMutation(
+    () => {
+      const form = new FormData()
+      form.append('file', file!)
+      form.append('dry_run', '1')
+      return api.upload<GradeImportResult>(`/assignments/${assignment.id}/grades/import`, form)
+    },
+    { onSuccess: setPreview },
+  )
+  const commit = useApiMutation(
+    () => {
+      const form = new FormData()
+      form.append('file', file!)
+      return api.upload<GradeImportResult>(`/assignments/${assignment.id}/grades/import`, form)
+    },
+    { invalidate: [['submissions', assignment.id]], success: (r) => `${r.created} grade${r.created === 1 ? '' : 's'} imported.`, onSuccess: onClose },
+  )
+
+  return (
+    <Modal title="Upload marks from spreadsheet" onClose={onClose} wide>
+      <p className="muted">Fill in the score (and optionally feedback) columns of the grades.csv from a downloaded marking pack, then upload it here. Every imported grade starts as a draft - publish it from the grading screen when you're ready.</p>
+      {!preview ? (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            check.mutate()
+          }}
+        >
+          <FileField label="Spreadsheet" accept=".csv,.txt" onChange={(e) => setFile(e.target.files?.[0] ?? null)} error={fieldError(check.error, 'file')} hint="Columns: submission_id, score, feedback." />
+          {check.error && !fieldError(check.error, 'file') && <FormError error={check.error} />}
+          <div className="form-actions">
+            <Button onClick={onClose}>Cancel</Button>
+            <Button type="submit" variant="primary" loading={check.isPending} disabled={!file}>
+              Check the file
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <>
+          <Alert tone={preview.would_create > 0 ? 'success' : 'warn'}>{plural(preview.would_create, 'grade')} ready to import.</Alert>
+          {preview.errors.length > 0 && (
+            <Table caption="Rows with a problem">
+              <thead>
+                <tr>
+                  <th>Line</th>
+                  <th>Submission</th>
+                  <th>Problem</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.errors.map((e) => (
+                  <tr key={e.line}>
+                    <td>{e.line}</td>
+                    <td>{e.submission_id}</td>
+                    <td>{e.errors.join(' ')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+          {commit.error && <FormError error={commit.error} />}
+          <div className="form-actions">
+            <Button onClick={() => setPreview(null)}>Back</Button>
+            <Button variant="primary" loading={commit.isPending} disabled={preview.would_create === 0} onClick={() => commit.mutate()}>
+              Import {plural(preview.would_create, 'grade')}
+            </Button>
+          </div>
+        </>
+      )}
+    </Modal>
   )
 }
 

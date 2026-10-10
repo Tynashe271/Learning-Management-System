@@ -308,6 +308,8 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::delete('/appeals/{appeal}', [AppealController::class, 'withdraw']);
     Route::post('/assignments/{assignment}/submissions', [LmsController::class, 'submit'])->middleware('throttle:submissions');
     Route::get('/assignments/{assignment}/submissions', [LmsController::class, 'submissions']);
+    Route::get('/assignments/{assignment}/marking-pack', [LmsController::class, 'markingPack'])->middleware('throttle:heavy');
+    Route::post('/assignments/{assignment}/grades/import', [LmsController::class, 'importGrades'])->middleware('throttle:heavy');
     Route::get('/assignments/{assignment}/my-grade', [LmsController::class, 'myGrade']);
     Route::get('/assignments/{assignment}/my-group', [LmsController::class, 'myGroup']);
     Route::post('/submissions/{submission}/grades', [LmsController::class, 'grade']);

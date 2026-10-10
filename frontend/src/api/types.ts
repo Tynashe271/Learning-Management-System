@@ -717,6 +717,13 @@ export interface CopyResult {
   date_shift_days: number
 }
 
+export interface GradeImportResult {
+  dry_run: boolean
+  created: number
+  would_create: number
+  errors: { line: number; submission_id: string; errors: string[] }[]
+}
+
 export interface AuditEntry {
   id: number
   description: string
