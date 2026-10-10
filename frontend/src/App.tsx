@@ -20,6 +20,7 @@ import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SsoCallbackPage } fro
 import { Dashboard } from './pages/Dashboard'
 import { HelpPage } from './pages/HelpPage'
 import { NotificationsPage, ProfilePage } from './pages/account'
+import { ResourceLibraryPage } from './pages/ResourceLibraryPage'
 import { AppealPage, AppealsTab, MyAppealsPage } from './pages/courses/Appeals'
 import { AssignmentPage } from './pages/courses/AssignmentPage'
 import { AttemptPage } from './pages/courses/AttemptPage'
@@ -166,6 +167,7 @@ export function App() {
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="help" element={<HelpPage />} />
+        <Route path="resource-library" element={guard(['teach-courses', 'manage-courses'], <ResourceLibraryPage />)} />
 
         <Route path="admin/catalogue" element={guard(['manage-courses', 'manage-enrolments'], <CataloguePage />)} />
         <Route path="admin/users" element={guard(['manage-users', 'manage-enrolments'], <UsersPage />)} />

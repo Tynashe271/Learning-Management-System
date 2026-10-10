@@ -267,6 +267,7 @@ class LmsController extends Controller
             'title' => ['sometimes', 'string', 'max:255'],
             'position' => ['sometimes', 'integer', 'min:0'],
             'published' => ['sometimes', 'boolean'],
+            'is_shared' => ['sometimes', 'boolean'],
             'prerequisite_module_id' => [
                 'sometimes', 'nullable', 'integer',
                 Rule::exists('course_modules', 'id')->where('course_offering_id', $module->course_offering_id),

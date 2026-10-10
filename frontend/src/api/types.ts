@@ -249,8 +249,20 @@ export interface Module {
   title: string
   position: number
   published: boolean
+  is_shared?: boolean
   prerequisite_module_id?: number | null
   items?: LearningItem[]
+}
+
+export interface SharedResourceModule {
+  id: number
+  title: string
+  items_count: number
+  offering_id: number
+  course: { code: string; title: string }
+  term: string
+  section: string
+  teachers: string[]
 }
 
 export interface Progress {

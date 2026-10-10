@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\QuestionBankController;
 use App\Http\Controllers\Api\QuizAttemptController;
 use App\Http\Controllers\Api\QuizController;
 use App\Http\Controllers\Api\RegistrationController;
+use App\Http\Controllers\Api\ResourceLibraryController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\RubricController;
 use App\Http\Controllers\Api\SecurityEventController;
@@ -272,6 +273,10 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::patch('/items/{item}', [LmsController::class, 'updateItem']);
     Route::delete('/items/{item}', [ManagementController::class, 'deleteItem']);
     Route::get('/items/{item}/download', [LmsController::class, 'downloadItem']);
+
+    // Resource sharing: a cross-course library of topics teaching staff have chosen to share
+    Route::get('/resource-library/modules', [ResourceLibraryController::class, 'index']);
+    Route::post('/resource-library/modules/{module}/import', [ResourceLibraryController::class, 'import'])->middleware('throttle:heavy');
     Route::post('/items/{item}/complete', [ProgressController::class, 'complete']);
     Route::delete('/items/{item}/complete', [ProgressController::class, 'uncomplete']);
 

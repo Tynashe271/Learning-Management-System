@@ -48,6 +48,7 @@ export function Layout() {
     { to: '/admin/import', label: 'Import accounts', show: can('manage-users') },
     { to: '/admin/reports', label: 'Reports', show: can('manage-courses') || can('manage-enrolments') },
     { to: '/admin/transfer-students', label: 'Transfer students', show: can('manage-enrolments') },
+    { to: '/resource-library', label: 'Resource library', show: can('teach-courses') || can('manage-courses') },
   ]
   const institution: NavItem[] = [
     { to: '/admin/settings', label: 'Settings', show: can('manage-settings') || staffAdmin || can('manage-system') },

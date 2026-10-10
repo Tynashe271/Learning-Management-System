@@ -420,6 +420,38 @@ describe('transferring students between offerings', () => {
   })
 })
 
+describe('the resource library', () => {
+  it('lists shared topics and imports one into a chosen course', async () => {
+    const { calls } = mockApi({
+      ...signedInAs(adminMe),
+      'GET /resource-library/modules': () => ({
+        body: [{ id: 5, title: 'Week 1: Intro', items_count: 3, offering_id: 1, course: { code: 'CSC101', title: 'Computing' }, term: 'Semester 1', section: 'A', teachers: ['Lee Lecturer'] }],
+      }),
+      'GET /offerings': () => ({ body: { data: [{ id: 20, course_id: 2, academic_term_id: 1, section: 'B', published: true, course: { id: 2, code: 'MAT101', title: 'Calculus' } }], current_page: 1, last_page: 1, per_page: 100, total: 1, from: 1, to: 1 } }),
+      'POST /resource-library/modules/5/import': () => ({ status: 201, body: { id: 50, course_offering_id: 20, title: 'Week 1: Intro' } }),
+    })
+    const user = userEvent.setup()
+    renderApp(<App />, '/resource-library')
+
+    expect(await screen.findByText('Week 1: Intro')).toBeInTheDocument()
+    expect(screen.getByText('Lee Lecturer')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Import into…' }))
+    await user.selectOptions(await screen.findByLabelText('Import into'), '20')
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.path === '/resource-library/modules/5/import')).toBe(true))
+    const posted = calls.find((c) => c.method === 'POST' && c.path === '/resource-library/modules/5/import')?.body as Record<string, unknown>
+    expect(posted.destination_offering_id).toBe(20)
+  })
+
+  it('shows a message when nobody has shared a topic', async () => {
+    mockApi({ ...signedInAs(adminMe), 'GET /resource-library/modules': () => ({ body: [] }) })
+    renderApp(<App />, '/resource-library')
+
+    expect(await screen.findByText('Nobody has shared a topic yet.')).toBeInTheDocument()
+  })
+})
+
 describe('course registration by students', () => {
   const offering = (id: number, registration: Record<string, unknown>) => ({
     id,

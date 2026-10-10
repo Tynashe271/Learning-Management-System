@@ -2,17 +2,23 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CourseModule extends Model
 {
-    protected $fillable = ['course_offering_id', 'title', 'position', 'published', 'prerequisite_module_id'];
+    protected $fillable = ['course_offering_id', 'title', 'position', 'published', 'prerequisite_module_id', 'is_shared'];
 
     protected function casts(): array
     {
-        return ['published' => 'boolean'];
+        return ['published' => 'boolean', 'is_shared' => 'boolean'];
+    }
+
+    public function scopeShared(Builder $query): void
+    {
+        $query->where('is_shared', true);
     }
 
     public function offering(): BelongsTo

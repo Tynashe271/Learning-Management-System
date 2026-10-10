@@ -161,6 +161,7 @@ function TopicCard({
   const refresh = [['offering', offeringId]]
   const remove = useApiMutation(() => api.delete(`/modules/${module.id}`), { invalidate: refresh, success: 'Topic deleted.', toastError: true })
   const toggle = useApiMutation((published: boolean) => api.patch(`/modules/${module.id}`, { published }), { invalidate: refresh, toastError: true })
+  const toggleShared = useApiMutation((is_shared: boolean) => api.patch(`/modules/${module.id}`, { is_shared }), { invalidate: refresh, toastError: true })
   const items = module.items ?? []
   const trackable = items.length + assignments.length + quizzes.length
   const doneInModule = items.filter((item) => done.has(item.id)).length
@@ -185,7 +186,7 @@ function TopicCard({
       id={`module-${module.id}`}
       title={
         <>
-          {module.title} {manage && <PublishedBadge published={module.published} />}
+          {module.title} {manage && <PublishedBadge published={module.published} />} {manage && module.is_shared && <Badge tone="info">Shared</Badge>}
           {student && items.length > 0 && (
             <Badge tone={doneInModule === items.length ? 'good' : 'neutral'}>
               {doneInModule}/{items.length} complete
@@ -213,6 +214,9 @@ function TopicCard({
               </Button>
               <Button small onClick={() => toggle.mutate(!module.published)} loading={toggle.isPending}>
                 {module.published ? 'Unpublish' : 'Publish'}
+              </Button>
+              <Button small onClick={() => toggleShared.mutate(!module.is_shared)} loading={toggleShared.isPending}>
+                {module.is_shared ? 'Stop sharing' : 'Share with other lecturers'}
               </Button>
               <Button small onClick={onEdit}>
                 Edit
