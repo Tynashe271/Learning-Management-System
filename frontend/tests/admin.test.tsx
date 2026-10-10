@@ -312,6 +312,40 @@ describe('notices to everyone', () => {
   })
 })
 
+describe('reports', () => {
+  it('shows each teacher’s offerings, unmarked work and feedback time on the workload tab', async () => {
+    mockApi({
+      ...signedInAs(adminMe),
+      'GET /terms': () => ({ body: emptyPage }),
+      'GET /reports/workload': () => ({
+        body: {
+          teachers: [
+            {
+              id: 5,
+              name: 'Dr Ada Lovelace',
+              email: 'ada@example.test',
+              offerings: [{ id: 1, code: 'CSC101', title: 'Computing', term: 'Semester 1', section: 'A' }],
+              offerings_count: 1,
+              unmarked_submissions: 3,
+              unmarked_essay_answers: 2,
+              avg_feedback_hours: 7.5,
+              feedback_count: 4,
+            },
+          ],
+        },
+      }),
+    })
+    const user = userEvent.setup()
+    renderApp(<App />, '/admin/reports')
+    await user.click(await screen.findByRole('tab', { name: 'Workload' }))
+    expect(await screen.findByText('Dr Ada Lovelace')).toBeInTheDocument()
+    expect(screen.getByText('CSC101 · Semester 1 section A')).toBeInTheDocument()
+    expect(screen.getByText('3')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(screen.getByText('7.5h (4 graded)')).toBeInTheDocument()
+  })
+})
+
 describe('course registration by students', () => {
   const offering = (id: number, registration: Record<string, unknown>) => ({
     id,

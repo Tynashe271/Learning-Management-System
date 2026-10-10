@@ -906,6 +906,20 @@ export interface EnrolmentReport {
   total_enrolled: number
 }
 
+export interface WorkloadReport {
+  teachers: {
+    id: number
+    name: string
+    email: string
+    offerings: { id: number; code: string; title: string; term: string; section: string }[]
+    offerings_count: number
+    unmarked_submissions: number
+    unmarked_essay_answers: number
+    avg_feedback_hours: number | null
+    feedback_count: number
+  }[]
+}
+
 export type CompetencyStatusValue = 'not_started' | 'developing' | 'competent'
 
 export interface Competency {

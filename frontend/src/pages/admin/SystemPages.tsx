@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { AuditEntry, EnrolmentReport, Health, Overview, Page, Person, Term, UsageReport } from '../../api/types'
+import type { AuditEntry, EnrolmentReport, Health, Overview, Page, Person, Term, UsageReport, WorkloadReport } from '../../api/types'
 import { ROLE_LABELS } from '../../api/types'
 import { useAuth } from '../../auth/AuthContext'
 import { PersonPicker } from '../../components/PersonPicker'
@@ -115,7 +115,7 @@ function describe(properties: AuditEntry['properties']): string {
   return text.length > 160 ? `${text.slice(0, 157)}…` : text
 }
 
-type ReportTab = 'overview' | 'usage' | 'enrolment'
+type ReportTab = 'overview' | 'usage' | 'enrolment' | 'workload'
 
 export function ReportsPage() {
   useTitle('Reports')
@@ -126,6 +126,7 @@ export function ReportsPage() {
     { id: 'overview', label: 'Overview', show: full },
     { id: 'usage', label: 'Usage', show: full },
     { id: 'enrolment', label: 'Enrolment', show: true },
+    { id: 'workload', label: 'Workload', show: full },
   ]
   return (
     <>
@@ -142,6 +143,7 @@ export function ReportsPage() {
       {tab === 'overview' && <OverviewReport />}
       {tab === 'usage' && <UsageReportView />}
       {tab === 'enrolment' && <EnrolmentReportView />}
+      {tab === 'workload' && <WorkloadReportView />}
     </>
   )
 }
@@ -375,6 +377,64 @@ function EnrolmentReportView() {
             </Card>
           </div>
         </>
+      )}
+    </QueryView>
+  )
+}
+
+function WorkloadReportView() {
+  const query = useQuery({ queryKey: ['workload'], queryFn: () => api.get<WorkloadReport>('/reports/workload'), staleTime: 60_000 })
+  return (
+    <QueryView query={query}>
+      {(w) => (
+        <Card
+          title="Teacher workload"
+          actions={
+            <DownloadButton path="/reports/workload" filename="workload.csv" query={{ format: 'csv' }}>
+              Download as a spreadsheet
+            </DownloadButton>
+          }
+        >
+          {w.teachers.length === 0 ? (
+            <EmptyState title="No lecturers or teaching assistants yet" />
+          ) : (
+            <Table caption="Teacher workload">
+              <thead>
+                <tr>
+                  <th>Teacher</th>
+                  <th>Offerings</th>
+                  <th>Unmarked submissions</th>
+                  <th>Unmarked essay answers</th>
+                  <th>Average feedback time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {w.teachers.map((t) => (
+                  <tr key={t.id}>
+                    <td>
+                      {t.name}
+                      <span className="muted small block">{t.email}</span>
+                    </td>
+                    <td>
+                      {t.offerings_count === 0 ? (
+                        <span className="muted">none</span>
+                      ) : (
+                        t.offerings.map((o) => (
+                          <span key={o.id} className="muted small block">
+                            {o.code} · {o.term} section {o.section}
+                          </span>
+                        ))
+                      )}
+                    </td>
+                    <td>{t.unmarked_submissions}</td>
+                    <td>{t.unmarked_essay_answers}</td>
+                    <td>{t.avg_feedback_hours === null ? '—' : `${t.avg_feedback_hours}h (${t.feedback_count} graded)`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Card>
       )}
     </QueryView>
   )

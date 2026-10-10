@@ -10,6 +10,7 @@ use App\Models\Quiz;
 use App\Models\QuizAttempt;
 use App\Models\Submission;
 use App\Models\User;
+use App\Services\TeacherWorkload;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -190,6 +191,32 @@ class AdminReportController extends Controller
                 ->map(fn ($r) => ['offering_id' => $r->id, 'course' => "{$r->code} {$r->title}", 'section' => $r->section, 'term' => $r->term, 'enrolled' => (int) $r->enrolled])->values(),
             'total_enrolled' => (int) $rows->sum('enrolled'),
         ]);
+    }
+
+    /**
+     * How much each lecturer or teaching assistant is carrying right now: their offerings, how much work is still
+     * unmarked, and how long students wait for feedback - the institution-wide counterpart to a course's own
+     * response-time figure.
+     */
+    public function workload(Request $request): JsonResponse|StreamedResponse
+    {
+        abort_unless($request->user()->can('manage-courses'), 403);
+        $data = $request->validate(['format' => ['sometimes', 'in:json,csv']]);
+        $rows = Cache::remember('reports:workload', self::OVERVIEW_SECONDS, fn () => app(TeacherWorkload::class)->report());
+
+        if (($data['format'] ?? 'json') === 'csv') {
+            return response()->streamDownload(function () use ($rows) {
+                $out = fopen('php://output', 'w');
+                $put = fn (array $row) => fputcsv($out, array_map(fn ($cell) => $this->safeCell((string) $cell), $row), ',', '"', '');
+                $put(['Name', 'Email', 'Offerings', 'Unmarked submissions', 'Unmarked essay answers', 'Average feedback hours']);
+                foreach ($rows as $r) {
+                    $put([$r['name'], $r['email'], $r['offerings_count'], $r['unmarked_submissions'], $r['unmarked_essay_answers'], $r['avg_feedback_hours'] ?? '']);
+                }
+                fclose($out);
+            }, 'workload-'.now()->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv']);
+        }
+
+        return response()->json(['teachers' => $rows]);
     }
 
     /** Stops spreadsheet apps from running user-supplied text (names, titles) as a formula. */
