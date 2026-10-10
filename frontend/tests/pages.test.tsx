@@ -4,8 +4,10 @@ import { Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { tokenStore } from '../src/api/client'
 import type { Assignment, RubricCriterion, Submission } from '../src/api/types'
+import type { Quiz } from '../src/api/types'
 import { AttemptPage } from '../src/pages/courses/AttemptPage'
 import { GradeDialog } from '../src/pages/courses/GradeDialog'
+import { QuizPage } from '../src/pages/courses/QuizPage'
 import { RubricEditor } from '../src/pages/courses/Rubric'
 import { mockApi, renderApp } from './helpers'
 
@@ -187,5 +189,54 @@ describe('taking a quiz', () => {
     expect(screen.getByText('Correct')).toBeInTheDocument()
     expect(screen.getByText('Incorrect')).toBeInTheDocument()
     expect(screen.getByText('No answer')).toBeInTheDocument()
+  })
+})
+
+describe('a quiz’s question bank', () => {
+  const quiz: Quiz = {
+    id: 1, course_offering_id: 7, title: 'Week 1 quiz', instructions: null, opens_at: null, due_at: '2030-01-01T00:00:00Z',
+    time_limit_minutes: null, max_attempts: 1, questions_per_attempt: null, is_open_book: false, weight: null, published: false,
+    questions: [{ id: 10, type: 'essay', prompt: 'Discuss photosynthesis', points: 5, position: 1, options: [] }],
+  }
+
+  function renderQuiz() {
+    return renderApp(
+      <Routes>
+        <Route path="/quizzes/:id" element={<QuizPage />} />
+      </Routes>,
+      '/quizzes/1',
+    )
+  }
+
+  const shared = {
+    'GET /quizzes/1': () => ({ body: quiz }),
+    'GET /offerings/7': () => ({ body: { id: 7, course: { id: 1, code: 'BIO101', title: 'Biology' } } }),
+    'GET /quizzes/1/attempts': () => ({ body: { data: [], current_page: 1, last_page: 1, per_page: 20, total: 0, from: null, to: null } }),
+  }
+
+  it('saves an authored question to the lecturer’s own question bank', async () => {
+    const { calls } = mockApi({ ...shared, 'POST /questions/10/save-to-bank': () => ({ status: 201, body: { id: 50 } }) })
+    const user = userEvent.setup()
+    renderQuiz()
+    await user.click(await screen.findByRole('button', { name: 'Save to bank' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.path === '/questions/10/save-to-bank')).toBe(true))
+  })
+
+  it('inserts chosen bank items into the quiz', async () => {
+    const { calls } = mockApi({
+      ...shared,
+      'GET /question-bank': () => ({
+        body: { data: [{ id: 99, owner_id: 2, course_offering_id: null, type: 'single_choice', prompt: 'Capital of France?', points: 1, tags: ['geography'], options: [], created_at: '2026-01-01T00:00:00Z' }], current_page: 1, last_page: 1, per_page: 20, total: 1, from: 1, to: 1 },
+      }),
+      'POST /quizzes/1/questions/from-bank': () => ({ status: 201, body: [{ id: 11, type: 'single_choice', prompt: 'Capital of France?', points: 1, position: 2, options: [] }] }),
+    })
+    const user = userEvent.setup()
+    renderQuiz()
+    await user.click(await screen.findByRole('button', { name: 'From question bank' }))
+    await screen.findByText('Capital of France?')
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('button', { name: /Add 1 question/ }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.path === '/quizzes/1/questions/from-bank')).toBe(true))
+    expect(calls.find((c) => c.path === '/quizzes/1/questions/from-bank')?.body).toEqual({ bank_item_ids: [99] })
   })
 })

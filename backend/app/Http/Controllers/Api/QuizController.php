@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\CourseOffering;
+use App\Models\QuestionBankItem;
 use App\Models\Quiz;
 use App\Models\QuizQuestion;
 use App\Rules\CleanFile;
@@ -174,6 +175,57 @@ class QuizController extends Controller
         $question->delete();
 
         return response()->json(['message' => 'Question deleted.']);
+    }
+
+    /** Copies one authored question (and its options) into the caller's own reusable question bank. */
+    public function saveQuestionToBank(Request $request, QuizQuestion $question): JsonResponse
+    {
+        $quiz = $question->quiz;
+        $this->authorize('manage', $quiz->offering);
+        $data = $request->validate(['tags' => ['sometimes', 'nullable', 'array', 'max:10'], 'tags.*' => ['string', 'max:50']]);
+        $question->loadMissing('options');
+
+        $item = DB::transaction(function () use ($request, $quiz, $question, $data) {
+            $item = QuestionBankItem::create([
+                'owner_id' => $request->user()->id,
+                'course_offering_id' => $quiz->course_offering_id,
+                'type' => $question->type,
+                'prompt' => $question->prompt,
+                'points' => $question->points,
+                'tags' => $data['tags'] ?? null,
+            ]);
+            $item->options()->createMany($question->options->map(fn ($o) => ['text' => $o->text, 'is_correct' => $o->is_correct, 'position' => $o->position])->all());
+
+            return $item;
+        });
+
+        return response()->json($item->load('options'), 201);
+    }
+
+    /** Copies selected items from the caller's own question bank into this quiz's real questions, appended at the end. */
+    public function addQuestionsFromBank(Request $request, Quiz $quiz): JsonResponse
+    {
+        $this->authorize('manage', $quiz->offering);
+        $this->assertEditable($quiz);
+        $data = $request->validate([
+            'bank_item_ids' => ['required', 'array', 'min:1', 'max:50'],
+            'bank_item_ids.*' => ['integer', Rule::exists('question_bank_items', 'id')->where('owner_id', $request->user()->id)],
+        ]);
+        $items = QuestionBankItem::with('options')->whereIn('id', $data['bank_item_ids'])->where('owner_id', $request->user()->id)->get();
+
+        $questions = DB::transaction(function () use ($quiz, $items) {
+            $position = (int) $quiz->questions()->max('position') + 1;
+            $created = [];
+            foreach ($items as $item) {
+                $question = $quiz->questions()->create(['type' => $item->type, 'prompt' => $item->prompt, 'points' => $item->points, 'position' => $position++]);
+                $question->options()->createMany($item->options->map(fn ($o) => ['text' => $o->text, 'is_correct' => $o->is_correct, 'position' => $o->position])->all());
+                $created[] = $question->load('options');
+            }
+
+            return $created;
+        });
+
+        return response()->json($questions, 201);
     }
 
     /** Questions are locked once anyone has attempted the quiz, so past scores stay meaningful. */

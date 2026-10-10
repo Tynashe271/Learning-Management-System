@@ -519,6 +519,18 @@ export interface QuizQuestion {
   options: QuizOption[]
 }
 
+export interface QuestionBankItem {
+  id: number
+  owner_id: number
+  course_offering_id: number | null
+  type: QuestionType
+  prompt: string
+  points: number
+  tags: string[] | null
+  options: QuizOption[]
+  created_at: string
+}
+
 export interface Quiz {
   id: number
   course_offering_id: number

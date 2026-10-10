@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { AttemptInProgress, AttemptSummary, Module, Offering, Page, QuestionType, Quiz, QuizQuestion, StaffAttempt } from '../../api/types'
+import type { AttemptInProgress, AttemptSummary, Module, Offering, Page, QuestionBankItem, QuestionType, Quiz, QuizQuestion, StaffAttempt } from '../../api/types'
 import { QUESTION_TYPE_LABELS } from '../../api/types'
 import { Alert, Badge, Button, Card, EmptyState, ErrorState, FormError, Loading, Modal, PageHeader, Pager, PublishedBadge, QueryView, SelectField, Table, TextArea, TextField, pagerFromPage, useConfirm } from '../../components/ui'
 import { formatDateTime, formatScore, isPast, plural } from '../../lib/format'
@@ -144,6 +144,7 @@ function ManagerView({ quiz, modules }: { quiz: Quiz; modules: Module[] }) {
   const confirm = useConfirm()
   const [editing, setEditing] = useState(false)
   const [question, setQuestion] = useState<QuizQuestion | 'new' | null>(null)
+  const [pickingFromBank, setPickingFromBank] = useState(false)
   const [page, setPage] = useState(1)
   const questions = quiz.questions ?? []
   const totalPoints = questions.reduce((sum, q) => sum + q.points, 0)
@@ -151,6 +152,7 @@ function ManagerView({ quiz, modules }: { quiz: Quiz; modules: Module[] }) {
   const attempts = useQuery({ queryKey: ['quiz', quiz.id, 'attempts', page], queryFn: () => api.get<Page<StaffAttempt>>(`/quizzes/${quiz.id}/attempts`, { page }), placeholderData: (previous) => previous })
   const remove = useApiMutation(() => api.delete(`/quizzes/${quiz.id}`), { invalidate: [['offering', quiz.course_offering_id]], success: 'Quiz deleted.', onSuccess: () => navigate(`/courses/${quiz.course_offering_id}/classwork`), toastError: true })
   const removeQuestion = useApiMutation((qid: number) => api.delete(`/questions/${qid}`), { invalidate: [['quiz', quiz.id]], success: 'Question deleted.', toastError: true })
+  const saveToBank = useApiMutation((qid: number) => api.post(`/questions/${qid}/save-to-bank`, {}), { success: 'Saved to your question bank.', toastError: true })
   const hasAttempts = (attempts.data?.total ?? 0) > 0
 
   return (
@@ -200,9 +202,14 @@ function ManagerView({ quiz, modules }: { quiz: Quiz; modules: Module[] }) {
       <Card
         title="Questions"
         actions={
-          <Button small variant="primary" onClick={() => setQuestion('new')} disabled={hasAttempts} title={hasAttempts ? 'Questions are locked once someone has attempted the quiz' : undefined}>
-            Add a question
-          </Button>
+          <>
+            <Button small onClick={() => setPickingFromBank(true)} disabled={hasAttempts} title={hasAttempts ? 'Questions are locked once someone has attempted the quiz' : undefined}>
+              From question bank
+            </Button>
+            <Button small variant="primary" onClick={() => setQuestion('new')} disabled={hasAttempts} title={hasAttempts ? 'Questions are locked once someone has attempted the quiz' : undefined}>
+              Add a question
+            </Button>
+          </>
         }
       >
         {hasAttempts && <Alert tone="info">Questions are locked because students have attempted this quiz. Unpublish it instead of changing questions, so past scores stay meaningful.</Alert>}
@@ -231,6 +238,9 @@ function ManagerView({ quiz, modules }: { quiz: Quiz; modules: Module[] }) {
                   <div className="form-actions left">
                     <Button small onClick={() => setQuestion(q)}>
                       Edit
+                    </Button>
+                    <Button small loading={saveToBank.isPending && saveToBank.variables === q.id} onClick={() => saveToBank.mutate(q.id)}>
+                      Save to bank
                     </Button>
                     <Button small variant="danger" onClick={() => removeQuestion.mutate(q.id)}>
                       Delete
@@ -286,7 +296,66 @@ function ManagerView({ quiz, modules }: { quiz: Quiz; modules: Module[] }) {
 
       {editing && <QuizDialog offeringId={quiz.course_offering_id} modules={modules} quiz={quiz} onClose={() => setEditing(false)} />}
       {question && <QuestionDialog quiz={quiz} question={question === 'new' ? null : question} onClose={() => setQuestion(null)} />}
+      {pickingFromBank && <BankPickerDialog quiz={quiz} onClose={() => setPickingFromBank(false)} />}
     </>
+  )
+}
+
+/** Browse the caller's own question bank and copy selected items into this quiz, appended at the end. */
+function BankPickerDialog({ quiz, onClose }: { quiz: Quiz; onClose: () => void }) {
+  const [type, setType] = useState<QuestionType | ''>('')
+  const [q, setQ] = useState('')
+  const [selected, setSelected] = useState<number[]>([])
+  const bank = useQuery({ queryKey: ['question-bank', type, q], queryFn: () => api.get<Page<QuestionBankItem>>('/question-bank', { type: type || undefined, q: q || undefined }) })
+  const insert = useApiMutation<void, QuizQuestion[]>(() => api.post(`/quizzes/${quiz.id}/questions/from-bank`, { bank_item_ids: selected }), {
+    invalidate: [['quiz', quiz.id]],
+    success: (data) => `${data.length} question${data.length === 1 ? '' : 's'} added.`,
+    onSuccess: onClose,
+    toastError: true,
+  })
+
+  return (
+    <Modal title="Add from your question bank" onClose={onClose} wide>
+      <div className="filters">
+        <TextField label="Search" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your bank's prompts" />
+        <SelectField label="Type" value={type} onChange={(e) => setType(e.target.value as QuestionType | '')}>
+          <option value="">Any</option>
+          {Object.entries(QUESTION_TYPE_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </SelectField>
+      </div>
+      <QueryView query={bank} isEmpty={(d) => d.data.length === 0} empty={<EmptyState title="Your question bank is empty">Save a question from any quiz to your bank, then reuse it here.</EmptyState>}>
+        {(data) => (
+          <ul className="questions">
+            {data.data.map((item) => (
+              <li key={item.id}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(item.id)}
+                    onChange={(e) => setSelected((s) => (e.target.checked ? [...s, item.id] : s.filter((id) => id !== item.id)))}
+                  />{' '}
+                  <strong>{item.prompt}</strong>
+                </label>
+                <span className="muted small block">
+                  {QUESTION_TYPE_LABELS[item.type]} · {plural(item.points, 'point')}
+                  {item.tags && item.tags.length > 0 && ` · ${item.tags.join(', ')}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </QueryView>
+      <div className="form-actions">
+        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="primary" loading={insert.isPending} disabled={selected.length === 0} onClick={() => insert.mutate()}>
+          Add {selected.length > 0 ? selected.length : ''} question{selected.length === 1 ? '' : 's'}
+        </Button>
+      </div>
+    </Modal>
   )
 }
 

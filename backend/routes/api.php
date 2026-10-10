@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\LmsController;
 use App\Http\Controllers\Api\ManagementController;
 use App\Http\Controllers\Api\ProgressController;
 use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\QuestionBankController;
 use App\Http\Controllers\Api\QuizAttemptController;
 use App\Http\Controllers\Api\QuizController;
 use App\Http\Controllers\Api\RegistrationController;
@@ -320,6 +321,14 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::post('/quizzes/{quiz}/questions', [QuizController::class, 'addQuestion']);
     Route::patch('/questions/{question}', [QuizController::class, 'updateQuestion']);
     Route::delete('/questions/{question}', [QuizController::class, 'deleteQuestion']);
+
+    // Question bank
+    Route::post('/questions/{question}/save-to-bank', [QuizController::class, 'saveQuestionToBank']);
+    Route::post('/quizzes/{quiz}/questions/from-bank', [QuizController::class, 'addQuestionsFromBank']);
+    Route::get('/question-bank', [QuestionBankController::class, 'index']);
+    Route::post('/question-bank', [QuestionBankController::class, 'store']);
+    Route::patch('/question-bank/{item}', [QuestionBankController::class, 'update']);
+    Route::delete('/question-bank/{item}', [QuestionBankController::class, 'destroy']);
     Route::get('/quizzes/{quiz}/attempts', [QuizAttemptController::class, 'index']);
     Route::post('/quizzes/{quiz}/attempts', [QuizAttemptController::class, 'start'])->middleware('throttle:submissions');
     Route::get('/quizzes/{quiz}/my-attempts', [QuizAttemptController::class, 'mine']);
