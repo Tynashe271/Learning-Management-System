@@ -1426,6 +1426,11 @@ td .field > label {
   }
   .sidebar-open {
     display: block;
+    /* Without this it only grows as tall as its own nav links, leaving most of the screen showing page content
+       underneath instead of reading as a full menu. 51px is the topbar's measured mobile height. */
+    min-height: calc(100vh - 51px);
+    min-height: calc(100dvh - 51px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
   }
   .profile-text {
     display: none;
