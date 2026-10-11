@@ -14,7 +14,7 @@ export function CourseCard({ offering }: { offering: Offering }) {
 
   return (
     <Link to={`/courses/${offering.id}`} state={{ offering }} className="course-card">
-      <div className="course-card-banner" style={{ background: accentFor(offering.course?.code ?? '') }}>
+      <div className="course-card-banner">
         <div className="course-card-banner-text">
           <strong className="course-card-code">{offering.course?.code}</strong>
           <span className="course-card-title">{offering.course?.title}</span>
@@ -40,13 +40,4 @@ export function CourseCard({ offering }: { offering: Offering }) {
       </div>
     </Link>
   )
-}
-
-const ACCENTS = ['#2c4f7c', '#3c6e5c', '#7a5a2e', '#5a3c5e', '#2e5c68', '#5e4a2c']
-
-/** A stable, muted accent color per course code so cards read as distinct subjects rather than identical rows. */
-function accentFor(code: string) {
-  let hash = 0
-  for (let i = 0; i < code.length; i++) hash = (hash * 31 + code.charCodeAt(i)) >>> 0
-  return ACCENTS[hash % ACCENTS.length]
 }
