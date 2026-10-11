@@ -31,28 +31,8 @@
   --nav-active-bg: #315d8a;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1520;
-    --surface: #171f2e;
-    --surface-2: #1f2a3d;
-    --text: #e8edf5;
-    --muted: #9aa7bd;
-    --border: #2b374d;
-    --primary: #5b9cf0;
-    --primary-hover: #7bb0f5;
-    --primary-text: #08111f;
-    --danger: #ff8a80;
-    --danger-bg: #3a1c1a;
-    --good: #7fd19a;
-    --good-bg: #17301f;
-    --warn: #f3c56b;
-    --warn-bg: #3a2e10;
-    --info: #7cc7ea;
-    --info-bg: #14303e;
-    color-scheme: dark;
-  }
-}
+/* One fixed theme, regardless of the visitor's OS/browser preference: a formal university portal should look the same
+   for everyone, not switch to a different palette on its own. */
 
 /* Accessibility: font size and contrast, set from the "Display" menu and remembered per device (localStorage). */
 html[data-font-size='large'] {
@@ -67,15 +47,6 @@ html[data-contrast='high'] {
   --border: #000000;
   --bg: #ffffff;
   --surface: #ffffff;
-}
-@media (prefers-color-scheme: dark) {
-  html[data-contrast='high'] {
-    --text: #ffffff;
-    --muted: #e6e6e6;
-    --border: #ffffff;
-    --bg: #000000;
-    --surface: #000000;
-  }
 }
 
 * {
@@ -539,20 +510,8 @@ pre.code {
   min-width: 0;
 }
 
-/* Student learning experience: scoped so admin/lecturer/registrar screens are untouched. */
-.shell.student-mode {
-  --primary: #3f7d5c;
-  --primary-hover: #336a4c;
-  --radius: 16px;
-  --shadow: 0 1px 2px rgba(20, 30, 50, 0.08);
-}
-@media (prefers-color-scheme: dark) {
-  .shell.student-mode {
-    --primary: #7fd19a;
-    --primary-hover: #97dbae;
-    --primary-text: #08111f;
-  }
-}
+/* Student learning experience: scoped so admin/lecturer/registrar screens are untouched. Uses the same navy/blue
+   palette as every other role - one consistent theme, not a different accent color per role. */
 .student-mode .section-title {
   font-weight: 700;
   letter-spacing: -0.01em;
