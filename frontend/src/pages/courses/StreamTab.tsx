@@ -4,12 +4,13 @@ import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import type { AiReply, AiStudentMode, AiTeachingMode, Announcement, Page } from '../../api/types'
 import { useMe } from '../../auth/AuthContext'
+import { Icon, type IconName } from '../../components/Icon'
 import { Avatar, Badge, Button, Card, CheckField, EmptyState, ErrorState, FormError, Loading, SelectField, TextArea, TextField } from '../../components/ui'
 import { formatDateTime, relativeTime } from '../../lib/format'
 import { fieldError, useApiMutation } from '../../lib/hooks'
 import { useOffering } from './context'
 
-type FeedItem = { key: string; at: string; icon: string; kind: string; title: string; to?: string; body?: string; author?: string; urgent?: boolean }
+type FeedItem = { key: string; at: string; icon: IconName; kind: string; title: string; to?: string; body?: string; author?: string; urgent?: boolean }
 
 /** The course's landing tab: a reverse-chronological feed of what's new, Classroom-style. */
 export function StreamTab() {
@@ -17,13 +18,13 @@ export function StreamTab() {
   const announcements = useQuery({ queryKey: ['announcements', id, 1], queryFn: () => api.get<Page<Announcement>>(`/offerings/${id}/announcements`, { page: 1 }) })
 
   const feed: FeedItem[] = [
-    ...(announcements.data?.data.map((a) => ({ key: `an${a.id}`, at: a.created_at, icon: a.urgent ? '🚨' : '📣', kind: 'Announcement', title: a.title, body: a.body, author: a.author?.name, urgent: a.urgent })) ?? []),
+    ...(announcements.data?.data.map((a) => ({ key: `an${a.id}`, at: a.created_at, icon: (a.urgent ? 'warning' : 'megaphone') as IconName, kind: 'Announcement', title: a.title, body: a.body, author: a.author?.name, urgent: a.urgent })) ?? []),
     ...(offering.assignments ?? [])
       .filter((a) => a.published && a.created_at)
-      .map((a) => ({ key: `as${a.id}`, at: a.created_at as string, icon: '📝', kind: 'New assignment', title: a.title, to: `/assignments/${a.id}` })),
+      .map((a) => ({ key: `as${a.id}`, at: a.created_at as string, icon: 'document' as IconName, kind: 'New assignment', title: a.title, to: `/assignments/${a.id}` })),
     ...(offering.quizzes ?? [])
       .filter((q) => q.published && q.created_at)
-      .map((q) => ({ key: `qz${q.id}`, at: q.created_at as string, icon: '❓', kind: 'New quiz', title: q.title, to: `/quizzes/${q.id}` })),
+      .map((q) => ({ key: `qz${q.id}`, at: q.created_at as string, icon: 'help' as IconName, kind: 'New quiz', title: q.title, to: `/quizzes/${q.id}` })),
   ].sort((a, b) => b.at.localeCompare(a.at))
 
   const withHours = (offering.teachers ?? []).filter((t) => t.consultation_hours)
@@ -47,7 +48,7 @@ export function StreamTab() {
       {announcements.isError && <ErrorState error={announcements.error} onRetry={() => void announcements.refetch()} />}
       {announcements.data && feed.length === 0 && (
         <Card>
-          <EmptyState title="Nothing posted yet" icon="🎬">
+          <EmptyState title="Nothing posted yet">
             {manage ? 'Share an announcement, or publish content, an assignment or a quiz — it will show up here for your class.' : 'Announcements and new coursework from your teacher will appear here.'}
           </EmptyState>
         </Card>
@@ -55,8 +56,8 @@ export function StreamTab() {
       {feed.map((item) => (
         <Card key={item.key}>
           <div className="stream-item">
-            <span className="stream-icon" aria-hidden="true">
-              {item.icon}
+            <span className="stream-icon">
+              <Icon name={item.icon} />
             </span>
             <div className="grow">
               <div className="muted small">

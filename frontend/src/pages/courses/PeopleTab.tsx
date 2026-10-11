@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { api } from '../../api/client'
 import type { Accommodation, CourseAnalytics, Enrolment, EnrolmentImportResult, OfferingEngagement, OfferingSummary, Person, Roster, RoleName, Teacher } from '../../api/types'
 import { useAuth, useMe } from '../../auth/AuthContext'
+import { Icon } from '../../components/Icon'
 import { PersonPicker } from '../../components/PersonPicker'
 import { Alert, Badge, Button, Card, EmptyState, FileField, FormError, Modal, Pager, QueryView, SelectField, Table, TextArea, TextField, pagerFromMeta, useConfirm } from '../../components/ui'
 import { formatDateTime, plural } from '../../lib/format'
@@ -190,7 +191,11 @@ export function PeopleTab() {
                     <div className="grow">
                       <strong>{t.user?.name}</strong>
                       <span className="muted small block">{t.user?.email}</span>
-                      {t.consultation_hours && <span className="small block">🕘 {t.consultation_hours}</span>}
+                      {t.consultation_hours && (
+                        <span className="small block">
+                          <Icon name="clock" size={13} /> {t.consultation_hours}
+                        </span>
+                      )}
                     </div>
                     {(admin || t.user_id === me.id) && (
                       <Button small onClick={() => setSettingHoursFor(t)}>

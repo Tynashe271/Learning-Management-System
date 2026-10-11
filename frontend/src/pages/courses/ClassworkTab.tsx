@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { api } from '../../api/client'
 import type { Assignment, LearningItem, Module, Offering, Progress, Quiz } from '../../api/types'
+import { Icon, type IconName } from '../../components/Icon'
 import { Badge, Button, Card, CheckField, EmptyState, FileField, FormError, Modal, ProgressRing, PublishedBadge, SelectField, TextArea, TextField, useConfirm } from '../../components/ui'
 import { DownloadButton, bool, fieldError, useApiMutation } from '../../lib/hooks'
 import { formatDateTime, formatPercent, isPast } from '../../lib/format'
@@ -71,7 +72,7 @@ export function ClassworkTab() {
       )}
       {isEmpty && (
         <Card>
-          <EmptyState title="No classwork yet" icon="📚" action={manage ? <Button variant="primary" onClick={() => setModuleDialog('new')}>Add the first topic</Button> : undefined}>
+          <EmptyState title="No classwork yet" action={manage ? <Button variant="primary" onClick={() => setModuleDialog('new')}>Add the first topic</Button> : undefined}>
             {manage ? 'Topics group your readings, links, files, assignments and quizzes. Students see a topic once you publish its contents.' : 'Your teacher has not published any classwork yet.'}
           </EmptyState>
         </Card>
@@ -172,7 +173,10 @@ function TopicCard({
         id={`module-${module.id}`}
         title={
           <>
-            {module.title} <Badge tone="neutral">🔒 Locked</Badge>
+            {module.title}{' '}
+            <Badge tone="neutral">
+              <Icon name="lock" size={12} /> Locked
+            </Badge>
           </>
         }
       >
@@ -252,7 +256,7 @@ function TopicCard({
   )
 }
 
-const ICONS: Record<LearningItem['type'], string> = { text: '📄', link: '🔗', file: '📎' }
+const ICONS: Record<LearningItem['type'], IconName> = { text: 'document', link: 'link', file: 'paperclip' }
 
 function ItemRow({
   item,
@@ -282,7 +286,7 @@ function ItemRow({
     <li className={`item${done ? ' item-done' : ''}${isNext ? ' item-next' : ''}`}>
       <div className="item-main">
         {student && <input type="checkbox" aria-label={`Mark “${item.title}” as done`} checked={done} disabled={complete.isPending} onChange={(e) => complete.mutate(e.target.checked)} />}
-        <span aria-hidden="true">{ICONS[item.type]}</span>
+        <Icon name={ICONS[item.type]} />
         <div className="grow">
           <strong>{item.title}</strong> {manage && <PublishedBadge published={item.published} />}
           {item.type === 'link' && item.body && (
@@ -336,7 +340,7 @@ function AssignmentRow({ assignment, manage }: { assignment: Assignment; manage:
   return (
     <li className="item">
       <div className="item-main">
-        <span aria-hidden="true">📝</span>
+        <Icon name="document" />
         <div className="grow">
           <Link to={`/assignments/${assignment.id}`}>
             <strong>{assignment.title}</strong>
@@ -360,7 +364,7 @@ function QuizRow({ quiz, manage }: { quiz: Quiz; manage: boolean }) {
   return (
     <li className="item">
       <div className="item-main">
-        <span aria-hidden="true">❓</span>
+        <Icon name="help" />
         <div className="grow">
           <Link to={`/quizzes/${quiz.id}`}>
             <strong>{quiz.title}</strong>

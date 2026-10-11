@@ -42,9 +42,9 @@ export function CourseCard({ offering }: { offering: Offering }) {
   )
 }
 
-const ACCENTS = ['#5b9cf0', '#7fd19a', '#f3c56b', '#e08ac4', '#7cc7ea', '#f0a67e']
+const ACCENTS = ['#2c4f7c', '#3c6e5c', '#7a5a2e', '#5a3c5e', '#2e5c68', '#5e4a2c']
 
-/** A stable, cheerful accent color per course code so cards read as distinct subjects rather than identical rows. */
+/** A stable, muted accent color per course code so cards read as distinct subjects rather than identical rows. */
 function accentFor(code: string) {
   let hash = 0
   for (let i = 0; i < code.length; i++) hash = (hash * 31 + code.charCodeAt(i)) >>> 0

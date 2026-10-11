@@ -538,7 +538,7 @@ pre.code {
   border-bottom-width: 4px;
 }
 .student-mode .hero {
-  background: linear-gradient(155deg, var(--surface) 0%, var(--surface-2) 130%);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
@@ -619,7 +619,6 @@ pre.code {
   flex-direction: column;
   justify-content: space-between;
   color: #fff;
-  background-image: radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.16), transparent 55%);
 }
 .course-card-banner-text {
   display: flex;

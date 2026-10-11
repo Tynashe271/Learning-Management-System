@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import type { Agenda, DigestSummary, Notification, Offering, Overview, Page } from '../api/types'
 import { ROLE_LABELS } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
+import { Icon } from '../components/Icon'
 import { Alert, Badge, Card, EmptyState, ErrorState, Loading, PageHeader, QueryView, Stat } from '../components/ui'
 import { formatDateTime, plural, relativeTime } from '../lib/format'
 import { useTitle } from '../lib/hooks'
@@ -63,8 +64,8 @@ function StaffDashboard() {
           <ul className="list">
             {agenda.data.sessions.slice(0, 5).map((s, i) => (
               <li key={i}>
-                <span className="agenda-icon" aria-hidden="true">
-                  🎥
+                <span className="agenda-icon">
+                  <Icon name="video" />
                 </span>
                 <span>
                   <strong>{s.title}</strong>

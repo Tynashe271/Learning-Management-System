@@ -8,6 +8,7 @@ import { useAuth } from '../auth/AuthContext'
 import { useDisplayPrefs } from '../lib/display'
 import { institutionName, useAuthConfig } from '../lib/institution'
 import { useOnline } from '../lib/online'
+import { Icon } from './Icon'
 import { Alert, Avatar } from './ui'
 
 interface NavItem {
@@ -78,7 +79,7 @@ export function Layout() {
       </a>
       <header className="topbar">
         <button type="button" className="icon-btn menu-btn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
-          ☰
+          <Icon name="menu" size={20} />
         </button>
         <Link to="/" className="brand">
           <img src="/favicon.svg" alt="" width="28" height="28" />
@@ -86,7 +87,7 @@ export function Layout() {
         </Link>
         <div className="topbar-right">
           <Link to="/notifications" className="bell" aria-label={unreadNotifications ? `Notifications, ${unreadNotifications} unread` : 'Notifications'}>
-            <span aria-hidden="true">🔔</span>
+            <Icon name="bell" size={20} />
             {unreadNotifications > 0 && <span className="count">{unreadNotifications}</span>}
           </Link>
           <Link to="/profile" className="profile-link">

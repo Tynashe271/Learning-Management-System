@@ -5,6 +5,7 @@ import { api } from '../api/client'
 import type { Agenda, AgendaDeadline, AgendaSession, Insights, Offering, Page, Progress } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import { CourseCard } from '../components/CourseCard'
+import { Icon } from '../components/Icon'
 import { Badge, Button, Card, EmptyState, ErrorState, Loading, ProgressRing } from '../components/ui'
 import { dayLabel, formatTime, plural } from '../lib/format'
 import { useTitle } from '../lib/hooks'
@@ -55,7 +56,7 @@ export function StudentDashboard() {
       {offerings.isPending && <Loading />}
       {offerings.isError && <ErrorState error={offerings.error} onRetry={() => void offerings.refetch()} />}
       {offerings.data && enrolled.length === 0 && (
-        <EmptyState title="No courses yet" icon="🎓">
+        <EmptyState title="No courses yet">
           You will see your courses here once you are enrolled in one that has been published.
         </EmptyState>
       )}
@@ -72,7 +73,7 @@ export function StudentDashboard() {
           {agenda.isPending && <Loading />}
           {agenda.isError && <p className="muted">We could not load your agenda just now. {(agenda.error as Error).message}</p>}
           {agenda.data && agenda.data.sessions.length === 0 && agenda.data.deadlines.length === 0 && (
-            <EmptyState title="Nothing on your plate this week" icon="🎉">
+            <EmptyState title="Nothing on your plate this week">
               No classes and nothing due for the next 7 days.
             </EmptyState>
           )}
@@ -84,7 +85,7 @@ export function StudentDashboard() {
             {insights.isPending && <Loading />}
             {insights.isError && <p className="muted">We could not load this just now.</p>}
             {insights.data && insights.data.missing.length === 0 && (
-              <EmptyState title="Nothing overdue" icon="✅">
+              <EmptyState title="Nothing overdue">
                 Everything that has come due so far is submitted.
               </EmptyState>
             )}
@@ -114,8 +115,8 @@ export function StudentDashboard() {
               <ul className="agenda">
                 {insights.data.recent_feedback.map((f, i) => (
                   <li key={i}>
-                    <span className="agenda-icon" aria-hidden="true">
-                      💬
+                    <span className="agenda-icon">
+                      <Icon name="message" />
                     </span>
                     <span>
                       <strong>{f.assignment}</strong>
@@ -138,8 +139,8 @@ export function StudentDashboard() {
               <ul className="agenda">
                 {insights.data.weak_topics.map((t) => (
                   <li key={t.module_id}>
-                    <span className="agenda-icon" aria-hidden="true">
-                      📉
+                    <span className="agenda-icon">
+                      <Icon name="trend-down" />
                     </span>
                     <span>
                       <Link to={`/courses/${t.offering_id}/classwork#module-${t.module_id}`}>
@@ -175,8 +176,8 @@ function WeeklyPlan({ agenda }: { agenda: Agenda }) {
       at: s.at,
       node: (
         <>
-          <span className="agenda-icon" aria-hidden="true">
-            🎥
+          <span className="agenda-icon">
+            <Icon name="video" />
           </span>
           <span>
             <strong>{s.title}</strong>
@@ -192,8 +193,8 @@ function WeeklyPlan({ agenda }: { agenda: Agenda }) {
       at: d.at,
       node: (
         <>
-          <span className="agenda-icon" aria-hidden="true">
-            {d.type === 'quiz' ? '❓' : '📝'}
+          <span className="agenda-icon">
+            <Icon name={d.type === 'quiz' ? 'help' : 'document'} />
           </span>
           <span>
             <strong>{d.title}</strong>
@@ -240,8 +241,8 @@ function MissingRow({ item }: { item: AgendaDeadline }) {
   const link = item.type === 'quiz' ? `/quizzes/${item.id}` : `/assignments/${item.id}`
   return (
     <li>
-      <span className="agenda-icon" aria-hidden="true">
-        ⚠️
+      <span className="agenda-icon">
+        <Icon name="warning" />
       </span>
       <span>
         <Link to={link}>

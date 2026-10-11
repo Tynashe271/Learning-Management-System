@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../../api/client'
 import type { AttendanceStatus, AttendanceSummary, CheckinStatus, ClassSession, HandRaise, RollEntry, SessionQuestion } from '../../api/types'
 import { ATTENDANCE_STATUSES } from '../../api/types'
+import { Icon } from '../../components/Icon'
 import { Alert, Badge, Button, Card, EmptyState, FormError, Modal, Pager, QueryView, SelectField, Stat, Table, TextArea, TextField, pagerFromMeta, useConfirm, useToast } from '../../components/ui'
 import { useAuth } from '../../auth/AuthContext'
 import { formatDateTime, formatPercent, formatTime, fromLocalInput, isPast, toLocalInput } from '../../lib/format'
@@ -211,7 +212,13 @@ function HandRaiseButton({ session, offeringId }: { session: ClassSession; offer
   })
   return (
     <Button small variant={raised ? 'danger' : 'primary'} loading={toggle.isPending} onClick={() => toggle.mutate()}>
-      {raised ? 'Lower hand' : '✋ Raise hand'}
+      {raised ? (
+        'Lower hand'
+      ) : (
+        <>
+          <Icon name="hand" size={14} /> Raise hand
+        </>
+      )}
     </Button>
   )
 }
@@ -350,7 +357,7 @@ function HandRaisePanel({ session }: { session: ClassSession }) {
           {hands.data.map((h) => (
             <li key={h.user.id}>
               <span className="grow">
-                ✋ {h.user.name} <span className="muted small">{formatTime(h.raised_at)}</span>
+                <Icon name="hand" size={14} /> {h.user.name} <span className="muted small">{formatTime(h.raised_at)}</span>
               </span>
               <Button small loading={clear.isPending && clear.variables === h.user.id} onClick={() => clear.mutate(h.user.id)}>
                 Lower
