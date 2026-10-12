@@ -57,11 +57,23 @@ class DatabaseSeeder extends Seeder
         }
         Role::findByName('super-admin', 'web')->syncPermissions(array_keys(self::PERMISSIONS));
 
+        // The admin's credentials are an environment secret (LMS_ADMIN_EMAIL/LMS_ADMIN_PASSWORD), never
+        // committed. Lecturer and student are fixed, non-secret demo accounts, the same on every environment,
+        // so there is always a known non-admin login too. Re-running the seed resets each back to its
+        // documented value, so none of the three can drift out of sync with what's expected.
         if (env('LMS_ADMIN_EMAIL') && env('LMS_ADMIN_PASSWORD')) {
-            $user = User::firstOrCreate(['email' => env('LMS_ADMIN_EMAIL')], [
+            $admin = User::updateOrCreate(['email' => env('LMS_ADMIN_EMAIL')], [
                 'name' => 'System Administrator', 'password' => env('LMS_ADMIN_PASSWORD'),
             ]);
-            $user->assignRole('super-admin');
+            $admin->syncRoles(['super-admin']);
+        }
+
+        foreach ([
+            ['lecturer@university.local', 'Lecturer@12345678', 'Lecturer One', 'lecturer'],
+            ['student@university.local', 'Student@12345678', 'Student One', 'student'],
+        ] as [$email, $password, $name, $role]) {
+            $user = User::updateOrCreate(['email' => $email], ['name' => $name, 'password' => $password]);
+            $user->syncRoles([$role]);
         }
     }
 }
