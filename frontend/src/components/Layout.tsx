@@ -22,11 +22,15 @@ export function Layout() {
   const { user, can, hasRole, logout, isStudentOnly } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const [menuOpen, setMenuOpen] = useState(false)
+  // Open by default on desktop (a static sidebar), closed by default on mobile (a drawer) - the same flag drives both,
+  // see the "sidebar-open"/"sidebar-collapsed" CSS.
+  const [menuOpen, setMenuOpen] = useState(() => window.innerWidth > 860)
   const online = useOnline()
   useDisplayPrefs() // applies the remembered font size and contrast to the whole app, not just the account page
 
-  useEffect(() => setMenuOpen(false), [location.pathname])
+  useEffect(() => {
+    if (window.innerWidth <= 860) setMenuOpen(false)
+  }, [location.pathname])
 
   const config = useAuthConfig()
   const notifications = useQuery({ queryKey: ['notifications', 'bell'], queryFn: () => api.get<Page<Notification>>('/notifications'), refetchInterval: 60_000, staleTime: 30_000 })
@@ -78,7 +82,13 @@ export function Layout() {
         Skip to content
       </a>
       <header className="topbar">
-        <button type="button" className="icon-btn menu-btn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
+        <button
+          type="button"
+          className="icon-btn menu-btn"
+          aria-label={menuOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
           <Icon name="menu" size={20} />
         </button>
         <Link to="/" className="brand">
@@ -114,7 +124,7 @@ export function Layout() {
           You are offline. Changes cannot be saved until the connection returns.
         </div>
       )}
-      <div className="body">
+      <div className={`body${menuOpen ? '' : ' sidebar-collapsed'}`}>
         {menuOpen && <button type="button" className="sidebar-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />}
         <nav className={`sidebar${menuOpen ? ' sidebar-open' : ''}`} aria-label="Main">
           <div className="nav-group">{renderNav(main)}</div>

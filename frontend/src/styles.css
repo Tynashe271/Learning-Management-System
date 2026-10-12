@@ -194,7 +194,7 @@ pre.code {
   gap: 0.75rem;
 }
 .menu-btn {
-  display: none;
+  display: inline-block;
 }
 .bell {
   position: relative;
@@ -260,6 +260,29 @@ pre.code {
   border-right: 1px solid var(--nav-border);
   background: var(--nav-bg);
   color: var(--nav-text);
+  overflow: hidden;
+}
+/* The desktop collapsible sidebar. Scoped to widths above the mobile breakpoint (see max-width: 860px below) so this
+   never fights the mobile drawer's own layout rules - ".sidebar-collapsed" is also the default (closed) class on mobile. */
+@media (min-width: 861px) {
+  .body {
+    transition: grid-template-columns 0.2s ease;
+  }
+  .body.sidebar-collapsed {
+    grid-template-columns: 0px minmax(0, 1fr);
+  }
+  .sidebar {
+    transition: opacity 0.2s ease;
+  }
+  .body.sidebar-collapsed .sidebar {
+    padding: 1rem 0;
+    border-right: none;
+    opacity: 0;
+  }
+}
+.sidebar-backdrop {
+  /* only used as the mobile drawer's dismiss overlay; see the max-width: 860px block below */
+  display: none;
 }
 .nav-group {
   display: flex;
@@ -724,7 +747,8 @@ pre.code {
   .spinner {
     animation-duration: 2.4s;
   }
-  .sidebar {
+  .sidebar,
+  .body {
     transition: none;
   }
 }
@@ -1398,9 +1422,6 @@ td .field > label {
 
 /* ---- small screens ---- */
 @media (max-width: 860px) {
-  .menu-btn {
-    display: inline-block;
-  }
   .body {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1426,6 +1447,7 @@ td .field > label {
     visibility: visible;
   }
   .sidebar-backdrop {
+    display: block;
     position: fixed;
     inset: 51px 0 0 0;
     z-index: 14;
