@@ -141,7 +141,6 @@ export function Layout() {
         </main>
       </div>
       <footer className="footer">
-        <span>{name}</span>
         {config.data?.institution?.support_email && <a href={`mailto:${config.data.institution.support_email}`}>Help: {config.data.institution.support_email}</a>}
         {config.data?.privacy_url && (
           <a href={config.data.privacy_url} target="_blank" rel="noreferrer noopener">
