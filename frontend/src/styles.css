@@ -724,6 +724,9 @@ pre.code {
   .spinner {
     animation-duration: 2.4s;
   }
+  .sidebar {
+    transition: none;
+  }
 }
 .alert {
   padding: 0.65rem 0.9rem;
@@ -1402,17 +1405,34 @@ td .field > label {
     grid-template-columns: minmax(0, 1fr);
   }
   .sidebar {
-    display: none;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
+    /* A proper sliding drawer rather than an instant show/hide: fixed below the topbar, off-screen to the left until
+       opened, so it visibly moves instead of snapping into place. 51px is the topbar's measured mobile height. */
+    position: fixed;
+    top: 51px;
+    left: 0;
+    bottom: 0;
+    width: min(85vw, 300px);
+    border-right: 1px solid var(--nav-border);
+    border-bottom: none;
+    overflow-y: auto;
+    z-index: 15;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.25s ease;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.25);
   }
   .sidebar-open {
-    display: block;
-    /* Without this it only grows as tall as its own nav links, leaving most of the screen showing page content
-       underneath instead of reading as a full menu. 51px is the topbar's measured mobile height. */
-    min-height: calc(100vh - 51px);
-    min-height: calc(100dvh - 51px);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    transform: translateX(0);
+    visibility: visible;
+  }
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 51px 0 0 0;
+    z-index: 14;
+    border: none;
+    padding: 0;
+    background: rgba(10, 16, 28, 0.45);
+    cursor: default;
   }
   .profile-text {
     display: none;

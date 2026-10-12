@@ -115,6 +115,7 @@ export function Layout() {
         </div>
       )}
       <div className="body">
+        {menuOpen && <button type="button" className="sidebar-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />}
         <nav className={`sidebar${menuOpen ? ' sidebar-open' : ''}`} aria-label="Main">
           <div className="nav-group">{renderNav(main)}</div>
           {adminGroups.map(
