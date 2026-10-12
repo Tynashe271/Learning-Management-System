@@ -193,6 +193,9 @@ pre.code {
   align-items: center;
   gap: 0.75rem;
 }
+.menu-btn {
+  display: inline-block;
+}
 .bell {
   position: relative;
   text-decoration: none;
@@ -207,16 +210,8 @@ pre.code {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  border: none;
-  background: transparent;
-  font: inherit;
+  text-decoration: none;
   color: var(--nav-text);
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-}
-.profile-link:hover {
-  background: var(--nav-bg-2);
 }
 .profile-text {
   display: flex;

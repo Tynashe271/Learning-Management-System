@@ -45,7 +45,6 @@ export function Layout() {
     { to: '/notifications', label: 'Notifications', show: true },
     { to: '/register', label: 'Register for courses', show: hasRole('student') },
     { to: '/my-appeals', label: 'My grade appeals', show: can('submit-assignments') && !hasRole('super-admin') },
-    { to: '/profile', label: 'My profile', show: true },
     { to: '/help', label: 'Get help', show: true },
   ]
   const academics: NavItem[] = [
@@ -83,6 +82,15 @@ export function Layout() {
         Skip to content
       </a>
       <header className="topbar">
+        <button
+          type="button"
+          className="icon-btn menu-btn"
+          aria-label={menuOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <Icon name="menu" size={20} />
+        </button>
         <Link to="/" className="brand">
           <img src="/favicon.svg" alt="" width="28" height="28" />
           <span>{name}</span>
@@ -92,19 +100,13 @@ export function Layout() {
             <Icon name="bell" size={20} />
             {unreadNotifications > 0 && <span className="count">{unreadNotifications}</span>}
           </Link>
-          <button
-            type="button"
-            className="profile-link"
-            aria-label={menuOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((open) => !open)}
-          >
+          <Link to="/profile" className="profile-link">
             <Avatar name={user?.name ?? ''} />
             <span className="profile-text">
               <strong>{user?.name}</strong>
               <span className="muted small">{roleLabel}</span>
             </span>
-          </button>
+          </Link>
           <button
             type="button"
             className="btn btn-ghost btn-small"
