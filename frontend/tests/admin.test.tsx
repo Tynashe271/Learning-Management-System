@@ -47,7 +47,7 @@ describe('the institution', () => {
   it('uses the institution’s name in the header and the support address in the footer', async () => {
     mockApi(signedInAs(studentMe))
     renderApp(<App />, '/')
-    expect(await screen.findByRole('link', { name: /Contoso University/ })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /sidebar/i })).toHaveTextContent('Contoso University')
     expect(screen.getByRole('link', { name: 'Help: help@contoso.test' })).toHaveAttribute('href', 'mailto:help@contoso.test')
   })
 

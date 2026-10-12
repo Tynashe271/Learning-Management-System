@@ -84,17 +84,14 @@ export function Layout() {
       <header className="topbar">
         <button
           type="button"
-          className="icon-btn menu-btn"
+          className="brand"
           aria-label={menuOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen((open) => !open)}
         >
-          <Icon name="menu" size={20} />
-        </button>
-        <Link to="/" className="brand">
           <img src="/favicon.svg" alt="" width="28" height="28" />
           <span>{name}</span>
-        </Link>
+        </button>
         <div className="topbar-right">
           <Link to="/notifications" className="bell" aria-label={unreadNotifications ? `Notifications, ${unreadNotifications} unread` : 'Notifications'}>
             <Icon name="bell" size={20} />

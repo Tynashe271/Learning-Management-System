@@ -185,16 +185,22 @@ pre.code {
   gap: 0.5rem;
   font-weight: 700;
   color: var(--nav-text);
-  text-decoration: none;
+  border: none;
+  background: transparent;
+  font-size: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+}
+.brand:hover {
+  background: var(--nav-bg-2);
 }
 .topbar-right {
   margin-left: auto;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-}
-.menu-btn {
-  display: inline-block;
 }
 .bell {
   position: relative;
