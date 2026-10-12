@@ -262,8 +262,9 @@ class AcademicStructureTest extends TestCase
         $t2 = AcademicTerm::create(['name' => 'T2', 'starts_on' => $this->day(60), 'ends_on' => $this->day(120)]);
         $algo = Course::create(['code' => 'CSC201', 'title' => 'Algorithms', 'department_id' => $cs->id]);
         $calc = Course::create(['code' => 'MAT101', 'title' => 'Calculus']);
-        CourseOffering::create(['course_id' => $algo->id, 'academic_term_id' => $t1->id, 'section' => 'A', 'published' => true]);
+        $taught = CourseOffering::create(['course_id' => $algo->id, 'academic_term_id' => $t1->id, 'section' => 'A', 'published' => true]);
         CourseOffering::create(['course_id' => $calc->id, 'academic_term_id' => $t2->id, 'section' => 'A', 'published' => false]);
+        $this->teach($taught, $this->userWithRole('lecturer'));
 
         $get = fn (string $q) => $this->as($this->admin)->getJson('/api/offerings?'.$q)->assertOk()->json('data');
         $this->assertCount(2, $get(''));
@@ -271,6 +272,8 @@ class AcademicStructureTest extends TestCase
         $this->assertSame(['CSC201'], collect($get('department_id='.$cs->id))->pluck('course.code')->all());
         $this->assertSame(['MAT101'], collect($get('status=draft'))->pluck('course.code')->all());
         $this->assertSame(['MAT101'], collect($get('q=calc'))->pluck('course.code')->all());
+        $this->assertSame(['CSC201'], collect($get('has_teacher=yes'))->pluck('course.code')->all());
+        $this->assertSame(['MAT101'], collect($get('has_teacher=no'))->pluck('course.code')->all());
         $this->assertSame('CS', $get('term_id='.$t1->id)[0]['course']['department']['code']);
     }
 

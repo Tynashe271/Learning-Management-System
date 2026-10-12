@@ -5,29 +5,36 @@ import { api } from '../../api/client'
 import type { Department, Offering, Page, Term } from '../../api/types'
 import { useAuth } from '../../auth/AuthContext'
 import { CourseCard } from '../../components/CourseCard'
-import { Badge, Card, EmptyState, PageHeader, Pager, PublishedBadge, QueryView, SelectField, Table, TextField, pagerFromPage, useDebounced } from '../../components/ui'
+import { Badge, Button, Card, EmptyState, PageHeader, Pager, PublishedBadge, QueryView, SelectField, Table, TextField, pagerFromPage, useDebounced } from '../../components/ui'
 import { formatDate } from '../../lib/format'
 import { useTitle } from '../../lib/hooks'
+import { AssignDialog } from './PeopleTab'
 
 export function CoursesPage() {
   useTitle('Courses')
   const { can, isStudentOnly } = useAuth()
   const [page, setPage] = useState(1)
   const catalogue = can('manage-courses') || can('manage-enrolments')
+  const canAssign = can('manage-courses')
+  const [assigningFor, setAssigningFor] = useState<Offering | null>(null)
   const [text, setText] = useState('')
   const q = useDebounced(text.trim())
   const [termId, setTermId] = useState('')
   const [departmentId, setDepartmentId] = useState('')
   const [status, setStatus] = useState('')
+  const [hasTeacher, setHasTeacher] = useState('')
   const [archived, setArchived] = useState('exclude')
   const reset = () => setPage(1)
 
   const terms = useQuery({ queryKey: ['terms', 'all'], queryFn: () => api.get<Page<Term>>('/terms', { page: 1 }), enabled: catalogue })
   const departments = useQuery({ queryKey: ['departments', false], queryFn: () => api.get<Department[]>('/departments', { archived: 'exclude' }), enabled: catalogue })
   const query = useQuery({
-    queryKey: ['offerings', page, q, termId, departmentId, status, archived],
+    queryKey: ['offerings', page, q, termId, departmentId, status, hasTeacher, archived],
     queryFn: () =>
-      api.get<Page<Offering>>('/offerings', catalogue ? { page, q: q || undefined, term_id: termId || undefined, department_id: departmentId || undefined, status: status || undefined, archived } : { page }),
+      api.get<Page<Offering>>(
+        '/offerings',
+        catalogue ? { page, q: q || undefined, term_id: termId || undefined, department_id: departmentId || undefined, status: status || undefined, has_teacher: hasTeacher || undefined, archived } : { page },
+      ),
     placeholderData: (previous) => previous,
   })
 
@@ -81,6 +88,11 @@ export function CoursesPage() {
               <option value="published">Published</option>
               <option value="draft">Draft</option>
             </SelectField>
+            <SelectField label="Teacher" value={hasTeacher} onChange={(e) => { setHasTeacher(e.target.value); reset() }}>
+              <option value="">Assigned and unassigned</option>
+              <option value="yes">Assigned</option>
+              <option value="no">Unassigned</option>
+            </SelectField>
             <SelectField label="Show" value={archived} onChange={(e) => { setArchived(e.target.value); reset() }}>
               <option value="exclude">Current</option>
               <option value="only">Archived</option>
@@ -105,6 +117,7 @@ export function CoursesPage() {
                     <th>Course</th>
                     <th>Term</th>
                     <th>Section</th>
+                    {catalogue && <th>Teacher</th>}
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -124,6 +137,20 @@ export function CoursesPage() {
                         </span>
                       </td>
                       <td>{o.section}</td>
+                      {catalogue && (
+                        <td>
+                          {o.teachers && o.teachers.length > 0 ? (
+                            o.teachers.map((t) => t.user?.name).join(', ')
+                          ) : (
+                            <Badge tone="warn">Unassigned</Badge>
+                          )}
+                          {canAssign && (
+                            <Button small onClick={() => setAssigningFor(o)}>
+                              Assign
+                            </Button>
+                          )}
+                        </td>
+                      )}
                       <td>
                         {o.archived_at ? <Badge tone="neutral">Archived</Badge> : catalogue || !o.published ? <PublishedBadge published={o.published} /> : <Badge tone="good">Open</Badge>}
                         {catalogue && o.capacity != null && <span className="muted small block">{o.capacity} places</span>}
@@ -137,6 +164,9 @@ export function CoursesPage() {
           )}
         </QueryView>
         </Card>
+      )}
+      {assigningFor && (
+        <AssignDialog offeringId={assigningFor.id} teacherIds={(assigningFor.teachers ?? []).map((t) => t.user_id)} onClose={() => setAssigningFor(null)} />
       )}
     </>
   )

@@ -129,6 +129,7 @@ class LmsController extends Controller
         $filters = $request->validate([
             'archived' => ['sometimes', Rule::in(['exclude', 'include', 'only'])], 'term_id' => ['sometimes', 'integer'], 'department_id' => ['sometimes', 'integer'],
             'q' => ['sometimes', 'string', 'max:100'], 'status' => ['sometimes', Rule::in(['published', 'draft'])],
+            'has_teacher' => ['sometimes', Rule::in(['yes', 'no'])],
         ]);
         $staff = $user->can('manage-courses') || $user->can('manage-enrolments');
         $query = CourseOffering::with(['course.department:id,code,name', 'term', 'teachers.user:id,name'])->orderBy('id');
@@ -151,6 +152,9 @@ class LmsController extends Controller
         }
         if (isset($filters['status'])) {
             $query->where('published', $filters['status'] === 'published');
+        }
+        if (isset($filters['has_teacher'])) {
+            $filters['has_teacher'] === 'yes' ? $query->has('teachers') : $query->doesntHave('teachers');
         }
         if (isset($filters['q'])) {
             $like = '%'.strtolower(preg_replace('/[!%_]/', '!$0', $filters['q'])).'%';

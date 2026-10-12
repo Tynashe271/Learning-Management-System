@@ -310,9 +310,9 @@ function EnrolDialog({ offeringId, enrolledIds, onClose }: { offeringId: number;
   )
 }
 
-function AssignDialog({ offeringId, teacherIds, onClose }: { offeringId: number; teacherIds: number[]; onClose: () => void }) {
+export function AssignDialog({ offeringId, teacherIds, onClose }: { offeringId: number; teacherIds: number[]; onClose: () => void }) {
   const [role, setRole] = useState<RoleName>('lecturer')
-  const assign = useApiMutation((person: Person) => api.post(`/offerings/${offeringId}/teachers`, { user_id: person.id }), { invalidate: [['roster', offeringId], ['offering', offeringId]], success: 'Teacher assigned.', toastError: true })
+  const assign = useApiMutation((person: Person) => api.post(`/offerings/${offeringId}/teachers`, { user_id: person.id }), { invalidate: [['roster', offeringId], ['offering', offeringId], ['offerings']], success: 'Teacher assigned.', toastError: true })
   return (
     <Modal title="Assign a teacher" onClose={onClose}>
       <SelectField label="Role" value={role} onChange={(e) => setRole(e.target.value as RoleName)}>

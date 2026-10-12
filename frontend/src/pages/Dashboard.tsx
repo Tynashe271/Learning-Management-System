@@ -19,14 +19,15 @@ export function Dashboard() {
 
 function StaffDashboard() {
   useTitle('Dashboard')
-  const { user, can } = useAuth()
+  const { user, can, hasRole } = useAuth()
+  const teaches = hasRole('lecturer') || hasRole('teaching-assistant')
 
-  const offerings = useQuery({ queryKey: ['offerings', 1], queryFn: () => api.get<Page<Offering>>('/offerings', { page: 1 }) })
+  const offerings = useQuery({ queryKey: ['offerings', 1], queryFn: () => api.get<Page<Offering>>('/offerings', { page: 1 }), enabled: teaches })
   const todo = useQuery({ queryKey: ['digest-preview'], queryFn: () => api.get<DigestSummary>('/me/digest-preview'), staleTime: 60_000, retry: false })
   const notifications = useQuery({ queryKey: ['notifications', 'bell'], queryFn: () => api.get<Page<Notification>>('/notifications') })
   const canSeeOverview = can('manage-courses') || can('manage-enrolments')
   const overview = useQuery({ queryKey: ['overview'], queryFn: () => api.get<Overview>('/reports/overview'), enabled: canSeeOverview, staleTime: 60_000 })
-  const agenda = useQuery({ queryKey: ['me', 'agenda'], queryFn: () => api.get<Agenda>('/me/agenda', { days: 7 }) })
+  const agenda = useQuery({ queryKey: ['me', 'agenda'], queryFn: () => api.get<Agenda>('/me/agenda', { days: 7 }), enabled: teaches })
 
   return (
     <>
@@ -59,7 +60,7 @@ function StaffDashboard() {
         </Card>
       )}
 
-      {agenda.data && agenda.data.sessions.length > 0 && (
+      {teaches && agenda.data && agenda.data.sessions.length > 0 && (
         <Card title="Upcoming classes you teach">
           <ul className="list">
             {agenda.data.sessions.slice(0, 5).map((s, i) => (
@@ -108,25 +109,27 @@ function StaffDashboard() {
         </Card>
       </div>
 
-      <Card title="Your courses" actions={<Link to="/courses">All courses</Link>}>
-        {offerings.isPending && <Loading />}
-        {offerings.isError && <ErrorState error={offerings.error} onRetry={() => void offerings.refetch()} />}
-        {offerings.data && offerings.data.data.length === 0 && <EmptyState title="No courses yet">{can('submit-assignments') ? 'You will see your courses here once you are enrolled in one that has been published.' : 'Courses you teach or manage will appear here.'}</EmptyState>}
-        {offerings.data && offerings.data.data.length > 0 && (
-          <div className="course-grid">
-            {offerings.data.data.slice(0, 6).map((o) => (
-              <Link key={o.id} to={`/courses/${o.id}`} className="course-tile">
-                <strong>{o.course?.code}</strong>
-                <span>{o.course?.title}</span>
-                <span className="muted small">
-                  {o.term?.name} · Section {o.section}
-                </span>
-                {!o.published && <Badge tone="warn">Draft</Badge>}
-              </Link>
-            ))}
-          </div>
-        )}
-      </Card>
+      {teaches && (
+        <Card title="Your courses" actions={<Link to="/courses">All courses</Link>}>
+          {offerings.isPending && <Loading />}
+          {offerings.isError && <ErrorState error={offerings.error} onRetry={() => void offerings.refetch()} />}
+          {offerings.data && offerings.data.data.length === 0 && <EmptyState title="No courses yet">Courses you teach will appear here.</EmptyState>}
+          {offerings.data && offerings.data.data.length > 0 && (
+            <div className="course-grid">
+              {offerings.data.data.slice(0, 6).map((o) => (
+                <Link key={o.id} to={`/courses/${o.id}`} className="course-tile">
+                  <strong>{o.course?.code}</strong>
+                  <span>{o.course?.title}</span>
+                  <span className="muted small">
+                    {o.term?.name} · Section {o.section}
+                  </span>
+                  {!o.published && <Badge tone="warn">Draft</Badge>}
+                </Link>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
     </>
   )
 }

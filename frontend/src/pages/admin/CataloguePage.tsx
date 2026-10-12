@@ -8,6 +8,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { Alert, Badge, Button, Card, CheckField, EmptyState, FormError, Modal, PageHeader, Pager, QueryView, SelectField, Table, TextArea, TextField, pagerFromPage, useConfirm, useDebounced } from '../../components/ui'
 import { formatDate, plural, toDateInput } from '../../lib/format'
 import { fieldError, useApiMutation, useTitle } from '../../lib/hooks'
+import { AssignDialog } from '../courses/PeopleTab'
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 const today = () => new Date().toISOString().slice(0, 10)
@@ -480,18 +481,23 @@ function OfferingCard() {
   const [capacity, setCapacity] = useState('')
   const [selfEnrol, setSelfEnrol] = useState(false)
   const [published, setPublished] = useState(false)
-  const create = useApiMutation(() => api.post<Offering>('/offerings', { course_id: Number(courseId), academic_term_id: Number(termId), section: section.trim(), capacity: capacity ? Number(capacity) : null, self_enrolment: selfEnrol, published }), { invalidate: [['offerings']] })
+  const [assigning, setAssigning] = useState(false)
+  const create = useApiMutation(() => api.post<Offering>('/offerings', { course_id: Number(courseId), academic_term_id: Number(termId), section: section.trim(), capacity: capacity ? Number(capacity) : null, self_enrolment: selfEnrol, published }), {
+    invalidate: [['offerings']],
+    onSuccess: () => setAssigning(true),
+  })
   const created = create.data
   const chosen = (courses.data?.data ?? []).some((c) => String(c.id) === courseId)
 
   return (
     <Card title="Offer a course in a term">
-      <p className="muted">An offering is one course in one term and section. Lecturers, students, content and grades belong to an offering. Assign lecturers on the offering&apos;s People tab after creating it.</p>
+      <p className="muted">An offering is one course in one term and section. Lecturers, students, content and grades belong to an offering.</p>
       {created && (
         <Alert tone="success">
-          Offering created. <Link to={`/courses/${created.id}`}>Open it</Link> to assign lecturers and add content.
+          Offering created. {!assigning && <Button small onClick={() => setAssigning(true)}>Assign a lecturer</Button>} <Link to={`/courses/${created.id}`}>Open it</Link> to add content.
         </Alert>
       )}
+      {created && assigning && <AssignDialog offeringId={created.id} teacherIds={[]} onClose={() => setAssigning(false)} />}
       <QueryView query={terms}>
         {(termPage) => (
           <form
