@@ -49,7 +49,7 @@ export function Layout() {
   ]
   const academics: NavItem[] = [
     { to: '/admin/catalogue', label: 'Semesters and courses', show: can('manage-courses') || can('manage-enrolments') },
-    { to: '/admin/users', label: 'People', show: can('manage-users') || can('manage-enrolments') },
+    { to: '/admin/users', label: 'Students and staff', show: can('manage-users') || can('manage-enrolments') },
     { to: '/admin/import', label: 'Import accounts', show: can('manage-users') },
     { to: '/admin/reports', label: 'Reports', show: can('manage-courses') || can('manage-enrolments') },
     { to: '/admin/transfer-students', label: 'Transfer students', show: can('manage-enrolments') },
