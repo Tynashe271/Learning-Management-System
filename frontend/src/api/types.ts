@@ -973,6 +973,19 @@ export interface WorkloadReport {
   }[]
 }
 
+export interface ModuleAveragesReport {
+  modules: {
+    module_id: number
+    module: string
+    offering_id: number
+    course: string
+    section: string
+    term: string
+    average_percent: number
+    assessments_counted: number
+  }[]
+}
+
 export type CompetencyStatusValue = 'not_started' | 'developing' | 'competent'
 
 export interface Competency {

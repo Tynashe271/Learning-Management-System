@@ -101,6 +101,7 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     Route::get('/reports/usage', [AdminReportController::class, 'usage'])->middleware('throttle:heavy');
     Route::get('/reports/enrolments', [AdminReportController::class, 'enrolments'])->middleware('throttle:heavy');
     Route::get('/reports/workload', [AdminReportController::class, 'workload'])->middleware('throttle:heavy');
+    Route::get('/reports/module-averages', [AdminReportController::class, 'moduleAverages'])->middleware('throttle:heavy');
 
     // System: monitoring, housekeeping, backups
     Route::get('/system', [SystemController::class, 'info'])->middleware('throttle:heavy');

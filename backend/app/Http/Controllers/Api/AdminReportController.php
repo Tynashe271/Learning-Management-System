@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Assignment;
 use App\Models\CourseOffering;
 use App\Models\Enrolment;
+use App\Models\GradeRecord;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
 use App\Models\Submission;
@@ -14,6 +15,7 @@ use App\Services\TeacherWorkload;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Spatie\Activitylog\Models\Activity;
@@ -217,6 +219,101 @@ class AdminReportController extends Controller
         }
 
         return response()->json(['teachers' => $rows]);
+    }
+
+    /**
+     * The institution-wide counterpart to a course's own "hardest topics" figure (CourseAnalytics::topicAverages):
+     * every published course module's average coursework mark, across every published offering, in one place -
+     * so a course or system administrator does not have to open each course to see how its modules are doing.
+     * Averages only ever come from the lecturer's own published grades; a module with nothing graded yet is
+     * left out rather than shown as zero. Students never see this: it is gated the same as the other reports here.
+     */
+    public function moduleAverages(Request $request): JsonResponse|StreamedResponse
+    {
+        abort_unless($request->user()->can('manage-courses'), 403);
+        $data = $request->validate(['term_id' => ['sometimes', 'integer'], 'format' => ['sometimes', 'in:json,csv']]);
+
+        $offeringIds = CourseOffering::where('published', true)
+            ->when(isset($data['term_id']), fn ($q) => $q->where('academic_term_id', $data['term_id']))
+            ->pluck('id');
+
+        $modules = DB::table('course_modules as m')
+            ->join('course_offerings as o', 'o.id', '=', 'm.course_offering_id')
+            ->join('courses as c', 'c.id', '=', 'o.course_id')
+            ->join('academic_terms as t', 't.id', '=', 'o.academic_term_id')
+            ->whereIn('m.course_offering_id', $offeringIds)->where('m.published', true)
+            ->get(['m.id', 'm.title', 'o.id as offering_id', 'o.section', 'c.code', 'c.title as course_title', 't.name as term']);
+        if ($modules->isEmpty()) {
+            return $this->moduleAveragesResponse(collect(), $data);
+        }
+        $moduleIds = $modules->pluck('id');
+
+        $assignmentAverages = $this->assignmentModuleAverages($moduleIds);
+        $quizAverages = $this->quizModuleAverages($moduleIds);
+        $perModule = $assignmentAverages->concat($quizAverages)->groupBy('module_id');
+
+        $rows = $modules->map(function ($m) use ($perModule) {
+            $scores = $perModule->get($m->id, collect());
+            if ($scores->isEmpty()) {
+                return null;
+            }
+
+            return [
+                'module_id' => (int) $m->id, 'module' => $m->title, 'offering_id' => (int) $m->offering_id,
+                'course' => "{$m->code} {$m->course_title}", 'section' => $m->section, 'term' => $m->term,
+                'average_percent' => round($scores->avg('average'), 1), 'assessments_counted' => $scores->count(),
+            ];
+        })->filter()->sortBy('average_percent')->values();
+
+        return $this->moduleAveragesResponse($rows, $data);
+    }
+
+    /** Each published, graded assignment's own average percent, one row per (module_id, average_percent). */
+    private function assignmentModuleAverages($moduleIds): Collection
+    {
+        $assignments = Assignment::where('published', true)->whereIn('course_module_id', $moduleIds)->get(['id', 'course_module_id', 'max_score']);
+        $submissions = Submission::whereIn('assignment_id', $assignments->pluck('id'))->get(['id', 'assignment_id']);
+        $grades = GradeRecord::whereIn('submission_id', $submissions->pluck('id'))->where('status', 'published')->orderBy('id')->get()->groupBy('submission_id')->map(fn ($g) => $g->last());
+
+        return $assignments->map(function ($a) use ($submissions, $grades) {
+            $percents = $submissions->where('assignment_id', $a->id)->map(fn ($s) => $grades->get($s->id))->filter()
+                ->map(fn ($g) => (float) $a->max_score > 0 ? (float) $g->score / (float) $a->max_score * 100 : null)->filter(fn ($p) => $p !== null);
+
+            return $percents->isEmpty() ? null : ['module_id' => (int) $a->course_module_id, 'average' => $percents->avg()];
+        })->filter()->values();
+    }
+
+    /** Each published, attempted quiz's own average percent (best attempt per student), one row per module. */
+    private function quizModuleAverages($moduleIds): Collection
+    {
+        $quizzes = Quiz::where('published', true)->where('is_practice', false)->whereIn('course_module_id', $moduleIds)
+            ->withSum('questions as total_points', 'points')->get(['id', 'course_module_id']);
+        $bestByQuiz = QuizAttempt::whereIn('quiz_id', $quizzes->pluck('id'))->whereNotNull('submitted_at')
+            ->selectRaw('quiz_id, user_id, max(score) as best_score')->groupBy('quiz_id', 'user_id')->get()->groupBy('quiz_id');
+
+        return $quizzes->map(function ($q) use ($bestByQuiz) {
+            $total = (float) $q->total_points;
+            $percents = $total > 0 ? $bestByQuiz->get($q->id, collect())->map(fn ($b) => (float) $b->best_score / $total * 100) : collect();
+
+            return $percents->isEmpty() ? null : ['module_id' => (int) $q->course_module_id, 'average' => $percents->avg()];
+        })->filter()->values();
+    }
+
+    private function moduleAveragesResponse(Collection $rows, array $data): JsonResponse|StreamedResponse
+    {
+        if (($data['format'] ?? 'json') === 'csv') {
+            return response()->streamDownload(function () use ($rows) {
+                $out = fopen('php://output', 'w');
+                $put = fn (array $row) => fputcsv($out, array_map(fn ($cell) => $this->safeCell((string) $cell), $row), ',', '"', '');
+                $put(['Semester', 'Course', 'Section', 'Module', 'Average %', 'Assessments counted']);
+                foreach ($rows as $r) {
+                    $put([$r['term'], $r['course'], $r['section'], $r['module'], $r['average_percent'], $r['assessments_counted']]);
+                }
+                fclose($out);
+            }, 'module-averages-'.now()->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv']);
+        }
+
+        return response()->json(['modules' => $rows]);
     }
 
     /** Stops spreadsheet apps from running user-supplied text (names, titles) as a formula. */

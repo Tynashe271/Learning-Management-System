@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
-import type { AuditEntry, EnrolmentReport, Health, Overview, Page, Person, SupportRequest, SupportRequestCategory, SupportRequestStatus, Term, UsageReport, WorkloadReport } from '../../api/types'
+import type { AuditEntry, EnrolmentReport, Health, ModuleAveragesReport, Overview, Page, Person, SupportRequest, SupportRequestCategory, SupportRequestStatus, Term, UsageReport, WorkloadReport } from '../../api/types'
 import { ROLE_LABELS } from '../../api/types'
 import { useAuth } from '../../auth/AuthContext'
 import { PersonPicker } from '../../components/PersonPicker'
@@ -213,7 +213,7 @@ function describe(properties: AuditEntry['properties']): string {
   return text.length > 160 ? `${text.slice(0, 157)}…` : text
 }
 
-type ReportTab = 'overview' | 'usage' | 'enrolment' | 'workload'
+type ReportTab = 'overview' | 'usage' | 'enrolment' | 'workload' | 'moduleAverages'
 
 export function ReportsPage() {
   useTitle('Reports')
@@ -225,6 +225,7 @@ export function ReportsPage() {
     { id: 'usage', label: 'Usage', show: full },
     { id: 'enrolment', label: 'Enrolment', show: true },
     { id: 'workload', label: 'Workload', show: full },
+    { id: 'moduleAverages', label: 'Module averages', show: full },
   ]
   return (
     <>
@@ -242,6 +243,7 @@ export function ReportsPage() {
       {tab === 'usage' && <UsageReportView />}
       {tab === 'enrolment' && <EnrolmentReportView />}
       {tab === 'workload' && <WorkloadReportView />}
+      {tab === 'moduleAverages' && <ModuleAveragesReportView />}
     </>
   )
 }
@@ -527,6 +529,56 @@ function WorkloadReportView() {
                     <td>{t.unmarked_submissions}</td>
                     <td>{t.unmarked_essay_answers}</td>
                     <td>{t.avg_feedback_hours === null ? '—' : `${t.avg_feedback_hours}h (${t.feedback_count} graded)`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+      )}
+    </QueryView>
+  )
+}
+
+/** Visible only to course administrators: the class-average coursework mark in every graded module, across the whole catalogue. Students never see this. */
+function ModuleAveragesReportView() {
+  const query = useQuery({ queryKey: ['module-averages'], queryFn: () => api.get<ModuleAveragesReport>('/reports/module-averages'), staleTime: 60_000 })
+  return (
+    <QueryView query={query}>
+      {(r) => (
+        <Card
+          title="Module averages"
+          actions={
+            <DownloadButton path="/reports/module-averages" filename="module-averages.csv" query={{ format: 'csv' }}>
+              Download as a spreadsheet
+            </DownloadButton>
+          }
+        >
+          <p className="muted">The class average coursework mark for each module that has at least one published grade, blended from its assignments and quizzes. A module with nothing graded yet is left out.</p>
+          {r.modules.length === 0 ? (
+            <EmptyState title="Nothing graded yet" />
+          ) : (
+            <Table caption="Module averages">
+              <thead>
+                <tr>
+                  <th>Module</th>
+                  <th>Course</th>
+                  <th>Semester</th>
+                  <th>Average</th>
+                  <th>Assessments counted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.modules.map((m) => (
+                  <tr key={m.module_id}>
+                    <td>{m.module}</td>
+                    <td>
+                      {m.course}
+                      <span className="muted small block">Section {m.section}</span>
+                    </td>
+                    <td>{m.term}</td>
+                    <td>{m.average_percent}%</td>
+                    <td>{m.assessments_counted}</td>
                   </tr>
                 ))}
               </tbody>
