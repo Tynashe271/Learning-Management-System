@@ -244,9 +244,9 @@ class ManagementTest extends TestCase
         $this->actingAs($this->admin)->patchJson('/api/terms/'.AcademicTerm::first()->id, ['name' => 'Renamed'])->assertOk();
 
         $log = $this->actingAs($this->admin)->getJson('/api/audit-log')->assertOk();
-        $log->assertJsonPath('data.0.description', 'term changed')->assertJsonPath('data.0.causer.id', $this->admin->id);
+        $log->assertJsonPath('data.0.description', 'semester changed')->assertJsonPath('data.0.causer.id', $this->admin->id);
 
-        $this->actingAs($this->admin)->getJson('/api/audit-log?q=term%20changed')->assertJsonCount(1, 'data');
+        $this->actingAs($this->admin)->getJson('/api/audit-log?q=semester%20changed')->assertJsonCount(1, 'data');
         $this->actingAs($this->admin)->getJson('/api/audit-log?q=%25')->assertJsonCount(0, 'data');
         $this->actingAs($this->admin)->getJson('/api/audit-log?causer_id='.$this->lecturer->id)->assertJsonCount(0, 'data');
         $this->actingAs($this->lecturer)->getJson('/api/audit-log')->assertForbidden();

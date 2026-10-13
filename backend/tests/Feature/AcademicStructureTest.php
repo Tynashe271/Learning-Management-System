@@ -172,7 +172,7 @@ class AcademicStructureTest extends TestCase
         $this->assertFalse(AcademicTerm::find($termId)->is_current);
         $this->as($this->admin)->postJson("/api/terms/{$termId}/archive", ['archived' => false])->assertOk()->assertJsonPath('offerings', 1);
         $this->assertNull($offering->fresh()->archived_at);
-        $this->assertSame(2, DB::table('activity_log')->whereIn('description', ['term archived', 'term reopened'])->count());
+        $this->assertSame(2, DB::table('activity_log')->whereIn('description', ['semester archived', 'semester reopened'])->count());
     }
 
     // ---- offerings, capacity and archiving ----------------------------------------------------------------------------

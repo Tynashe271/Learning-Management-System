@@ -14,13 +14,13 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 const today = () => new Date().toISOString().slice(0, 10)
 
 export function CataloguePage() {
-  useTitle('Terms and courses')
+  useTitle('Semesters and courses')
   const { can } = useAuth()
   const edit = can('manage-courses')
   return (
     <>
-      <PageHeader title="Terms and courses" subtitle="Academic years and terms, departments, the course catalogue, and what is offered each term" />
-      {!edit && <Alert tone="info">You can look up terms and courses to enrol students. Only course administrators can change the catalogue.</Alert>}
+      <PageHeader title="Semesters and courses" subtitle="Academic years and semesters, departments, the course catalogue, and what is offered each semester" />
+      {!edit && <Alert tone="info">You can look up semesters and courses to enrol students. Only course administrators can change the catalogue.</Alert>}
       <TermsCard edit={edit} />
       <DepartmentsCard edit={edit} />
       <CoursesCard edit={edit} />
@@ -51,22 +51,22 @@ function TermsCard({ edit }: { edit: boolean }) {
   })
   return (
     <Card
-      title="Academic terms"
+      title="Academic semesters"
       actions={
         edit && (
           <Button small variant="primary" onClick={() => setDialog('new')}>
-            New term
+            New semester
           </Button>
         )
       }
     >
-      <QueryView query={query} isEmpty={(d) => d.data.length === 0} empty={<EmptyState title="No terms yet">{edit ? 'Create a term (for example “Semester 1, 2026”) before offering courses.' : 'No terms have been created.'}</EmptyState>}>
+      <QueryView query={query} isEmpty={(d) => d.data.length === 0} empty={<EmptyState title="No semesters yet">{edit ? 'Create a semester (choose First or Second Semester, the year, and Part 1 or 2) before offering courses.' : 'No semesters have been created.'}</EmptyState>}>
         {(data) => (
           <>
-            <Table caption="Terms">
+            <Table caption="Semesters">
               <thead>
                 <tr>
-                  <th>Term</th>
+                  <th>Semester</th>
                   <th>Dates</th>
                   <th>Student registration</th>
                   <th>Add/drop until</th>
@@ -79,7 +79,7 @@ function TermsCard({ edit }: { edit: boolean }) {
                   return (
                     <tr key={t.id}>
                       <td>
-                        <strong>{t.name}</strong> {t.is_current && <Badge tone="info">Current</Badge>}
+                        <strong>{t.name}</strong> {t.code && <Badge tone="neutral">{t.code}</Badge>} {t.is_current && <Badge tone="info">Current</Badge>}
                         {t.academic_year && <span className="muted small block">Academic year {t.academic_year}</span>}
                       </td>
                       <td className="small">
@@ -107,7 +107,7 @@ function TermsCard({ edit }: { edit: boolean }) {
                             small
                             variant="ghost"
                             onClick={async () => {
-                              if (await confirm({ title: `Archive ${t.name}?`, message: 'Every course offered in this term becomes read-only history and disappears from the current catalogue. Teachers and students can still open them. You can restore them later.', confirmLabel: 'Archive the term’s courses' })) archive.mutate({ term: t, archived: true })
+                              if (await confirm({ title: `Archive ${t.name}?`, message: 'Every course offered in this semester becomes read-only history and disappears from the current catalogue. Teachers and students can still open them. You can restore them later.', confirmLabel: 'Archive the semester’s courses' })) archive.mutate({ term: t, archived: true })
                             }}
                           >
                             Archive
@@ -131,8 +131,11 @@ function TermsCard({ edit }: { edit: boolean }) {
   )
 }
 
+const SEMESTER_LABELS: Record<string, string> = { '1': 'First Semester', '2': 'Second Semester' }
+
 function TermDialog({ term, onClose }: { term: Term | null; onClose: () => void }) {
-  const [name, setName] = useState(term?.name ?? '')
+  const [semester, setSemester] = useState(term?.semester ? String(term.semester) : '')
+  const [part, setPart] = useState(term?.part ? String(term.part) : '')
   const [year, setYear] = useState(term?.academic_year ?? '')
   const [starts, setStarts] = useState(toDateInput(term?.starts_on))
   const [ends, setEnds] = useState(toDateInput(term?.ends_on))
@@ -140,8 +143,12 @@ function TermDialog({ term, onClose }: { term: Term | null; onClose: () => void 
   const [closes, setCloses] = useState(toDateInput(term?.registration_closes_on))
   const [deadline, setDeadline] = useState(toDateInput(term?.add_drop_deadline))
   const [current, setCurrent] = useState(term?.is_current ?? false)
+  const semesterLabel = SEMESTER_LABELS[semester] ?? ''
+  const name = [semesterLabel, year.trim()].filter(Boolean).join(' ') + (part ? ` — Part ${part}` : '')
   const body = () => ({
     name: name.trim(),
+    semester: semester ? Number(semester) : null,
+    part: part ? Number(part) : null,
     academic_year: year.trim() || null,
     starts_on: starts,
     ends_on: ends,
@@ -151,9 +158,9 @@ function TermDialog({ term, onClose }: { term: Term | null; onClose: () => void 
     is_current: current,
   })
   const save = useApiMutation(() => (term ? api.patch(`/terms/${term.id}`, body()) : api.post('/terms', body())), { invalidate: [['terms'], ['offerings'], ['registration']], success: term ? 'Term saved.' : 'Term created.', onSuccess: onClose })
-  const fields = ['name', 'academic_year', 'starts_on', 'ends_on', 'registration_opens_on', 'registration_closes_on', 'add_drop_deadline', 'is_current']
+  const fields = ['name', 'semester', 'part', 'academic_year', 'starts_on', 'ends_on', 'registration_opens_on', 'registration_closes_on', 'add_drop_deadline', 'is_current']
   return (
-    <Modal title={term ? 'Edit term' : 'New term'} onClose={onClose} wide>
+    <Modal title={term ? 'Edit semester' : 'New semester'} onClose={onClose} wide>
       <form
         onSubmit={(event) => {
           event.preventDefault()
@@ -161,8 +168,21 @@ function TermDialog({ term, onClose }: { term: Term | null; onClose: () => void 
         }}
       >
         <div className="row">
-          <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} error={fieldError(save.error, 'name')} maxLength={255} placeholder="Semester 1" autoFocus required />
+          <SelectField label="Semester" value={semester} onChange={(e) => setSemester(e.target.value)} error={fieldError(save.error, 'semester')} autoFocus required>
+            <option value="" disabled>
+              Choose one
+            </option>
+            <option value="1">First Semester</option>
+            <option value="2">Second Semester</option>
+          </SelectField>
           <TextField label="Academic year" optional value={year} onChange={(e) => setYear(e.target.value)} error={fieldError(save.error, 'academic_year')} maxLength={20} placeholder="2026/2027" />
+          <SelectField label="Part" value={part} onChange={(e) => setPart(e.target.value)} error={fieldError(save.error, 'part')} hint={semester && part ? `Code ${semester}.${part}` : undefined} required>
+            <option value="" disabled>
+              Choose one
+            </option>
+            <option value="1">Part 1</option>
+            <option value="2">Part 2</option>
+          </SelectField>
         </div>
         <div className="row">
           <TextField label="Starts" type="date" value={starts} onChange={(e) => setStarts(e.target.value)} error={fieldError(save.error, 'starts_on')} required />
@@ -175,11 +195,11 @@ function TermDialog({ term, onClose }: { term: Term | null; onClose: () => void 
           <TextField label="Closes" optional type="date" value={closes} onChange={(e) => setCloses(e.target.value)} error={fieldError(save.error, 'registration_closes_on')} />
           <TextField label="Last day to add or drop" optional type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} error={fieldError(save.error, 'add_drop_deadline')} hint="Blank means the day registration closes." />
         </div>
-        <CheckField label="This is the current term" hint="Only one term is current: choosing this clears it from the others." checked={current} onChange={(e) => setCurrent(e.target.checked)} />
+        <CheckField label="This is the current semester" hint="Only one semester is current: choosing this clears it from the others." checked={current} onChange={(e) => setCurrent(e.target.checked)} />
         {save.error && !fields.some((f) => fieldError(save.error, f)) && <FormError error={save.error} />}
         <div className="form-actions">
           <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant="primary" loading={save.isPending} disabled={!name.trim() || !starts || !ends}>
+          <Button type="submit" variant="primary" loading={save.isPending} disabled={!semester || !part || !starts || !ends}>
             Save
           </Button>
         </div>
@@ -358,7 +378,7 @@ function CoursesCard({ edit }: { edit: boolean }) {
           <option value="include">Both</option>
         </SelectField>
       </div>
-      <QueryView query={query} isEmpty={(d) => d.data.length === 0} empty={<EmptyState title="No courses">{edit && !q && !department && !level && archived === 'exclude' ? 'Create a course, then offer it in a term.' : 'No courses match these filters.'}</EmptyState>}>
+      <QueryView query={query} isEmpty={(d) => d.data.length === 0} empty={<EmptyState title="No courses">{edit && !q && !department && !level && archived === 'exclude' ? 'Create a course, then offer it in a semester.' : 'No courses match these filters.'}</EmptyState>}>
         {(data) => (
           <>
             <Table caption="Courses">
@@ -490,8 +510,8 @@ function OfferingCard() {
   const chosen = (courses.data?.data ?? []).some((c) => String(c.id) === courseId)
 
   return (
-    <Card title="Offer a course in a term">
-      <p className="muted">An offering is one course in one term and section. Lecturers, students, content and grades belong to an offering.</p>
+    <Card title="Offer a course in a semester">
+      <p className="muted">An offering is one course in one semester and section. Lecturers, students, content and grades belong to an offering.</p>
       {created && (
         <Alert tone="success">
           Offering created. {!assigning && <Button small onClick={() => setAssigning(true)}>Assign a lecturer</Button>} <Link to={`/courses/${created.id}`}>Open it</Link> to add content.
@@ -516,8 +536,8 @@ function OfferingCard() {
                   </option>
                 ))}
               </SelectField>
-              <SelectField label="Term" value={termId} onChange={(e) => setTermId(e.target.value)} error={fieldError(create.error, 'academic_term_id')} required>
-                <option value="">Choose a term…</option>
+              <SelectField label="Semester" value={termId} onChange={(e) => setTermId(e.target.value)} error={fieldError(create.error, 'academic_term_id')} required>
+                <option value="">Choose a semester…</option>
                 {termPage.data.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
@@ -528,7 +548,7 @@ function OfferingCard() {
               <TextField label="Section" value={section} onChange={(e) => setSection(e.target.value)} error={fieldError(create.error, 'section')} maxLength={100} required />
               <TextField label="Places" optional type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} error={fieldError(create.error, 'capacity')} hint="Blank means no limit." />
             </div>
-            <CheckField label="Students may register for it themselves" hint="Only while the term's registration window is open. Otherwise the registrar enrols them." checked={selfEnrol} onChange={(e) => setSelfEnrol(e.target.checked)} />
+            <CheckField label="Students may register for it themselves" hint="Only while the semester's registration window is open. Otherwise the registrar enrols them." checked={selfEnrol} onChange={(e) => setSelfEnrol(e.target.checked)} />
             <CheckField label="Published" hint="Students can see published offerings they are enrolled in." checked={published} onChange={(e) => setPublished(e.target.checked)} />
             {create.error && !['course_id', 'academic_term_id', 'section', 'capacity'].some((f) => fieldError(create.error, f)) && <FormError error={create.error} />}
             <Button type="submit" variant="primary" loading={create.isPending} disabled={!courseId || !chosen || !termId || !section.trim()}>

@@ -57,6 +57,12 @@ class DatabaseSeeder extends Seeder
         }
         Role::findByName('super-admin', 'web')->syncPermissions(array_keys(self::PERMISSIONS));
 
+        // Skipped under the test suite: feature tests build their own users and assert exact counts, so seeding
+        // fixed accounts here would silently add extras to every test that calls $this->seed(DatabaseSeeder::class).
+        if (app()->environment('testing')) {
+            return;
+        }
+
         // The admin's credentials are an environment secret (LMS_ADMIN_EMAIL/LMS_ADMIN_PASSWORD), never
         // committed. Lecturer and student are fixed, non-secret demo accounts, the same on every environment,
         // so there is always a known non-admin login too. Re-running the seed resets each back to its

@@ -67,7 +67,7 @@ class RegistrationController extends Controller
             throw ValidationException::withMessages(['offering' => 'This course does not accept registration by students. Ask the registrar.']);
         }
         if (! $offering->term->registrationIsOpen()) {
-            throw ValidationException::withMessages(['offering' => 'Registration for this term is not open.']);
+            throw ValidationException::withMessages(['offering' => 'Registration for this semester is not open.']);
         }
         $already = Enrolment::where('course_offering_id', $offering->id)->where('user_id', $request->user()->id)->where('status', 'active')->exists();
         $enrolment = $this->enrolments->activate($offering, $request->user()->id);

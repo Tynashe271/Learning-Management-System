@@ -26,7 +26,7 @@ export function SettingsTab() {
           <dd>
             {offering.course?.code} {offering.course?.title}
           </dd>
-          <dt>Term</dt>
+          <dt>Semester</dt>
           <dd>{offering.term?.name}</dd>
           <dt>Status</dt>
           <dd>
@@ -41,7 +41,7 @@ export function SettingsTab() {
         >
           <TextField label="Section" value={section} onChange={(e) => setSection(e.target.value)} maxLength={100} error={fieldError(rename.error, 'section')} required />
           <TextField label="Places" optional type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} error={fieldError(rename.error, 'capacity')} hint="How many students may be enrolled. Blank means no limit. It cannot go below the number already enrolled." />
-          <CheckField label="Students may register for it themselves" hint="Only while the term's registration window is open. Otherwise the registrar enrols students." checked={selfEnrol} onChange={(e) => setSelfEnrol(e.target.checked)} />
+          <CheckField label="Students may register for it themselves" hint="Only while the semester's registration window is open. Otherwise the registrar enrols students." checked={selfEnrol} onChange={(e) => setSelfEnrol(e.target.checked)} />
           {rename.error && !['section', 'capacity'].some((f) => fieldError(rename.error, f)) && <FormError error={rename.error} />}
           <Button type="submit" variant="primary" loading={rename.isPending} disabled={!section.trim() || !dirty}>
             Save
@@ -80,8 +80,8 @@ function CopyCard() {
   const result = copy.data
 
   return (
-    <Card title="Copy into another term">
-      <p className="muted">Builds a new offering from this one: modules, items and their files, assignments with rubrics, and quizzes with questions. The copy starts unpublished, and dates move by the difference between the two terms’ start dates. Students, submissions, attempts, announcements and discussions are never copied.</p>
+    <Card title="Copy into another semester">
+      <p className="muted">Builds a new offering from this one: modules, items and their files, assignments with rubrics, and quizzes with questions. The copy starts unpublished, and dates move by the difference between the two semesters’ start dates. Students, submissions, attempts, announcements and discussions are never copied.</p>
       {result ? (
         <>
           <Alert tone="success">
@@ -104,8 +104,8 @@ function CopyCard() {
                 copy.mutate()
               }}
             >
-              <SelectField label="Copy into term" value={termId} onChange={(e) => setTermId(e.target.value)} error={fieldError(copy.error, 'academic_term_id')} required>
-                <option value="">Choose a term…</option>
+              <SelectField label="Copy into semester" value={termId} onChange={(e) => setTermId(e.target.value)} error={fieldError(copy.error, 'academic_term_id')} required>
+                <option value="">Choose a semester…</option>
                 {page.data.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name} ({formatDate(t.starts_on)} – {formatDate(t.ends_on)})

@@ -133,6 +133,9 @@ export interface Notification {
 export interface Term {
   id: number
   name: string
+  semester?: number | null
+  part?: number | null
+  code?: string | null
   starts_on: string
   ends_on: string
   academic_year?: string | null

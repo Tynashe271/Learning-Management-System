@@ -2,15 +2,26 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 
 class AcademicTerm extends Model
 {
-    protected $fillable = ['name', 'starts_on', 'ends_on', 'academic_year', 'registration_opens_on', 'registration_closes_on', 'add_drop_deadline', 'is_current'];
+    protected $fillable = ['name', 'semester', 'part', 'starts_on', 'ends_on', 'academic_year', 'registration_opens_on', 'registration_closes_on', 'add_drop_deadline', 'is_current'];
+
+    protected $appends = ['code'];
 
     protected function casts(): array
     {
-        return ['is_current' => 'boolean'];
+        return ['is_current' => 'boolean', 'semester' => 'integer', 'part' => 'integer'];
+    }
+
+    /** "1.1", "1.2", "2.1" or "2.2" (semester.part); null until both are set. */
+    protected function code(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->semester && $this->part ? "{$this->semester}.{$this->part}" : null,
+        );
     }
 
     /** True while students may register (self-enrol) for this term's courses. Today is judged in the institution's time zone. */

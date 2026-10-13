@@ -364,8 +364,8 @@ function EnrolmentReportView() {
             }
           >
             <div className="filters">
-              <SelectField label="Term" value={termId} onChange={(e) => setTermId(e.target.value)}>
-                <option value="">All terms</option>
+              <SelectField label="Semester" value={termId} onChange={(e) => setTermId(e.target.value)}>
+                <option value="">All semesters</option>
                 {(terms.data?.data ?? []).map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
@@ -379,10 +379,10 @@ function EnrolmentReportView() {
             {r.terms.length === 0 ? (
               <EmptyState title="No offerings yet" />
             ) : (
-              <Table caption="Enrolment by term">
+              <Table caption="Enrolment by semester">
                 <thead>
                   <tr>
-                    <th>Term</th>
+                    <th>Semester</th>
                     <th>Offerings</th>
                     <th>Students enrolled</th>
                     <th>Places</th>

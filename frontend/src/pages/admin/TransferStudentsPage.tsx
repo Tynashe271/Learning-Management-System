@@ -22,8 +22,8 @@ function OfferingPicker({ label, termId, offeringId, onTerm, onOffering }: { lab
 
   return (
     <div className="filters">
-      <SelectField label={`${label}: term`} value={termId} onChange={(e) => { onTerm(e.target.value); onOffering('') }}>
-        <option value="">Choose a term…</option>
+      <SelectField label={`${label}: semester`} value={termId} onChange={(e) => { onTerm(e.target.value); onOffering('') }}>
+        <option value="">Choose a semester…</option>
         {(terms.data?.data ?? []).map((t) => (
           <option key={t.id} value={t.id}>
             {t.name}

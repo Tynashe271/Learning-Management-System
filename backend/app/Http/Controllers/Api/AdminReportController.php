@@ -167,7 +167,7 @@ class AdminReportController extends Controller
             return response()->streamDownload(function () use ($rows) {
                 $out = fopen('php://output', 'w');
                 $put = fn (array $row) => fputcsv($out, array_map(fn ($cell) => $this->safeCell((string) $cell), $row), ',', '"', '');
-                $put(['Term', 'Academic year', 'Department', 'Course code', 'Course title', 'Section', 'Students enrolled', 'Capacity', 'Places left', 'Published', 'Archived']);
+                $put(['Semester', 'Academic year', 'Department', 'Course code', 'Course title', 'Section', 'Students enrolled', 'Capacity', 'Places left', 'Published', 'Archived']);
                 foreach ($rows as $r) {
                     $put([$r->term, $r->academic_year, $r->department, $r->code, $r->title, $r->section, $r->enrolled, $r->capacity ?? '', $r->capacity === null ? '' : max(0, $r->capacity - $r->enrolled), $r->published ? 'yes' : 'no', $r->archived_at ? 'yes' : 'no']);
                 }

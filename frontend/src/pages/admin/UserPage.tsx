@@ -133,7 +133,7 @@ function Account({ detail }: { detail: UserDetail }) {
             <thead>
               <tr>
                 <th>Course</th>
-                <th>Term</th>
+                <th>Semester</th>
                 <th>As</th>
               </tr>
             </thead>

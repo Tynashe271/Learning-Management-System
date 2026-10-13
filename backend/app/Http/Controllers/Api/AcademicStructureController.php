@@ -35,7 +35,7 @@ class AcademicStructureController extends Controller
 
             return AcademicTerm::create($data);
         });
-        activity()->causedBy($request->user())->performedOn($term)->withProperties($data)->log('term created');
+        activity()->causedBy($request->user())->performedOn($term)->withProperties($data)->log('semester created');
 
         return response()->json($term, 201);
     }
@@ -52,7 +52,7 @@ class AcademicStructureController extends Controller
             }
             $term->update($data);
         });
-        activity()->causedBy($request->user())->performedOn($term)->withProperties($data)->log('term changed');
+        activity()->causedBy($request->user())->performedOn($term)->withProperties($data)->log('semester changed');
 
         return response()->json($term->fresh());
     }
@@ -67,7 +67,7 @@ class AcademicStructureController extends Controller
         if ($archive) {
             $term->update(['is_current' => false]);
         }
-        activity()->causedBy($request->user())->performedOn($term)->withProperties(['archived' => $archive, 'offerings' => $count])->log($archive ? 'term archived' : 'term reopened');
+        activity()->causedBy($request->user())->performedOn($term)->withProperties(['archived' => $archive, 'offerings' => $count])->log($archive ? 'semester archived' : 'semester reopened');
 
         return response()->json(['archived' => $archive, 'offerings' => $count]);
     }
@@ -122,7 +122,7 @@ class AcademicStructureController extends Controller
             throw ValidationException::withMessages(['course_id' => 'This course is archived, so it cannot be offered. Restore it first.']);
         }
         if (CourseOffering::where('course_id', $data['course_id'])->where('academic_term_id', $data['academic_term_id'])->where('section', $data['section'])->exists()) {
-            throw ValidationException::withMessages(['section' => 'That course already has this section in the chosen term.']);
+            throw ValidationException::withMessages(['section' => 'That course already has this section in the chosen semester.']);
         }
         $offering = CourseOffering::create($data);
         activity()->causedBy($request->user())->performedOn($offering)->log('offering created');
@@ -169,6 +169,8 @@ class AcademicStructureController extends Controller
 
         return [
             'name' => [$required, 'string', 'max:255'],
+            'semester' => ['sometimes', 'nullable', 'integer', 'in:1,2'],
+            'part' => ['sometimes', 'nullable', 'integer', 'in:1,2'],
             'starts_on' => [$required, 'date'],
             'ends_on' => [$required, 'date'],
             'academic_year' => ['sometimes', 'nullable', 'string', 'max:20'],
@@ -185,7 +187,7 @@ class AcademicStructureController extends Controller
         $date = fn (string $key) => isset($d[$key]) ? Carbon::parse($d[$key])->startOfDay() : null;
         [$starts, $ends, $opens, $closes, $drop] = array_map($date, ['starts_on', 'ends_on', 'registration_opens_on', 'registration_closes_on', 'add_drop_deadline']);
         if ($starts && $ends && $ends->lessThanOrEqualTo($starts)) {
-            throw ValidationException::withMessages(['ends_on' => 'The term must end after it starts.']);
+            throw ValidationException::withMessages(['ends_on' => 'The semester must end after it starts.']);
         }
         if ($opens && $closes && $closes->lessThan($opens)) {
             throw ValidationException::withMessages(['registration_closes_on' => 'Registration must close on or after the day it opens.']);
@@ -194,10 +196,10 @@ class AcademicStructureController extends Controller
             throw ValidationException::withMessages(['registration_closes_on' => 'Give both the day registration opens and the day it closes, or neither.']);
         }
         if ($closes && $ends && $closes->greaterThan($ends)) {
-            throw ValidationException::withMessages(['registration_closes_on' => 'Registration cannot close after the term ends.']);
+            throw ValidationException::withMessages(['registration_closes_on' => 'Registration cannot close after the semester ends.']);
         }
         if ($drop && $starts && $ends && ($drop->lessThan($starts->copy()->subYear()) || $drop->greaterThan($ends))) {
-            throw ValidationException::withMessages(['add_drop_deadline' => 'The add/drop deadline must fall within the term (or before it starts).']);
+            throw ValidationException::withMessages(['add_drop_deadline' => 'The add/drop deadline must fall within the semester (or before it starts).']);
         }
     }
 

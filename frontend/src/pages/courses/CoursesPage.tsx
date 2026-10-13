@@ -43,7 +43,7 @@ export function CoursesPage() {
       <PageHeader
         title={isStudentOnly ? 'My courses' : 'Courses'}
         subtitle={catalogue ? 'Every course offering in the university' : can('submit-assignments') ? 'The courses you are enrolled in' : 'The courses you teach'}
-        actions={catalogue ? <Link className="btn btn-primary" to="/admin/catalogue">Manage terms and courses</Link> : undefined}
+        actions={catalogue ? <Link className="btn btn-primary" to="/admin/catalogue">Manage semesters and courses</Link> : undefined}
       />
       {isStudentOnly ? (
         <QueryView
@@ -67,8 +67,8 @@ export function CoursesPage() {
         {catalogue && (
           <div className="filters">
             <TextField label="Search" type="search" value={text} onChange={(e) => { setText(e.target.value); reset() }} placeholder="Course code or title" />
-            <SelectField label="Term" value={termId} onChange={(e) => { setTermId(e.target.value); reset() }}>
-              <option value="">All terms</option>
+            <SelectField label="Semester" value={termId} onChange={(e) => { setTermId(e.target.value); reset() }}>
+              <option value="">All semesters</option>
               {(terms.data?.data ?? []).map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
@@ -115,7 +115,7 @@ export function CoursesPage() {
                 <thead>
                   <tr>
                     <th>Course</th>
-                    <th>Term</th>
+                    <th>Semester</th>
                     <th>Section</th>
                     {catalogue && <th>Teacher</th>}
                     <th>Status</th>

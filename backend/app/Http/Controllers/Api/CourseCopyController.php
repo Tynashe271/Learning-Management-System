@@ -32,7 +32,7 @@ class CourseCopyController extends Controller
             'copy_teachers' => ['sometimes', 'boolean'],
         ]);
         if (CourseOffering::where('course_id', $offering->course_id)->where('academic_term_id', $data['academic_term_id'])->where('section', $data['section'])->exists()) {
-            throw ValidationException::withMessages(['section' => 'That course already has this section in the chosen term.']);
+            throw ValidationException::withMessages(['section' => 'That course already has this section in the chosen semester.']);
         }
 
         $offering->load('term', 'modules.items', 'assignments.rubricCriteria.levels', 'quizzes.questions.options', 'teachers');

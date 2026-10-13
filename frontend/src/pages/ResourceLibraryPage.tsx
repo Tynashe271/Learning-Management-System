@@ -52,7 +52,7 @@ export function ResourceLibraryPage() {
               <tr>
                 <th>Topic</th>
                 <th>Course</th>
-                <th>Term</th>
+                <th>Semester</th>
                 <th>Shared by</th>
                 <th>Materials</th>
                 <th />
