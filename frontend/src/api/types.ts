@@ -268,6 +268,25 @@ export interface SharedResourceModule {
   teachers: string[]
 }
 
+export const LIBRARY_RESOURCE_CATEGORIES = ['textbook', 'past_exam_paper', 'reading_material'] as const
+export type LibraryResourceCategory = (typeof LIBRARY_RESOURCE_CATEGORIES)[number]
+export const LIBRARY_RESOURCE_CATEGORY_LABELS: Record<LibraryResourceCategory, string> = {
+  textbook: 'Textbook',
+  past_exam_paper: 'Past exam paper',
+  reading_material: 'Reading material',
+}
+
+export interface LibraryResource {
+  id: number
+  title: string
+  category: LibraryResourceCategory
+  course_code: string | null
+  description: string | null
+  uploaded_by: string | null
+  created_at: string
+  can_delete: boolean
+}
+
 export interface Progress {
   items_total: number
   // a student's own view

@@ -45,6 +45,7 @@ export function Layout() {
     { to: '/notifications', label: 'Notifications', show: true },
     { to: '/register', label: 'Register for courses', show: hasRole('student') },
     { to: '/my-appeals', label: 'My grade appeals', show: can('submit-assignments') && !hasRole('super-admin') },
+    { to: '/resource-library', label: 'Resource library', show: true },
     { to: '/help', label: 'Get help', show: true },
   ]
   const academics: NavItem[] = [
@@ -53,7 +54,6 @@ export function Layout() {
     { to: '/admin/import', label: 'Import accounts', show: can('manage-users') },
     { to: '/admin/reports', label: 'Reports', show: can('manage-courses') || can('manage-enrolments') },
     { to: '/admin/transfer-students', label: 'Transfer students', show: can('manage-enrolments') },
-    { to: '/resource-library', label: 'Resource library', show: can('teach-courses') || can('manage-courses') },
   ]
   const institution: NavItem[] = [
     { to: '/admin/settings', label: 'Settings', show: can('manage-settings') || staffAdmin || can('manage-system') },

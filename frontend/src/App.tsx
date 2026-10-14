@@ -167,7 +167,7 @@ export function App() {
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="help" element={<HelpPage />} />
-        <Route path="resource-library" element={guard(['teach-courses', 'manage-courses'], <ResourceLibraryPage />)} />
+        <Route path="resource-library" element={<ResourceLibraryPage />} />
 
         <Route path="admin/catalogue" element={guard(['manage-courses', 'manage-enrolments'], <CataloguePage />)} />
         <Route path="admin/users" element={guard(['manage-users', 'manage-enrolments'], <UsersPage />)} />

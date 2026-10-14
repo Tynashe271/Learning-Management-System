@@ -429,6 +429,7 @@ describe('the resource library', () => {
       }),
       'GET /offerings': () => ({ body: { data: [{ id: 20, course_id: 2, academic_term_id: 1, section: 'B', published: true, course: { id: 2, code: 'MAT101', title: 'Calculus' } }], current_page: 1, last_page: 1, per_page: 100, total: 1, from: 1, to: 1 } }),
       'POST /resource-library/modules/5/import': () => ({ status: 201, body: { id: 50, course_offering_id: 20, title: 'Week 1: Intro' } }),
+      'GET /resource-library/materials': () => ({ body: [] }),
     })
     const user = userEvent.setup()
     renderApp(<App />, '/resource-library')
@@ -445,10 +446,45 @@ describe('the resource library', () => {
   })
 
   it('shows a message when nobody has shared a topic', async () => {
-    mockApi({ ...signedInAs(adminMe), 'GET /resource-library/modules': () => ({ body: [] }) })
+    mockApi({ ...signedInAs(adminMe), 'GET /resource-library/modules': () => ({ body: [] }), 'GET /resource-library/materials': () => ({ body: [] }) })
     renderApp(<App />, '/resource-library')
 
     expect(await screen.findByText('Nobody has shared a topic yet.')).toBeInTheDocument()
+  })
+
+  it('lets teaching staff upload a textbook, past paper or reading material', async () => {
+    const { calls } = mockApi({
+      ...signedInAs(adminMe),
+      'GET /resource-library/modules': () => ({ body: [] }),
+      'GET /resource-library/materials': () => ({ body: [] }),
+      'POST /resource-library/materials': () => ({ status: 201, body: { id: 9, title: 'Past Paper 2025', category: 'past_exam_paper', course_code: null, description: null, uploaded_by: 'Root Admin', created_at: '2026-01-01', can_delete: true } }),
+    })
+    const user = userEvent.setup()
+    renderApp(<App />, '/resource-library')
+
+    await user.click(await screen.findByRole('button', { name: 'Upload material' }))
+    const dialog = within(await screen.findByRole('dialog'))
+    await user.type(dialog.getByLabelText('Title'), 'Past Paper 2025')
+    await user.selectOptions(dialog.getByLabelText('Category'), 'past_exam_paper')
+    const file = new File(['bytes'], 'paper.pdf', { type: 'application/pdf' })
+    await user.upload(dialog.getByLabelText('File'), file)
+    await user.click(dialog.getByRole('button', { name: 'Upload' }))
+
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.path === '/resource-library/materials')).toBe(true))
+  })
+
+  it('shows uploaded materials to a student, but not the shared-topics management tools', async () => {
+    mockApi({
+      ...signedInAs(studentMe),
+      'GET /resource-library/materials': () => ({
+        body: [{ id: 3, title: 'Algorithms Textbook', category: 'textbook', course_code: 'CSC301', description: null, uploaded_by: 'Lee Lecturer', created_at: '2026-01-01', can_delete: false }],
+      }),
+    })
+    renderApp(<App />, '/resource-library')
+
+    expect(await screen.findByText('Algorithms Textbook')).toBeInTheDocument()
+    expect(screen.queryByText('Shared topics')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Upload material' })).not.toBeInTheDocument()
   })
 })
 

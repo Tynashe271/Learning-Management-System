@@ -278,6 +278,12 @@ Route::middleware(['auth:sanctum', 'throttle:api', 'idempotent', 'conditional.ge
     // Resource sharing: a cross-course library of topics teaching staff have chosen to share
     Route::get('/resource-library/modules', [ResourceLibraryController::class, 'index']);
     Route::post('/resource-library/modules/{module}/import', [ResourceLibraryController::class, 'import'])->middleware('throttle:heavy');
+
+    // Resource library: textbooks, past exam papers and other reading material, browsable by anyone signed in
+    Route::get('/resource-library/materials', [ResourceLibraryController::class, 'materials']);
+    Route::post('/resource-library/materials', [ResourceLibraryController::class, 'storeMaterial']);
+    Route::get('/resource-library/materials/{material}/download', [ResourceLibraryController::class, 'downloadMaterial']);
+    Route::delete('/resource-library/materials/{material}', [ResourceLibraryController::class, 'destroyMaterial']);
     Route::post('/items/{item}/complete', [ProgressController::class, 'complete']);
     Route::delete('/items/{item}/complete', [ProgressController::class, 'uncomplete']);
 
