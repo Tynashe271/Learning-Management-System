@@ -33,5 +33,9 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- Never let a developer's real AI provider/key in .env leak into tests - AiAssistantTest turns this on itself per test. -->
+        <env name="LMS_AI_ENABLED" value="false"/>
+        <env name="LMS_AI_PROVIDER" value="anthropic"/>
+        <env name="LMS_AI_API_KEY" value=""/>
     </php>
 </phpunit>

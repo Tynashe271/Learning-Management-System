@@ -310,14 +310,16 @@ The frontend calls `GET /auth/sso`, sends the browser to the returned `url`, and
 
 ### AI learning assistant
 
-Off by default, like this repo's other optional integrations — a real Claude API key costs money per request. Set these in `backend/.env`:
+Off by default, like this repo's other optional integrations — a real API key costs money per request. Supports Anthropic's Claude (default) or DeepSeek; both are OpenAI-adjacent chat APIs but differ in auth header and response shape, which `App\Services\AiAssistant` branches on via `LMS_AI_PROVIDER`. Set these in `backend/.env`:
 
 | Setting | Purpose |
 |---|---|
 | `LMS_AI_ENABLED=true` | Turns it on (also needs the key below). |
-| `ANTHROPIC_API_KEY` | A real Claude API key. Nothing works without one. |
-| `LMS_AI_MODEL` | Default `claude-sonnet-5`. |
-| `LMS_AI_BASE_URL` | Default the real Claude Messages API; override only for testing. |
+| `LMS_AI_PROVIDER` | `anthropic` (default) or `deepseek`. |
+| `LMS_AI_API_KEY` | A real API key for the chosen provider. Nothing works without one. |
+| `LMS_AI_MODEL` | Default `claude-sonnet-5`, or `deepseek-flash` when the provider is `deepseek`. |
+| `LMS_AI_BASE_URL` | Default the provider's real chat endpoint; override only for testing. |
+| `LMS_AI_MAX_TOKENS` | Default 1024, or 4096 for `deepseek` - its reasoning model spends part of the budget "thinking" before it writes the visible answer. |
 | `LMS_AI_MAX_SOURCE_CHARS` | Default 12000. Caps how much course material is sent per request, to bound cost. |
 
 | Route | Who | Purpose |
@@ -394,7 +396,7 @@ Some things a university expects are tied to its own systems, so they are provid
 | Plagiarism checking | Similarity screening within a class | Turnitin or any external service, comparison with the web or earlier terms, and PDF or Word files. |
 | Video meetings | In-app video rooms through Daily.co (see above), created automatically per class session; falls back to a plain meeting link when not configured | Zoom, Teams, or Google Meet rooms created automatically; recording; per-person access tokens. |
 | Virus scanning | ClamAV, opt-in (see Uploads) | Scanning files already stored before it was switched on. |
-| AI assistant | Claude API, opt-in (see "AI learning assistant"), restricted to a course's own published material for students | Any other model provider; a conversation history (each request is answered on its own); citation checking or detecting AI-written submissions. |
+| AI assistant | Claude or DeepSeek, opt-in (see "AI learning assistant"), restricted to a course's own published material for students | Any other model provider; a conversation history (each request is answered on its own); citation checking or detecting AI-written submissions. |
 
 Still not built: second-marker moderation of whole cohorts and location-checked attendance. Quiz attempts that expire while a student is offline are closed the next time the attempt is read or started, not by a background job. Run behind TLS with production secrets and tested backups before a pilot (see Security and operations). The Composer lock is resolved for PHP 8.3, including `spatie/laravel-activitylog` 4.x, which supports Laravel 13 and PHP 8.3.
 ## Security and operations

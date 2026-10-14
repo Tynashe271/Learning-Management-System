@@ -126,4 +126,33 @@ class AiAssistantTest extends TestCase
         $this->actingAs($this->ada)->postJson('/api/offerings/'.$this->offering->id.'/ai/assist', ['mode' => 'write_my_essay', 'prompt' => 'x'])
             ->assertUnprocessable()->assertJsonValidationErrors('mode');
     }
+
+    public function test_the_deepseek_provider_is_called_and_parsed_in_its_own_shape(): void
+    {
+        config(['lms.ai.enabled' => true, 'lms.ai.provider' => 'deepseek', 'lms.ai.api_key' => 'test-key', 'lms.ai.model' => 'deepseek-flash', 'lms.ai.base_url' => 'https://api.deepseek.com/chat/completions', 'lms.ai.max_tokens' => 4096]);
+        Http::fake(['api.deepseek.com/*' => Http::response(['choices' => [['message' => ['role' => 'assistant', 'content' => "A variable stores a value.\n\nSources: none"]]]], 200)]);
+
+        $result = $this->actingAs($this->ada)->postJson('/api/offerings/'.$this->offering->id.'/ai/assist', ['mode' => 'ask', 'prompt' => 'What is a variable?'])
+            ->assertOk()->json();
+
+        $this->assertStringContainsString('A variable stores a value.', $result['answer']);
+        $this->assertSame([], $result['sources']);
+        Http::assertSent(function ($request) {
+            return $request->hasHeader('Authorization', 'Bearer test-key')
+                && $request['max_tokens'] === 4096
+                && $request['messages'][0]['role'] === 'system'
+                && $request['messages'][1]['role'] === 'user';
+        });
+    }
+
+    public function test_an_empty_reply_from_the_provider_is_reported_as_unavailable(): void
+    {
+        // DeepSeek's reasoning model can exhaust max_tokens on its invisible "thinking" before writing any visible
+        // content, leaving the answer empty - this must surface as a clear error, not a blank reply.
+        config(['lms.ai.enabled' => true, 'lms.ai.provider' => 'deepseek', 'lms.ai.api_key' => 'test-key']);
+        Http::fake(['api.deepseek.com/*' => Http::response(['choices' => [['message' => ['role' => 'assistant', 'content' => null, 'reasoning_content' => 'still thinking...']]]], 200)]);
+
+        $this->actingAs($this->ada)->postJson('/api/offerings/'.$this->offering->id.'/ai/assist', ['mode' => 'ask', 'prompt' => 'What is a variable?'])
+            ->assertUnprocessable()->assertJsonValidationErrors('prompt');
+    }
 }

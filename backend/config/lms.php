@@ -96,15 +96,28 @@ return [
         'fail_open' => (bool) env('LMS_VIRUS_SCAN_FAIL_OPEN', false),
     ],
 
-    // The AI learning/teaching assistant (roadmap items 15-16). Off unless both are set: a real key costs money per request.
-    'ai' => [
-        'enabled' => (bool) env('LMS_AI_ENABLED', false),
-        'api_key' => env('ANTHROPIC_API_KEY'),
-        'model' => env('LMS_AI_MODEL', 'claude-sonnet-5'),
-        'base_url' => env('LMS_AI_BASE_URL', 'https://api.anthropic.com/v1/messages'),
-        // Course material is truncated to roughly this many characters total before being sent, to bound cost per request.
-        'max_source_chars' => (int) env('LMS_AI_MAX_SOURCE_CHARS', 12000),
-    ],
+    // The AI learning/teaching assistant (roadmap items 15-16). Off unless enabled and a key is set: a real key costs
+    // money per request. Supports Anthropic's Messages API (default) or DeepSeek's OpenAI-compatible chat API.
+    'ai' => (function () {
+        $provider = env('LMS_AI_PROVIDER', 'anthropic');
+        // DeepSeek's "flash" model reasons before answering, spending part of max_tokens on an invisible
+        // reasoning_content the reply text comes after - too small a budget can exhaust itself on reasoning alone
+        // and leave the visible content empty. Claude has no such reasoning phase, so 1024 is plenty.
+        [$defaultModel, $defaultBaseUrl, $defaultMaxTokens] = $provider === 'deepseek'
+            ? ['deepseek-flash', 'https://api.deepseek.com/chat/completions', 4096]
+            : ['claude-sonnet-5', 'https://api.anthropic.com/v1/messages', 1024];
+
+        return [
+            'enabled' => (bool) env('LMS_AI_ENABLED', false),
+            'provider' => $provider,
+            'api_key' => env('LMS_AI_API_KEY'),
+            'model' => env('LMS_AI_MODEL', $defaultModel),
+            'base_url' => env('LMS_AI_BASE_URL', $defaultBaseUrl),
+            'max_tokens' => (int) env('LMS_AI_MAX_TOKENS', $defaultMaxTokens),
+            // Course material is truncated to roughly this many characters total before being sent, to bound cost per request.
+            'max_source_chars' => (int) env('LMS_AI_MAX_SOURCE_CHARS', 12000),
+        ];
+    })(),
 
     // In-app video for class sessions and in-class tests, through Daily.co, instead of linking out to an external meeting
     // tool. Off unless both are set. Get an API key at https://dashboard.daily.co/developers (free tier available).
