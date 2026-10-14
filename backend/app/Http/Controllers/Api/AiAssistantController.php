@@ -30,7 +30,7 @@ class AiAssistantController extends Controller
 
     private const TEACHING_MODES = [
         'lesson_outline' => 'Draft a lesson outline for the described topic.',
-        'quiz_draft' => 'Draft a short set of quiz questions for the described topic, ordered from easiest to hardest. Label each question\'s difficulty (Easy, Medium, or Hard), mark its correct answer clearly, and add a brief one- or two-sentence explanation of why that answer is correct. Write each question and explanation in plain, unambiguous language that is easy for both students and lecturers to follow, avoiding unnecessary jargon.',
+        'quiz_draft' => 'Draft a short set of quiz questions for the described topic, ordered from easiest to hardest. Label each question\'s difficulty (Easy, Medium, or Hard), mark its correct answer clearly, and add a brief one- or two-sentence explanation of why that answer is correct. Write each question and explanation in plain, unambiguous language that is easy for both students and lecturers to follow, avoiding unnecessary jargon. Write any numbers, fractions, decimals, percentages, or other figures in a clear, unambiguous way (for example, "1/2 (one half)" or "0.5", and "3,000" rather than an easily misread form) so they cannot be misread.',
         'rubric' => 'Draft a marking rubric (criteria with point values that add up to a sensible total) for the described assessment.',
         'discussion_questions' => 'Suggest a handful of open-ended discussion questions for the described topic.',
         'remedial_suggestions' => 'Suggest remedial activities for students who are struggling with the described topic.',
